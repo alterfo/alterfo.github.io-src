@@ -13,11 +13,12 @@
     "build": "vuepress build blog",
     "deploy": "sh ./deploy.sh"
   },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "devDependencies": {
     "@vuepress/plugin-blog": "^1.9.2",
     "@vuepress/plugin-google-analytics": "^1.5.4",
     "@vuepress/theme-blog": "^2.3.2",
-    "vuepress": "^1.5.4"
-  }
+    "vuepress": "^1.9.10"
+  },
+  "packageManager": "yarn@4.7.0"
 }
