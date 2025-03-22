@@ -4,7 +4,6 @@
 set -e
 
 # build
-yarn set version stable
 yarn install --immutable
 yarn run build
 
