@@ -11,23 +11,22 @@
 
     <div class="page-title" v-if="$page.title" :style="{opacity: animateHeader ? 0 : 1}">{{ $page.title }}</div>
 
-    <div v-else class="main-title" :style="{opacity: animateHeader ? 0 : 1}">
-      <router-link to="/" class="site-title">{{ $site.title }}</router-link>
-      <sup>
-        <router-link to="/about" class="page-link">Что это?</router-link>
-      </sup>
-      <Socials />
-    </div>
+    <CountDown v-else class="main-title" :style="{opacity: animateHeader ? 0 : 1}"
+      :countdownDays="1000"
+    />
+
   </header>
 </template>
 
 <script>
 import Socials from "./Socials";
+import CountDown from "./CountDown.vue";
 import Vue from 'vue'
 
 export default {
   components: {
     Socials,
+    CountDown
   },
   data: function () {
     return {
@@ -181,10 +180,11 @@ export default {
   background-size: cover;
   background-position: center center;
   z-index: 1;
+  color: #fff;
   .animation-toggler {
     position: absolute;
-    right: 3em;
-    font-size: 2em;
+    right: 2rem;
+    font-size: 1rem;
 
     a {
       color: yellow;
@@ -222,7 +222,7 @@ export default {
   .main-title {
     font-size: 5vw;
     letter-spacing: -1px;
-    line-height: 1.75;
+    line-height: 1.15;
     position: absolute;
     margin: 0;
     padding: 0;
