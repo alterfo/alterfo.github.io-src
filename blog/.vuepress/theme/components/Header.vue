@@ -21,7 +21,7 @@
 <script>
 import Socials from "./Socials";
 import CountDown from "./CountDown.vue";
-import Vue from 'vue'
+import { WebGPUParticles, isWebGPUSupported } from "./WebGPUParticles.js";
 
 export default {
   components: {
@@ -31,6 +31,8 @@ export default {
   data: function () {
     return {
       animateHeader: false,
+      useWebGPU: false,
+      particles: null,
     };
   },
   computed: {
@@ -40,6 +42,9 @@ export default {
   },
   mounted() {
     const self = this;
+    let width;
+    let height;
+    let raf;
 
     const requestAnimationFrame =
       window.requestAnimationFrame ||
@@ -50,74 +55,92 @@ export default {
     const cancelAnimationFrame =
       window.cancelAnimationFrame || window.mozCancelAnimationFrame;
 
-    let particles;
-    let numOfParticles;
-    let largeHeader = document.getElementById("large-header");
-    let canvas =
-      "OffscreenCanvas" in window
-        ? document.getElementById("canvas").transferControlToOffscreen()
-        : document.getElementById("canvas");
-    let ctx = canvas.getContext("2d");
-    let width;
-    let height;
-    let raf;
+    const largeHeader = document.getElementById("large-header");
+    const canvas = document.getElementById("canvas");
 
-    // Main
-    initHeader();
-    addListeners();
+    // Check WebGPU support and initialize
+    const initWebGPU = async () => {
+      if (!isWebGPUSupported()) {
+        console.log('WebGPU not supported, using Canvas 2D');
+        return false;
+      }
+      
+      self.particles = new WebGPUParticles(canvas);
+      const success = await self.particles.init(width, height);
+      if (success) {
+        self.useWebGPU = true;
+        return true;
+      }
+      return false;
+    };
 
-    function Particle() {
-      this.location = {
-        x: Math.random() * width,
-        y: Math.random() * height,
-      };
-      this.speed = Math.random();
-      this.angle = Math.random() * 360;
+    // Fallback: Canvas 2D particles
+    const COLORS = [
+      'rgba(26, 204, 255, ',   // Cyan
+      'rgba(255, 51, 128, ',   // Pink
+      'rgba(128, 255, 77, ',   // Green
+      'rgba(255, 153, 26, ',   // Orange
+      'rgba(179, 77, 255, ',   // Purple
+      'rgba(51, 255, 204, ',   // Teal
+      'rgba(255, 230, 51, ',   // Gold
+      'rgba(255, 77, 77, ',    // Red
+    ];
 
-      const r = Math.round(Math.random() * 255);
-      const g = Math.round(Math.random() * 255);
-      const b = Math.round(Math.random() * 255);
-      const a = Math.random() * 0.5;
-      this.rgba = "rgba(" + r + ", " + g + "," + b + ", " + a + ")";
-    }
-
-    function drawConnections() {
-      // !!! uncomment these in case if you have a good GPU cooler
+    let ctx;
+    function drawConnections2D() {
+      // Dark background with slight fade for trail effect
       ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = "rgba(1, 1, 1, 0.2)";
+      ctx.fillStyle = "rgba(2, 2, 4, 0.15)";
       canvas.width = width;
       ctx.fillRect(0, 0, width, height);
 
       ctx.globalCompositeOperation = "lighter";
 
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        ctx.beginPath();
+      const connectDistance = 120;
 
-        for (let n = 0; n < particles.length; n++) {
-          const p2 = particles[n];
+      for (let i = 0; i < self.particles.length; i++) {
+        const p = self.particles[i];
+
+        // Draw connections to all nearby particles
+        for (let n = i + 1; n < self.particles.length; n++) {
+          const p2 = self.particles[n];
           const yd = p2.location.y - p.location.y;
           const xd = p2.location.x - p.location.x;
           const distance = Math.sqrt(xd * xd + yd * yd);
 
-          if (distance < 140) {
+          if (distance < connectDistance) {
+            // Alpha based on distance - closer = more visible
+            const alpha = Math.pow(1 - distance / connectDistance, 2) * 0.6;
+            
             ctx.lineWidth = 1;
+            ctx.beginPath();
             ctx.moveTo(p.location.x, p.location.y);
             ctx.lineTo(p2.location.x, p2.location.y);
+            // Blend colors
+            ctx.strokeStyle = p.rgba + alpha + ')';
+            ctx.stroke();
           }
         }
-        ctx.strokeStyle = p.rgba;
-        ctx.stroke();
 
-        p.location.x =
-          p.location.x + p.speed * Math.cos((p.angle * Math.PI) / 180);
-        p.location.y =
-          p.location.y + p.speed * Math.sin((p.angle * Math.PI) / 180);
+        // Update position with organic angle variation
+        p.angle += Math.sin(p.location.x * 0.01 + Date.now() * 0.002) * 0.3;
+        p.location.x += p.speed * Math.cos((p.angle * Math.PI) / 180);
+        p.location.y += p.speed * Math.sin((p.angle * Math.PI) / 180);
 
-        if (p.location.x < 0) p.location.x = width + 50;
-        if (p.location.x > width + 50) p.location.x = 0;
-        if (p.location.y < 0) p.location.y = height + 50;
-        if (p.location.y > height + 50) p.location.y = 0;
+        // Wrap around edges
+        if (p.location.x < -50) p.location.x = width + 50;
+        if (p.location.x > width + 50) p.location.x = -50;
+        if (p.location.y < -50) p.location.y = height + 50;
+        if (p.location.y > height + 50) p.location.y = -50;
+      }
+
+      // Draw particle dots on top
+      for (let i = 0; i < self.particles.length; i++) {
+        const p = self.particles[i];
+        ctx.beginPath();
+        ctx.arc(p.location.x, p.location.y, 2 + p.speed, 0, Math.PI * 2);
+        ctx.fillStyle = p.rgba + '0.9)';
+        ctx.fill();
       }
     }
 
@@ -132,34 +155,108 @@ export default {
       canvas.width = width;
       canvas.height = height;
 
-      particles = [];
-
-      numOfParticles = height / 5; // do we need a slider?
-
-      for (var i = 0; i < numOfParticles; i++) {
-        particles.push(new Particle());
-      }
-      drawConnections()
-
-      function draw(secondsFromStart) {
+      // Try WebGPU first, fallback to 2D
+      if (!self.useWebGPU && isWebGPUSupported()) {
+        initWebGPU().then(success => {
+          if (success) {
+            // Render first frame immediately (background)
+            self.particles.render();
+          } else {
+            initCanvas2D();
+            if (self.animateHeader) {
+              raf = requestAnimationFrame(draw);
+            }
+          }
+        });
+      } else if (!self.useWebGPU) {
+        initCanvas2D();
         if (self.animateHeader) {
-          drawConnections();
+          raf = requestAnimationFrame(draw);
         }
-        raf = requestAnimationFrame(draw);
+      } else if (self.particles) {
+        self.particles.resize(width, height);
+        self.particles.render();
       }
+    }
 
+    function initCanvas2D() {
+      ctx = canvas.getContext("2d");
+      self.particles = [];
+      // Double the particles!
+      const numOfParticles = Math.floor(height / 2.5);
+
+      for (let i = 0; i < numOfParticles; i++) {
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        const alpha = 0.4 + Math.random() * 0.5;
+        self.particles.push({
+          location: {
+            x: Math.random() * width,
+            y: Math.random() * height,
+          },
+          speed: 0.3 + Math.random() * 1.2,
+          angle: Math.random() * 360,
+          rgba: color + alpha + ')',
+        });
+      }
+      drawConnections2D();
+    }
+
+    function draw() {
+      if (self.animateHeader) {
+        if (self.useWebGPU && self.particles) {
+          // WebGPU handles its own render loop
+        } else {
+          drawConnections2D();
+        }
+      }
       raf = requestAnimationFrame(draw);
     }
 
-    // Event handling
     function addListeners() {
       window.addEventListener("scroll", disableWhenScrolledHalf);
-      window.addEventListener("resize", initHeader); // do we need keep state?
+      window.addEventListener("resize", initHeader);
     }
+
     function disableWhenScrolledHalf() {
       self.animateHeader =
         self.animateHeader && document.documentElement.scrollTop < height / 2;
     }
+
+    // Initial start - только для 2D, WebGPU запустится через watch
+    addListeners();
+    initHeader();
+  },
+  beforeDestroy() {
+    // Cleanup
+    if (raf) {
+      cancelAnimationFrame(raf);
+    }
+    if (this.particles && this.particles.destroy) {
+      this.particles.destroy();
+    }
+  },
+  watch: {
+    animateHeader(val) {
+      if (val) {
+        // Start animation from where it stopped (state preserved in particles buffer)
+        if (this.useWebGPU && this.particles) {
+          this.particles.start();
+        } else {
+          // For 2D, just restart the draw loop
+          raf = requestAnimationFrame(draw);
+        }
+      } else {
+        // Stop animation, state is preserved
+        if (this.useWebGPU && this.particles) {
+          this.particles.stop();
+        } else {
+          if (raf) {
+            cancelAnimationFrame(raf);
+            raf = null;
+          }
+        }
+      }
+    },
   },
 };
 </script>
