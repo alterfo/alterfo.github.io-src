@@ -72,12 +72,12 @@ const projects = [
 ## Implementation Steps
 
 ### Task 1: Инициализация VitePress рядом со старым VuePress
-- [ ] `npm add -D vitepress` в корне проекта
-- [ ] создать `.vitepress/config.ts` с минимальным конфигом (title, description)
-- [ ] создать `.vitepress/theme/index.ts` с кастомной темой (extends DefaultTheme)
-- [ ] создать `index.md` в корне — пока просто "Hello VitePress"
-- [ ] убедиться: `npx vitepress dev` запускается без ошибок
-- [ ] старый VuePress (папка `blog/`) не трогаем пока
+- [x] `npm add -D vitepress` в корне проекта
+- [x] создать `.vitepress/config.ts` с минимальным конфигом (title, description)
+- [x] создать `.vitepress/theme/index.ts` с кастомной темой (extends DefaultTheme)
+- [x] создать `index.md` в корне — пока просто "Hello VitePress"
+- [x] убедиться: `npx vitepress dev` запускается без ошибок
+- [x] старый VuePress (папка `blog/`) не трогаем пока
 
 ### Task 2: Перенос постов блога
 - [ ] скопировать все `blog/_posts/*.md` в `posts/` (переименовать `_posts` → `posts`)
