@@ -1,10 +1,6 @@
 import { defineConfig } from 'vitepress'
-import { fileURLToPath, URL } from 'url'
 import { mkdirSync, writeFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-
-const vp = (path: string) =>
-  fileURLToPath(new URL(`../node_modules/vitepress/node_modules/${path}`, import.meta.url))
 
 function redirectHtml(target: string): string {
   return `<!DOCTYPE html>
@@ -40,14 +36,6 @@ export default defineConfig({
     { text: 'Главная', link: '/' },
     { text: 'Блог', link: '/blog/' },
   ],
-  vite: {
-    resolve: {
-      alias: [
-        { find: /^vue$/, replacement: vp('vue/index.mjs') },
-        { find: /^vue\/server-renderer/, replacement: vp('vue/server-renderer/index.mjs') },
-      ],
-    },
-  },
   // Old VuePress posts used /posts/:year/:month/:day/:slug.
   // New VitePress posts live at /posts/YYYY-MM-DD-slug.
   // No source rewrites needed (posts stay at /posts/); static HTML redirects

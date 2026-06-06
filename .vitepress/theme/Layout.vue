@@ -1,39 +1,42 @@
 <template>
   <Portfolio v-if="frontmatter.layout === 'portfolio'" />
-  <div v-else>
-    <header class="site-header" id="large-header">
-      <canvas ref="canvasEl"></canvas>
+  <DefaultLayout v-else>
+    <template #layout-top>
+      <header class="site-header" id="large-header">
+        <canvas ref="canvasEl"></canvas>
 
-      <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
-        <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
-          {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
-        </a>
-      </div>
+        <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
+          <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
+            {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
+          </a>
+        </div>
 
-      <div
-        v-if="pageTitle"
-        class="page-title"
-        :style="{ opacity: animateHeader ? 0 : 1 }"
-      >{{ pageTitle }}</div>
+        <div
+          v-if="pageTitle"
+          class="page-title"
+          :style="{ opacity: animateHeader ? 0 : 1 }"
+        >{{ pageTitle }}</div>
 
-      <CountDown
-        v-else
-        class="main-title"
-        :style="{ opacity: animateHeader ? 0 : 1 }"
-        :countdownDays="1000"
-      />
-    </header>
-
-    <Content />
-  </div>
+        <CountDown
+          v-else
+          class="main-title"
+          :style="{ opacity: animateHeader ? 0 : 1 }"
+          :countdownDays="1000"
+        />
+      </header>
+    </template>
+  </DefaultLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useData, Content } from 'vitepress'
+import { useData } from 'vitepress'
+import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
 import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
 import Portfolio from './Portfolio.vue'
+
+const DefaultLayout = DefaultTheme.Layout
 
 const { page, frontmatter } = useData()
 
