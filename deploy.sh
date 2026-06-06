@@ -14,7 +14,7 @@ else
 fi
 
 # build
-yarn install --immutable
+npm ci
 npx vitepress build
 
 # copy AR Engine web assets into dist (if ar-engine/web exists)
