@@ -10,8 +10,7 @@
 
     <main class="portfolio-main">
       <div class="portfolio-grid">
-        <component
-          :is="project.external ? 'a' : 'a'"
+        <a
           v-for="project in projects"
           :key="project.title"
           :href="project.href"
@@ -40,7 +39,7 @@
             <h2 class="card-title">{{ project.title }}</h2>
             <p class="card-desc">{{ project.desc }}</p>
           </div>
-        </component>
+        </a>
       </div>
     </main>
   </div>

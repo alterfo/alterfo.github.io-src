@@ -54,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { COLORS, SIZES, DEFAULT_DIAGRAM } from './IDEF0Editor/constants.js'
 import { loadProject, saveProject, onExternalChange } from './IDEF0Editor/db.js'
 import { validateDiagram } from './IDEF0Editor/validation.js'
@@ -92,6 +92,22 @@ let dragBlock = null
 let dragOffsetX = 0
 let dragOffsetY = 0
 let dragArrowEnd = null
+let cleanupExternalChange = null
+
+function onWindowResize() { handleResize() }
+function onKeydown(e) {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && !editing.value) {
+    if (selectedBlockId.value) deleteSelectedBlock()
+    if (selectedArrowId.value) deleteSelectedArrow()
+  }
+  if (e.key === ' ' && !editing.value) {
+    e.preventDefault()
+    isPanning = true
+  }
+}
+function onKeyup(e) {
+  if (e.key === ' ') isPanning = false
+}
 
 // Computed
 const currentDiagram = computed(() => diagrams.value[currentDiagramId.value] || null)
@@ -141,23 +157,18 @@ onMounted(async () => {
   loadDiagram()
   render()
 
-  onExternalChange(props.projectId, () => loadDiagram())
+  cleanupExternalChange = onExternalChange(props.projectId, () => loadDiagram())
 
-  window.addEventListener('resize', () => handleResize())
+  window.addEventListener('resize', onWindowResize)
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('keyup', onKeyup)
+})
 
-  window.addEventListener('keydown', (e) => {
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !editing.value) {
-      if (selectedBlockId.value) deleteSelectedBlock()
-      if (selectedArrowId.value) deleteSelectedArrow()
-    }
-    if (e.key === ' ' && !editing.value) {
-      e.preventDefault()
-      isPanning = true
-    }
-  })
-  window.addEventListener('keyup', (e) => {
-    if (e.key === ' ') isPanning = false
-  })
+onBeforeUnmount(() => {
+  if (cleanupExternalChange) cleanupExternalChange()
+  window.removeEventListener('resize', onWindowResize)
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('keyup', onKeyup)
 })
 
 function handleResize() {
@@ -183,27 +194,28 @@ function initDefaultDiagram() {
     diagramId: null,
   }
 
+  const ts = Date.now()
   const arrowsList = [
     {
-      id: `arrow-${Date.now()}`, name: '', type: 'input',
+      id: `arrow-${ts}-0`, name: '', type: 'input',
       from: { blockId: null, edge: 'left', offset: block.y + block.h / 2 },
       to: { blockId: block.id, edge: 'left', offset: 0 },
       segments: [],
     },
     {
-      id: `arrow-${Date.now()}`, name: '', type: 'control',
+      id: `arrow-${ts}-1`, name: '', type: 'control',
       from: { blockId: null, edge: 'top', offset: block.x + block.w / 2 },
       to: { blockId: block.id, edge: 'top', offset: 0 },
       segments: [],
     },
     {
-      id: `arrow-${Date.now()}`, name: '', type: 'output',
+      id: `arrow-${ts}-2`, name: '', type: 'output',
       from: { blockId: block.id, edge: 'right', offset: 0 },
       to: { blockId: null, edge: 'right', offset: block.y + block.h / 2 },
       segments: [],
     },
     {
-      id: `arrow-${Date.now()}`, name: '', type: 'mechanism',
+      id: `arrow-${ts}-3`, name: '', type: 'mechanism',
       from: { blockId: null, edge: 'bottom', offset: block.x + block.w / 2 },
       to: { blockId: block.id, edge: 'bottom', offset: 0 },
       segments: [],
@@ -279,7 +291,7 @@ function drawGrid(w, h) {
 }
 
 function drawBlocks() {
-  for (const b of blocks.value) {
+  blockLoop: for (const b of blocks.value) {
     ctx.fillStyle = COLORS.blockFill
     ctx.strokeStyle = COLORS.blockStroke
     ctx.lineWidth = 2
@@ -300,7 +312,7 @@ function drawBlocks() {
       if (th <= maxH) {
         const sy = b.y + b.h / 2 - th / 2 + lh / 2
         lines.forEach((l, i) => ctx.fillText(l, b.x + b.w / 2, sy + i * lh))
-        return
+        continue blockLoop
       }
       fs--
     }
@@ -521,7 +533,7 @@ function drawSelection() {
 
 function addBlock() {
   const rect = canvasEl.value.getBoundingClientRect()
-  const cw = worldToScreen(rect.width / 2, rect.height / 2)
+  const cw = screenToWorld(rect.width / 2, rect.height / 2)
   const id = `block-${Date.now()}`
   const b = {
     id, name: `Блок ${blocks.value.length + 1}`,
@@ -538,26 +550,27 @@ function addBlock() {
 }
 
 function createAutoArrows(block) {
+  const ts = Date.now()
   arrows.value.push({
-    id: `arrow-${Date.now()}`, name: '', type: 'input',
+    id: `arrow-${ts}-0`, name: '', type: 'input',
     from: { blockId: null, edge: 'left', offset: block.y + block.h / 2 },
     to: { blockId: block.id, edge: 'left', offset: 0 },
     segments: [],
   })
   arrows.value.push({
-    id: `arrow-${Date.now()}`, name: '', type: 'control',
+    id: `arrow-${ts}-1`, name: '', type: 'control',
     from: { blockId: null, edge: 'top', offset: block.x + block.w / 2 },
     to: { blockId: block.id, edge: 'top', offset: 0 },
     segments: [],
   })
   arrows.value.push({
-    id: `arrow-${Date.now()}`, name: '', type: 'output',
+    id: `arrow-${ts}-2`, name: '', type: 'output',
     from: { blockId: block.id, edge: 'right', offset: 0 },
     to: { blockId: null, edge: 'right', offset: block.y + block.h / 2 },
     segments: [],
   })
   arrows.value.push({
-    id: `arrow-${Date.now()}`, name: '', type: 'mechanism',
+    id: `arrow-${ts}-3`, name: '', type: 'mechanism',
     from: { blockId: null, edge: 'bottom', offset: block.x + block.w / 2 },
     to: { blockId: block.id, edge: 'bottom', offset: 0 },
     segments: [],

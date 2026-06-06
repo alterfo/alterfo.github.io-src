@@ -92,6 +92,8 @@
           remainingTime.value = { days: 0, hours: 0, minutes: 0, seconds: 0 }
           if (isRunning.value) {
             emit('finished')
+            clearInterval(interval)
+            isRunning.value = false
           }
           return
         }

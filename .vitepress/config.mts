@@ -34,6 +34,7 @@ export default defineConfig({
     'node_modules/**',
     'KODA.md',
     'README.md',
+    'docs/**',
   ],
   nav: [
     { text: 'Главная', link: '/' },
