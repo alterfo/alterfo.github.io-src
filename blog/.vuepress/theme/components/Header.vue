@@ -33,6 +33,7 @@ export default {
       animateHeader: false,
       useWebGPU: false,
       particles: null,
+      raf: null,
     };
   },
   computed: {
@@ -44,7 +45,6 @@ export default {
     const self = this;
     let width;
     let height;
-    let raf;
 
     const requestAnimationFrame =
       window.requestAnimationFrame ||
@@ -145,7 +145,9 @@ export default {
     }
 
     function initHeader() {
-      cancelAnimationFrame(raf);
+      if (self.raf) {
+        cancelAnimationFrame(self.raf);
+      }
       width = window.innerWidth;
       height = window.innerWidth / (self.$page.path === "/" ? 2 : 4);
       largeHeader.style.height = height + "px";
@@ -164,14 +166,14 @@ export default {
           } else {
             initCanvas2D();
             if (self.animateHeader) {
-              raf = requestAnimationFrame(draw);
+              self.raf = requestAnimationFrame(draw);
             }
           }
         });
       } else if (!self.useWebGPU) {
         initCanvas2D();
         if (self.animateHeader) {
-          raf = requestAnimationFrame(draw);
+          self.raf = requestAnimationFrame(draw);
         }
       } else if (self.particles) {
         self.particles.resize(width, height);
@@ -209,7 +211,7 @@ export default {
           drawConnections2D();
         }
       }
-      raf = requestAnimationFrame(draw);
+      self.raf = requestAnimationFrame(draw);
     }
 
     function addListeners() {
@@ -228,8 +230,8 @@ export default {
   },
   beforeDestroy() {
     // Cleanup
-    if (raf) {
-      cancelAnimationFrame(raf);
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
     }
     if (this.particles && this.particles.destroy) {
       this.particles.destroy();
@@ -243,16 +245,16 @@ export default {
           this.particles.start();
         } else {
           // For 2D, just restart the draw loop
-          raf = requestAnimationFrame(draw);
+          this.raf = requestAnimationFrame(draw);
         }
       } else {
         // Stop animation, state is preserved
         if (this.useWebGPU && this.particles) {
           this.particles.stop();
         } else {
-          if (raf) {
-            cancelAnimationFrame(raf);
-            raf = null;
+          if (this.raf) {
+            cancelAnimationFrame(this.raf);
+            this.raf = null;
           }
         }
       }

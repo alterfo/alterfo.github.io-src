@@ -1,0 +1,1436 @@
+<template>
+  <div class="idef0-editor">
+    <canvas
+      ref="canvas"
+      class="idef0-canvas"
+      :class="{ 'idef0-panning': isPanning, 'idef0-resizing': isResizing }"
+      @mousedown="onMouseDown"
+      @mousemove="onMouseMove"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
+      @wheel="onWheel"
+      @dblclick="onDoubleClick"
+    />
+
+    <!-- Inline text editor -->
+    <div
+      v-if="editing"
+      class="idef0-inline-editor"
+      :style="editorStyle"
+    >
+      <input
+        ref="editorInput"
+        v-model="editing.text"
+        @blur="finishEdit"
+        @keydown.enter="finishEdit"
+        @keydown.esc="cancelEdit"
+      />
+    </div>
+
+    <!-- Toolbar -->
+    <div class="idef0-toolbar">
+      <button @click="addBlock" title="Добавить блок">+ Блок</button>
+      <button @click="addArrow('input')" title="Вход">➡ Вход</button>
+      <button @click="addArrow('control')" title="Управление">⬆ Упр</button>
+      <button @click="addArrow('output')" title="Выход">⬅ Выход</button>
+      <button @click="addArrow('mechanism')" title="Механизм">⬇ Мех</button>
+      <span class="idef0-separator" />
+      <button v-if="canGoBack" @click="goBack" title="Назад">← Назад</button>
+      <button v-if="selectedBlock && selectedBlock.diagramId" @click="enterBlock" title="Войти в блок">↳ Войти</button>
+      <button v-if="selectedBlock && !selectedBlock.diagramId" @click="createNestedDiagram" title="Создать вложенную диаграмму">+ Вложить</button>
+      <span class="idef0-separator" />
+      <button @click="exportPNG" title="Экспорт PNG">PNG</button>
+      <button @click="exportSVG" title="Экспорт SVG">SVG</button>
+      <button @click="exportJSON" title="Экспорт JSON">JSON</button>
+      <span class="idef0-separator" />
+      <span class="idef0-breadcrumb">
+        <span
+          v-for="(crumb, idx) in breadcrumb"
+          :key="crumb.id"
+          class="idef0-crumb"
+          :class="{ 'idef0-crumb-active': crumb.id === currentDiagramId }"
+          @click="navigateToDiagram(crumb.id)"
+        >
+          {{ crumb.name }}
+          <span v-if="idx < breadcrumb.length - 1" class="idef0-crumb-sep">›</span>
+        </span>
+      </span>
+      <span class="idef0-zoom">{{ Math.round(rendererScale * 100) }}%</span>
+    </div>
+
+    <!-- Status bar -->
+    <div v-if="validationErrors.length" class="idef0-status-bar idef0-status-error">
+      Ошибки: {{ validationErrors.map(e => e.message).join('; ') }}
+    </div>
+  </div>
+</template>
+
+<script>
+import { loadProject, saveProject, onExternalChange } from './IDEF0Editor/db';
+import { IDEF0Renderer } from './IDEF0Editor/renderer';
+import { routeArrow, getPreferredEdge, getBoundaryEdge, findSnapTarget, getMagneticGuides } from './IDEF0Editor/manhattan';
+import { validateDiagram } from './IDEF0Editor/validation';
+import { exportToPNG, exportToSVG, exportToJSON } from './IDEF0Editor/exporter';
+import { getDiagramIdFromQuery, setDiagramIdInQuery } from './IDEF0Editor/router';
+import { Minimap } from './IDEF0Editor/minimap';
+import { SIZES, DEFAULT_DIAGRAM } from './IDEF0Editor/constants';
+import { generateChildDiagramId, getParentDiagramId, getDescendantIds } from './IDEF0Editor/hierarchy';
+
+let projectCounter = 0;
+
+export default {
+  name: 'IDEF0Editor',
+  props: {
+    projectId: {
+      type: String,
+      default() {
+        return `project-${++projectCounter}`;
+      },
+    },
+  },
+  data() {
+    return {
+      renderer: null,
+      minimap: null,
+      diagrams: {},
+      currentDiagramId: 'A0',
+      isPanning: false,
+      isResizing: false,
+      lastX: 0,
+      lastY: 0,
+      dragBlock: null,
+      dragOffsetX: 0,
+      dragOffsetY: 0,
+      resizeHandler: null,
+      resizeStart: null,
+      selectedBlockId: null,
+      selectedArrowId: null,
+      arrowDrawing: null,
+      editing: null,
+      saveTimer: null,
+      unsubscribeSync: null,
+      // Arrow interaction
+      dragArrowEnd: null, // { arrowId, end: 'from'|'to', startOffset, startX, startY }
+      dragLabel: null,    // { arrowId, startX, startY }
+      rotateLabel: null,  // arrowId being rotated
+      
+      // Snap preview state
+      snapPreview: null,  // { mode, target, edge, offset, blockId, preview }
+      snapGuides: [],     // Magnetic guide lines
+    };
+  },
+  computed: {
+    currentDiagram() {
+      return this.diagrams[this.currentDiagramId] || { ...DEFAULT_DIAGRAM, id: this.currentDiagramId };
+    },
+    blocks() {
+      return this.currentDiagram.blocks || [];
+    },
+    arrows() {
+      return this.currentDiagram.arrows || [];
+    },
+    scale() {
+      return this.currentDiagram.view?.scale || 1;
+    },
+    selectedBlock() {
+      return this.blocks.find((b) => b.id === this.selectedBlockId) || null;
+    },
+    canGoBack() {
+      const parentDiagramId = getParentDiagramId(this.currentDiagramId);
+      return !!(parentDiagramId && this.diagrams[parentDiagramId]);
+    },
+    validationErrors() {
+      return validateDiagram(this.currentDiagram);
+    },
+    editorStyle() {
+      if (!this.editing || !this.renderer) return {};
+      const pos = this.renderer.worldToScreen(this.editing.x, this.editing.y);
+      return {
+        left: pos.x + 'px',
+        top: pos.y + 'px',
+        width: (this.editing.w * this.scale) + 'px',
+        height: (this.editing.h * this.scale) + 'px',
+      };
+    },
+    rendererScale() {
+      return this.renderer ? this.renderer.scale : 1;
+    },
+    breadcrumb() {
+      const path = [];
+      let current = this.currentDiagramId;
+      while (current) {
+        const d = this.diagrams[current];
+        if (!d) break;
+        path.unshift({ id: current, name: d.name || current });
+        current = d.parentDiagramId;
+      }
+      return path;
+    },
+  },
+  watch: {
+    currentDiagramId(val) {
+      setDiagramIdInQuery(val);
+      this.loadDiagramView();
+    },
+  },
+  async mounted() {
+    this.renderer = new IDEF0Renderer(this.$refs.canvas);
+    this.minimap = new Minimap(this.$el);
+    this.handleResize();
+    window.addEventListener('resize', this.handleResize);
+
+    // Load project
+    const saved = await loadProject(this.projectId);
+    if (saved && saved.diagrams) {
+      this.diagrams = saved.diagrams;
+    } else {
+      this.initDefaultDiagram();
+    }
+
+    // Query routing
+    const qId = getDiagramIdFromQuery();
+    if (qId && this.diagrams[qId]) {
+      this.currentDiagramId = qId;
+    }
+
+    this.loadDiagramView();
+    this.sync();
+
+    // Cross-tab sync
+    this.unsubscribeSync = onExternalChange(this.projectId, (info) => {
+      this.handleExternalChange(info);
+    });
+
+    // Keyboard shortcuts
+    this.onKeyDown = (e) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (this.selectedBlockId && !this.editing) this.deleteSelectedBlock();
+        if (this.selectedArrowId && !this.editing) this.deleteSelectedArrow();
+      }
+      if (e.key === ' ' && !this.editing) {
+        e.preventDefault();
+        this.isPanning = true;
+      }
+    };
+    this.onKeyUp = (e) => {
+      if (e.key === ' ') {
+        this.isPanning = false;
+      }
+    };
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
+    if (this.unsubscribeSync) this.unsubscribeSync();
+    if (this.minimap) this.minimap.destroy();
+  },
+  methods: {
+    initDefaultDiagram() {
+      this.$set(this.diagrams, 'A0', {
+        ...DEFAULT_DIAGRAM,
+        id: 'A0',
+        name: 'Контекстная диаграмма',
+        parentDiagramId: null,
+        parentBlockId: null,
+        blocks: [
+          {
+            id: 'block-1',
+            name: 'Контекстная функция',
+            x: 300,
+            y: 200,
+            w: 180,
+            h: 100,
+            diagramId: null,
+          },
+        ],
+        arrows: [],
+        view: { x: 0, y: 0, scale: 1 },
+      });
+    },
+
+    loadDiagramView() {
+      const d = this.currentDiagram;
+      if (d.view) {
+        this.renderer.setViewport(d.view.x, d.view.y, d.view.scale);
+      } else {
+        this.renderer.setViewport(0, 0, 1);
+      }
+    },
+
+    saveView() {
+      const d = this.currentDiagram;
+      d.view = {
+        x: this.renderer.offsetX,
+        y: this.renderer.offsetY,
+        scale: this.renderer.scale,
+      };
+    },
+
+    handleResize() {
+      const rect = this.$el.getBoundingClientRect();
+      this.renderer.resize(rect.width, rect.height);
+      this.sync();
+    },
+
+    sync() {
+      this.saveView();
+      this.renderer.setState(this.blocks, this.arrows, this.validationErrors);
+      this.renderer.setSelection(this.selectedBlockId, this.selectedArrowId);
+      if (this.minimap) {
+        this.minimap.setWorldBounds(this.blocks);
+        const rect = this.$el.getBoundingClientRect();
+        const pos = this.renderer.screenToWorld(0, 0);
+        this.minimap.setViewport(pos.x, pos.y, rect.width / this.scale, rect.height / this.scale);
+        this.minimap.render(this.blocks, this.arrows);
+      }
+      
+      // Render snap preview if active
+      if (this.snapPreview && this.dragArrowEnd) {
+        this.renderer.drawSnapPreview(
+          this.snapPreview,
+          this.dragArrowEnd.startWorldPos,
+          COLORS.selection
+        );
+      }
+      
+      // Render magnetic guides
+      if (this.snapGuides.length > 0) {
+        this.renderer.drawMagneticGuides(this.snapGuides);
+      }
+    },
+
+    debouncedSave() {
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => this.save(), 500);
+    },
+
+    async save() {
+      await saveProject(this.projectId, { diagrams: this.diagrams });
+    },
+
+    async handleExternalChange(info) {
+      // Last Write Wins: if external is newer, reload
+      const local = await loadProject(this.projectId);
+      if (local && local.diagrams) {
+        this.diagrams = local.diagrams;
+        this.sync();
+      }
+    },
+
+    // --- Block operations ---
+
+    addBlock() {
+      const rect = this.$el.getBoundingClientRect();
+      const center = this.renderer.screenToWorld(rect.width / 2, rect.height / 2);
+      const id = `block-${Date.now()}`;
+      const block = {
+        id,
+        name: `Блок ${this.blocks.length + 1}`,
+        x: center.x - SIZES.blockDefaultW / 2,
+        y: center.y - SIZES.blockDefaultH / 2,
+        w: SIZES.blockDefaultW,
+        h: SIZES.blockDefaultH,
+        diagramId: null,
+      };
+      this.blocks.push(block);
+
+      // Если выбрана стрелка типа "output" и её конец на границе — подключить к новому блоку
+      if (this.selectedArrowId) {
+        const arrow = this.arrows.find((a) => a.id === this.selectedArrowId);
+        if (arrow && arrow.type === 'output' && arrow.to.blockId === null) {
+          // Подключить выход стрелки к новому блоку (вход слева)
+          arrow.to = { blockId: block.id, edge: 'left', offset: 0 };
+          this.recalcArrow(arrow);
+        }
+      }
+
+      this.selectedBlockId = id;
+      this.selectedArrowId = null;
+      this.sync();
+      this.debouncedSave();
+    },
+
+    deleteSelectedBlock() {
+      if (!this.selectedBlockId) return;
+      const idx = this.blocks.findIndex((b) => b.id === this.selectedBlockId);
+      if (idx === -1) return;
+      const block = this.blocks[idx];
+      // Cascade delete arrows
+      this.currentDiagram.arrows = this.arrows.filter(
+        (a) => a.from.blockId !== block.id && a.to.blockId !== block.id
+      );
+      this.blocks.splice(idx, 1);
+      
+      // Delete child diagram and all descendants if exists
+      if (block.diagramId && this.diagrams[block.diagramId]) {
+        const toDelete = [block.diagramId];
+        while (toDelete.length) {
+          const diagId = toDelete.pop();
+          const diag = this.diagrams[diagId];
+          if (diag) {
+            // Queue grandchildren diagrams
+            for (const b of diag.blocks || []) {
+              if (b.diagramId && this.diagrams[b.diagramId]) {
+                toDelete.push(b.diagramId);
+              }
+            }
+            this.$delete(this.diagrams, diagId);
+          }
+        }
+      }
+      this.selectedBlockId = null;
+      this.sync();
+      this.debouncedSave();
+    },
+
+    deleteSelectedArrow() {
+      if (!this.selectedArrowId) return;
+      const idx = this.arrows.findIndex((a) => a.id === this.selectedArrowId);
+      if (idx !== -1) {
+        this.arrows.splice(idx, 1);
+        this.selectedArrowId = null;
+        this.sync();
+        this.debouncedSave();
+      }
+    },
+
+    // --- Arrow operations ---
+
+    addArrow(type) {
+      if (!this.selectedBlockId) {
+        alert('Сначала выберите блок для подключения стрелки');
+        return;
+      }
+
+      const block = this.blocks.find((b) => b.id === this.selectedBlockId);
+      if (!block) return;
+
+      const bounds = this.getDiagramBounds();
+      const blockEdge = getBoundaryEdge(type);
+      const autoOffset = this.calculateAutoOffset(block.id, blockEdge, type);
+
+      let arrow;
+      if (type === 'output') {
+        // Output: from block -> to boundary (goes OUT of diagram)
+        const boundaryOffset = block.y + block.h / 2 + autoOffset;
+        // Начальная позиция конца стрелки — чуть за пределами блока
+        const floatX = block.x + block.w + 50;
+        const floatY = block.y + block.h / 2;
+        arrow = {
+          id: `arrow-${Date.now()}`,
+          name: '',
+          type,
+          from: { blockId: block.id, edge: blockEdge, offset: autoOffset },
+          to: { blockId: null, edge: blockEdge, offset: boundaryOffset, x: floatX, y: floatY },
+          segments: [],
+        };
+        const segments = routeArrow(
+          { block: block, edge: blockEdge, offset: autoOffset },
+          { block: null, edge: blockEdge, offset: boundaryOffset },
+          this.blocks,
+          [block.id],
+          type,
+          bounds
+        );
+        arrow.segments = segments.slice(1, -1);
+      } else {
+        // Input, Control, Mechanism: from boundary -> to block (goes IN to block)
+        let boundaryOffset;
+        if (blockEdge === 'left' || blockEdge === 'right') {
+          boundaryOffset = block.y + block.h / 2 + autoOffset;
+        } else {
+          boundaryOffset = block.x + block.w / 2 + autoOffset;
+        }
+        arrow = {
+          id: `arrow-${Date.now()}`,
+          name: '',
+          type,
+          from: { blockId: null, edge: blockEdge, offset: boundaryOffset },
+          to: { blockId: block.id, edge: blockEdge, offset: autoOffset },
+          segments: [],
+        };
+        const segments = routeArrow(
+          { block: null, edge: blockEdge, offset: boundaryOffset },
+          { block: block, edge: blockEdge, offset: autoOffset },
+          this.blocks,
+          [block.id],
+          type,
+          bounds
+        );
+        arrow.segments = segments.slice(1, -1);
+      }
+
+      this.arrows.push(arrow);
+      this.selectedArrowId = arrow.id;
+      this.selectedBlockId = null;
+      this.sync();
+      this.debouncedSave();
+      this.startEditArrow(arrow);
+    },
+
+    getDiagramBounds() {
+      const blocks = this.blocks;
+      if (!blocks || blocks.length === 0) {
+        return { minX: 0, minY: 0, maxX: 1000, maxY: 800 };
+      }
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const b of blocks) {
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.w);
+        maxY = Math.max(maxY, b.y + b.h);
+      }
+      const pad = SIZES.diagramBoundsPadding;
+      return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+    },
+
+    calculateAutoOffset(blockId, edge, type) {
+      // Find existing arrows of same type attached to same edge of same block
+      const same = this.arrows.filter((a) =>
+        a.type === type &&
+        ((a.from.blockId === blockId && a.from.edge === edge) ||
+         (a.to.blockId === blockId && a.to.edge === edge))
+      );
+      const count = same.length;
+      const step = SIZES.arrowOffsetStep;
+      // Distribute around center: 0, +step, -step, +2step, -2step...
+      const offset = ((count % 2 === 0 ? 1 : 0) + Math.floor(count / 2)) * step * (count % 2 === 0 ? 1 : -1);
+      return offset;
+    },
+
+    recalcArrow(arrow) {
+      const bounds = this.getDiagramBounds();
+      const fromBlock = this.blocks.find((b) => b.id === arrow.from.blockId);
+      const toBlock = this.blocks.find((b) => b.id === arrow.to.blockId);
+      
+      // Подготовка параметров для routeArrow
+      let fromParams, toParams;
+      
+      if (fromBlock) {
+        // From привязан к блоку
+        fromParams = { block: fromBlock, edge: arrow.from.edge, offset: arrow.from.offset };
+      } else if (arrow.from.edge === null) {
+        // From плавающий — передаём координаты
+        fromParams = { 
+          block: null, 
+          edge: null, 
+          x: arrow.from.x ?? bounds.maxX, 
+          y: arrow.from.y ?? (bounds.minY + bounds.maxY) / 2 
+        };
+      } else {
+        // From на границе диаграммы
+        fromParams = { block: null, edge: arrow.from.edge, offset: arrow.from.offset };
+      }
+      
+      if (toBlock) {
+        // To привязан к блоку
+        toParams = { block: toBlock, edge: arrow.to.edge, offset: arrow.to.offset };
+      } else if (arrow.to.edge === null) {
+        // To плавающий — передаём координаты
+        toParams = { 
+          block: null, 
+          edge: null, 
+          x: arrow.to.x ?? bounds.maxX, 
+          y: arrow.to.y ?? (bounds.minY + bounds.maxY) / 2 
+        };
+      } else {
+        // To на границе диаграммы
+        toParams = { block: null, edge: arrow.to.edge, offset: arrow.to.offset };
+      }
+      
+      arrow.segments = routeArrow(
+        fromParams,
+        toParams,
+        this.blocks,
+        [fromBlock?.id, toBlock?.id].filter(Boolean),
+        arrow.type,
+        bounds
+      ).slice(1, -1);
+    },
+
+    recalcArrowsForBlock(blockId) {
+      for (const arrow of this.arrows) {
+        if (arrow.from.blockId === blockId || arrow.to.blockId === blockId) {
+          this.recalcArrow(arrow);
+        }
+      }
+    },
+
+    tryConnectArrowEndToBlock(arrow, end, block) {
+      // Try to connect arrow end to the nearest edge of the block
+      const arrowEndpoint = end === 'from' ? arrow.from : arrow.to;
+      
+      // Check if we're close enough to any edge
+      const threshold = 30;
+      const endX = arrowEndpoint.x ?? 0;
+      const endY = arrowEndpoint.y ?? 0;
+      
+      let newEdge, newOffset;
+      
+      // Calculate distances to each edge
+      const distToLeft = Math.abs(endX - block.x);
+      const distToRight = Math.abs(endX - (block.x + block.w));
+      const distToTop = Math.abs(endY - block.y);
+      const distToBottom = Math.abs(endY - (block.y + block.h));
+      
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      
+      if (minDist > threshold) return false; // Too far from any edge
+      
+      if (minDist === distToLeft) {
+        newEdge = 'left';
+        newOffset = endY - (block.y + block.h / 2);
+      } else if (minDist === distToRight) {
+        newEdge = 'right';
+        newOffset = endY - (block.y + block.h / 2);
+      } else if (minDist === distToTop) {
+        newEdge = 'top';
+        newOffset = endX - (block.x + block.w / 2);
+      } else {
+        newEdge = 'bottom';
+        newOffset = endX - (block.x + block.w / 2);
+      }
+      
+      // Clamp offset
+      const maxOff = (newEdge === 'top' || newEdge === 'bottom') ? block.w / 2 - 8 : block.h / 2 - 8;
+      newOffset = Math.max(-maxOff, Math.min(maxOff, newOffset));
+      
+      arrowEndpoint.blockId = block.id;
+      arrowEndpoint.edge = newEdge;
+      arrowEndpoint.offset = newOffset;
+      delete arrowEndpoint.x;
+      delete arrowEndpoint.y;
+      
+      this.recalcArrow(arrow);
+      this.sync();
+      return true;
+    },
+
+    moveArrowEndAlongBoundary(arrow, end, newX, newY) {
+      // Move arrow end along the diagram boundary
+      const arrowEndpoint = end === 'from' ? arrow.from : arrow.to;
+      
+      if (!arrowEndpoint || arrowEndpoint.blockId !== null) return;
+      
+      const bounds = this.getDiagramBounds();
+      const tolerance = 40;
+      
+      // Determine which edge the endpoint is closest to
+      const distToLeft = Math.abs(newX - bounds.minX);
+      const distToRight = Math.abs(newX - bounds.maxX);
+      const distToTop = Math.abs(newY - bounds.minY);
+      const distToBottom = Math.abs(newY - bounds.maxY);
+      
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      
+      if (minDist > tolerance) return; // Not close to any boundary
+      
+      // Update edge and offset based on which edge
+      if (minDist === distToLeft) {
+        arrowEndpoint.edge = 'left';
+        arrowEndpoint.offset = newY;
+      } else if (minDist === distToRight) {
+        arrowEndpoint.edge = 'right';
+        arrowEndpoint.offset = newY;
+      } else if (minDist === distToTop) {
+        arrowEndpoint.edge = 'top';
+        arrowEndpoint.offset = newX;
+      } else if (minDist === distToBottom) {
+        arrowEndpoint.edge = 'bottom';
+        arrowEndpoint.offset = newX;
+      }
+      
+      // Clean up floating coordinates
+      delete arrowEndpoint.x;
+      delete arrowEndpoint.y;
+      
+      this.recalcArrow(arrow);
+    },
+
+    detachArrowEndToBoundary(arrow, end) {
+      // Detach arrow end from block to boundary
+      const arrowEndpoint = end === 'from' ? arrow.from : arrow.to;
+      
+      if (!arrowEndpoint.blockId) return;
+      
+      const block = this.blocks.find((b) => b.id === arrowEndpoint.blockId);
+      if (!block) return;
+      
+      // Determine boundary edge based on arrow type
+      const boundaryEdge = getBoundaryEdge(arrow.type);
+      
+      // Calculate boundary offset based on current position
+      let boundaryOffset;
+      if (boundaryEdge === 'left' || boundaryEdge === 'right') {
+        boundaryOffset = block.y + block.h / 2 + (arrowEndpoint.offset ?? 0);
+      } else {
+        boundaryOffset = block.x + block.w / 2 + (arrowEndpoint.offset ?? 0);
+      }
+      
+      arrowEndpoint.blockId = null;
+      arrowEndpoint.edge = boundaryEdge;
+      arrowEndpoint.offset = boundaryOffset;
+      delete arrowEndpoint.x;
+      delete arrowEndpoint.y;
+      
+      this.recalcArrow(arrow);
+    },
+
+    // --- Decomposition ---
+
+    createNestedDiagram() {
+      if (!this.selectedBlock) return;
+      this.enterBlock();
+    },
+
+    enterBlock() {
+      if (!this.selectedBlock) return;
+      const block = this.selectedBlock;
+      if (!block.diagramId) {
+        const blockIndex = this.blocks.findIndex((b) => b.id === block.id);
+        const childDiagramId = generateChildDiagramId(this.currentDiagramId, blockIndex);
+        
+        block.diagramId = childDiagramId;
+        const childDiagram = {
+          id: childDiagramId,
+          name: `Декомпозиция ${block.name}`,
+          parentDiagramId: this.currentDiagramId,
+          parentBlockId: block.id,
+          blocks: [],
+          arrows: [],
+          view: { x: 0, y: 0, scale: 1 },
+        };
+
+        // Migrate boundary arrows (ICOM Propagation)
+        const boundaryArrows = this.arrows.filter(
+          (a) => a.from.blockId === block.id || a.to.blockId === block.id
+        );
+        
+        const floatDist = SIZES.floatEndDistance;
+        const childBounds = { minX: 0, minY: 0, maxX: 1000, maxY: 800 };
+
+        for (const ba of boundaryArrows) {
+          const isIncoming = ba.to.blockId === block.id;
+          const boundaryEdge = getBoundaryEdge(ba.type);
+          const offset = isIncoming ? (ba.from.offset ?? 0) : (ba.to.offset ?? 0);
+
+          let from, to;
+          if (isIncoming) {
+            // Incoming: boundary -> floating inside
+            const bx = boundaryEdge === 'left' ? childBounds.minX : boundaryEdge === 'right' ? childBounds.maxX : offset;
+            const by = boundaryEdge === 'top' ? childBounds.minY : boundaryEdge === 'bottom' ? childBounds.maxY : offset;
+            let fx = bx, fy = by;
+            if (boundaryEdge === 'left') fx += floatDist;
+            else if (boundaryEdge === 'right') fx -= floatDist;
+            else if (boundaryEdge === 'top') fy += floatDist;
+            else if (boundaryEdge === 'bottom') fy -= floatDist;
+
+            from = { blockId: null, edge: boundaryEdge, offset };
+            to = { blockId: null, edge: null, x: fx, y: fy };
+          } else {
+            // Outgoing: floating inside -> boundary
+            const bx = boundaryEdge === 'left' ? childBounds.minX : boundaryEdge === 'right' ? childBounds.maxX : offset;
+            const by = boundaryEdge === 'top' ? childBounds.minY : boundaryEdge === 'bottom' ? childBounds.maxY : offset;
+            let fx = bx, fy = by;
+            if (boundaryEdge === 'left') fx += floatDist;
+            else if (boundaryEdge === 'right') fx -= floatDist;
+            else if (boundaryEdge === 'top') fy += floatDist;
+            else if (boundaryEdge === 'bottom') fy -= floatDist;
+
+            from = { blockId: null, edge: null, x: fx, y: fy };
+            to = { blockId: null, edge: boundaryEdge, offset };
+          }
+
+          const childArrow = {
+            id: `boundary-${ba.id}`,
+            name: ba.name,
+            type: ba.type,
+            from,
+            to,
+            segments: [],
+          };
+          childDiagram.arrows.push(childArrow);
+        }
+
+        this.$set(this.diagrams, childDiagramId, childDiagram);
+      }
+      this.currentDiagramId = block.diagramId;
+      this.selectedBlockId = null;
+      this.selectedArrowId = null;
+      this.sync();
+      this.debouncedSave();
+    },
+
+    goBack() {
+      const parentId = getParentDiagramId(this.currentDiagramId);
+      if (!parentId || !this.diagrams[parentId]) return;
+      this.currentDiagramId = parentId;
+      this.selectedBlockId = null;
+      this.selectedArrowId = null;
+      this.sync();
+    },
+
+    navigateToDiagram(diagramId) {
+      if (this.diagrams[diagramId]) {
+        this.currentDiagramId = diagramId;
+      }
+    },
+
+    // --- Editing ---
+
+    onDoubleClick(e) {
+      if (this.editing) return;
+      const block = this.renderer.hitTestBlock(e.offsetX, e.offsetY);
+      if (block) {
+        this.startEditBlock(block);
+        return;
+      }
+      const arrow = this.renderer.hitTestArrow(e.offsetX, e.offsetY);
+      if (arrow) {
+        this.startEditArrow(arrow);
+        return;
+      }
+      // Double click on block center -> enter decomposition
+      const b = this.renderer.hitTestBlock(e.offsetX, e.offsetY);
+      if (b && b.diagramId) {
+        this.selectedBlockId = b.id;
+        this.enterBlock();
+      }
+    },
+
+    startEditBlock(block) {
+      this.editing = {
+        type: 'block',
+        id: block.id,
+        text: block.name,
+        x: block.x,
+        y: block.y,
+        w: block.w,
+        h: block.h,
+      };
+      this.$nextTick(() => {
+        if (this.$refs.editorInput) this.$refs.editorInput.focus();
+      });
+    },
+
+    startEditArrow(arrow) {
+      let x, y;
+      if (arrow.labelX != null && arrow.labelY != null) {
+        x = arrow.labelX - 60;
+        y = arrow.labelY - 12;
+      } else {
+        const points = this.renderer.getArrowPoints(arrow);
+        if (!points.length) return;
+        const mid = points[Math.floor(points.length / 2)];
+        x = mid.x - 60;
+        y = mid.y - 12;
+      }
+      this.editing = {
+        type: 'arrow',
+        id: arrow.id,
+        text: arrow.name,
+        x,
+        y,
+        w: 120,
+        h: 24,
+      };
+      this.$nextTick(() => {
+        if (this.$refs.editorInput) this.$refs.editorInput.focus();
+      });
+    },
+
+    finishEdit() {
+      if (!this.editing) return;
+      const text = this.editing.text.trim();
+      if (this.editing.type === 'block') {
+        const block = this.blocks.find((b) => b.id === this.editing.id);
+        if (block) block.name = text;
+      } else if (this.editing.type === 'arrow') {
+        const arrow = this.arrows.find((a) => a.id === this.editing.id);
+        if (arrow) arrow.name = text;
+      }
+      this.editing = null;
+      this.sync();
+      this.debouncedSave();
+    },
+
+    cancelEdit() {
+      this.editing = null;
+    },
+
+    // --- Mouse events ---
+
+    onMouseDown(e) {
+      if (this.editing) {
+        this.finishEdit();
+        return;
+      }
+
+      // Middle button or Alt + LMB or Space -> panning
+      if (e.button === 1 || (e.button === 0 && (e.altKey || this.isPanning))) {
+        this.isPanning = true;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+        return;
+      }
+      if (e.button !== 0) return;
+
+      // Check label drag first (if arrow selected)
+      if (this.selectedArrowId) {
+        const labelArrow = this.renderer.hitTestLabel(e.offsetX, e.offsetY);
+        if (labelArrow && labelArrow.id === this.selectedArrowId) {
+          const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+          this.dragLabel = { arrowId: labelArrow.id, startX: pos.x, startY: pos.y };
+          if (!labelArrow.labelX) {
+            const points = this.renderer.getArrowPoints(labelArrow);
+            const seg = require('./IDEF0Editor/manhattan').getLabelSegment(points);
+            // We'll compute in mousemove
+          }
+          this.sync();
+          return;
+        }
+      }
+
+      // Check arrow-end handles
+      const endHit = this.renderer.hitTestArrowEnd(e.offsetX, e.offsetY);
+      if (endHit) {
+        const arrow = this.arrows.find((a) => a.id === endHit.arrow.id);
+        const endpoint = endHit.end === 'from' ? arrow.from : arrow.to;
+        
+        // Shift + click to detach from block to boundary
+        if (e.shiftKey && endpoint.blockId) {
+          this.detachArrowEndToBoundary(arrow, endHit.end);
+          this.selectedArrowId = arrow.id;
+          this.selectedBlockId = null;
+          this.sync();
+          this.debouncedSave();
+          return;
+        }
+        
+        this.dragArrowEnd = {
+          arrowId: endHit.arrow.id,
+          end: endHit.end,
+          startX: e.clientX,
+          startY: e.clientY,
+          startWorldPos: this.renderer.screenToWorld(e.offsetX, e.offsetY),
+          // Сохраняем начальную позицию endpoint для вычисления смещения
+          startEndpoint: { ...endpoint },
+        };
+        this.selectedArrowId = endHit.arrow.id;
+        this.selectedBlockId = null;
+        this.sync();
+        return;
+      }
+
+      // Check resize handlers
+      const handler = this.renderer.hitTestHandler(e.offsetX, e.offsetY);
+      if (handler) {
+        this.isResizing = true;
+        this.resizeHandler = handler;
+        const block = this.blocks.find((b) => b.id === this.selectedBlockId);
+        this.resizeStart = { x: e.clientX, y: e.clientY, block: { ...block } };
+        return;
+      }
+
+      // Check blocks
+      const block = this.renderer.hitTestBlock(e.offsetX, e.offsetY);
+      if (block) {
+        this.selectedBlockId = block.id;
+        this.selectedArrowId = null;
+        this.dragBlock = block;
+        const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+        this.dragOffsetX = pos.x - block.x;
+        this.dragOffsetY = pos.y - block.y;
+        this.sync();
+        return;
+      }
+
+      // Check arrows
+      const arrow = this.renderer.hitTestArrow(e.offsetX, e.offsetY);
+      if (arrow) {
+        this.selectedArrowId = arrow.id;
+        this.selectedBlockId = null;
+        this.sync();
+        return;
+      }
+
+      // Deselect
+      this.selectedBlockId = null;
+      this.selectedArrowId = null;
+      this.sync();
+    },
+
+    onMouseMove(e) {
+      if (this.isPanning) {
+        const dx = e.clientX - this.lastX;
+        const dy = e.clientY - this.lastY;
+        this.renderer.offsetX += dx;
+        this.renderer.offsetY += dy;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+        this.sync();
+        return;
+      }
+
+      if (this.dragLabel) {
+        const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+        const arrow = this.arrows.find((a) => a.id === this.dragLabel.arrowId);
+        if (arrow) {
+          if (arrow.labelX == null) {
+            // Initialize from segment center
+            const points = this.renderer.getArrowPoints(arrow);
+            const seg = require('./IDEF0Editor/manhattan').getLabelSegment(points);
+            if (seg) {
+              arrow.labelX = seg.x;
+              arrow.labelY = seg.y;
+            } else {
+              arrow.labelX = (points[0].x + points[points.length - 1].x) / 2;
+              arrow.labelY = (points[0].y + points[points.length - 1].y) / 2;
+            }
+            arrow.labelAngle = 0;
+          }
+          arrow.labelX += pos.x - this.dragLabel.startX;
+          arrow.labelY += pos.y - this.dragLabel.startY;
+          this.dragLabel.startX = pos.x;
+          this.dragLabel.startY = pos.y;
+          this.sync();
+        }
+        return;
+      }
+
+      if (this.dragArrowEnd) {
+        const arrow = this.arrows.find((a) => a.id === this.dragArrowEnd.arrowId);
+        if (arrow) {
+          const endpoint = this.dragArrowEnd.end === 'from' ? arrow.from : arrow.to;
+          const otherEndpoint = this.dragArrowEnd.end === 'from' ? arrow.to : arrow.from;
+          const block = this.blocks.find((b) => b.id === endpoint.blockId);
+          const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+          const bounds = this.getDiagramBounds();
+          
+          // Вычисляем смещение от начальной позиции endpoint до текущей позиции курсора
+          const startEndpointPos = this.dragArrowEnd.startEndpoint.blockId === null && this.dragArrowEnd.startEndpoint.edge === null
+            ? { x: this.dragArrowEnd.startEndpoint.x || 0, y: this.dragArrowEnd.startEndpoint.y || 0 }
+            : this.dragArrowEnd.startWorldPos;
+          
+          const dx = pos.x - startEndpointPos.x;
+          const dy = pos.y - startEndpointPos.y;
+          
+          if (block) {
+            // Конец привязан к блоку — меняем offset и проверяем смену грани
+            let newOffset = 0;
+            let newEdge = endpoint.edge;
+            
+            // Сначала вычисляем newOffset на основе текущей грани
+            switch (endpoint.edge) {
+              case 'top':
+              case 'bottom':
+                newOffset = pos.x - (block.x + block.w / 2);
+                break;
+              case 'left':
+              case 'right':
+                newOffset = pos.y - (block.y + block.h / 2);
+                break;
+            }
+            
+            // Проверка смены грани с улучшенными порогами
+            const distToLeft = Math.abs(pos.x - block.x);
+            const distToRight = Math.abs(pos.x - (block.x + block.w));
+            const distToTop = Math.abs(pos.y - block.y);
+            const distToBottom = Math.abs(pos.y - (block.y + block.h));
+            
+            const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+            const threshold = 40;
+            
+            if (minDist <= threshold) {
+              if (minDist === distToLeft) {
+                newEdge = 'left';
+                newOffset = pos.y - (block.y + block.h / 2);
+              } else if (minDist === distToRight) {
+                newEdge = 'right';
+                newOffset = pos.y - (block.y + block.h / 2);
+              } else if (minDist === distToTop) {
+                newEdge = 'top';
+                newOffset = pos.x - (block.x + block.w / 2);
+              } else if (minDist === distToBottom) {
+                newEdge = 'bottom';
+                newOffset = pos.x - (block.x + block.w / 2);
+              }
+            }
+            
+            // Snap to 4px grid
+            newOffset = Math.round(newOffset / 4) * 4;
+            // Clamp to block size
+            const maxOff = (newEdge === 'top' || newEdge === 'bottom') ? block.w / 2 - 8 : block.h / 2 - 8;
+            newOffset = Math.max(-maxOff, Math.min(maxOff, newOffset));
+            
+            endpoint.edge = newEdge;
+            endpoint.offset = newOffset;
+            // Очищаем старые координаты плавающего конца
+            delete endpoint.x;
+            delete endpoint.y;
+            this.recalcArrow(arrow);
+            this.sync();
+          } else {
+            // Конец на границе или плавающий — используем улучшенную систему snap
+            const snapInfo = findSnapTarget(pos, this.blocks, bounds, arrow.type, null);
+            this.snapPreview = snapInfo;
+            
+            // Получаем магнитные линии для выравнивания
+            this.snapGuides = getMagneticGuides(pos, this.blocks, bounds, null);
+            
+            // Если endpoint был плавающим (edge = null) — не делаем snap к блокам, только к границе
+            const wasFloating = endpoint.edge === null;
+            
+            // Если другой конец плавающий — двигаем его параллельно
+            if (otherEndpoint.blockId === null && otherEndpoint.edge === null) {
+              // Другой конец тоже плавающий — смещаем его на тот же вектор
+              otherEndpoint.x = (otherEndpoint.x || 0) + dx;
+              otherEndpoint.y = (otherEndpoint.y || 0) + dy;
+            }
+            
+            if (wasFloating) {
+              // Если endpoint был плавающим — разрешаем только snap к границе или остаёмся плавающим
+              if (snapInfo.mode === 'boundary') {
+                // Snap to boundary — конец на границе диаграммы
+                endpoint.blockId = null;
+                endpoint.edge = snapInfo.edge;
+                endpoint.offset = snapInfo.offset;
+                delete endpoint.x;
+                delete endpoint.y;
+                this.recalcArrow(arrow);
+              } else {
+                // Остаться плавающим (не snap к блоку)
+                endpoint.edge = null;
+                endpoint.x = pos.x;
+                endpoint.y = pos.y;
+                this.recalcArrow(arrow);
+              }
+            } else {
+              // endpoint был на границе (edge != null) — можно snap к блоку или границе
+              if (snapInfo.mode === 'block-edge' || snapInfo.mode === 'block-center') {
+                // Snap to block — привязываем конец к блоку
+                const targetBlock = this.blocks.find(b => b.id === snapInfo.blockId);
+                if (targetBlock) {
+                  endpoint.blockId = snapInfo.blockId;
+                  endpoint.edge = snapInfo.edge;
+                  endpoint.offset = snapInfo.offset;
+                  delete endpoint.x;
+                  delete endpoint.y;
+                  this.recalcArrow(arrow);
+                }
+              } else if (snapInfo.mode === 'boundary') {
+                // Snap to boundary — конец на границе диаграммы
+                endpoint.blockId = null;
+                endpoint.edge = snapInfo.edge;
+                endpoint.offset = snapInfo.offset;
+                delete endpoint.x;
+                delete endpoint.y;
+                this.recalcArrow(arrow);
+              } else {
+                // Free floating — плавающий конец
+                endpoint.edge = null;
+                endpoint.x = pos.x;
+                endpoint.y = pos.y;
+                this.recalcArrow(arrow);
+              }
+            }
+            
+            this.sync();
+          }
+        }
+        return;
+      }
+
+      if (this.isResizing && this.resizeHandler && this.resizeStart) {
+        const dx = (e.clientX - this.resizeStart.x) / this.scale;
+        const dy = (e.clientY - this.resizeStart.y) / this.scale;
+        const block = this.blocks.find((b) => b.id === this.selectedBlockId);
+        if (block) {
+          if (this.resizeHandler.dx < 0) {
+            block.x = this.resizeStart.block.x + dx;
+            block.w = this.resizeStart.block.w - dx;
+          } else {
+            block.w = this.resizeStart.block.w + dx;
+          }
+          if (this.resizeHandler.dy < 0) {
+            block.y = this.resizeStart.block.y + dy;
+            block.h = this.resizeStart.block.h - dy;
+          } else {
+            block.h = this.resizeStart.block.h + dy;
+          }
+          block.w = Math.max(SIZES.blockMinW, block.w);
+          block.h = Math.max(SIZES.blockMinH, block.h);
+          this.recalcArrowsForBlock(block.id);
+          this.sync();
+        }
+        return;
+      }
+
+      if (this.dragBlock) {
+        const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+        this.dragBlock.x = pos.x - this.dragOffsetX;
+        this.dragBlock.y = pos.y - this.dragOffsetY;
+        this.recalcArrowsForBlock(this.dragBlock.id);
+        this.sync();
+      }
+
+      // Cursor feedback
+      const h = this.renderer.hitTestHandler(e.offsetX, e.offsetY);
+      const endHit = this.renderer.hitTestArrowEnd(e.offsetX, e.offsetY);
+      const labelHit = this.renderer.hitTestLabel(e.offsetX, e.offsetY);
+      if (h) {
+        this.$refs.canvas.style.cursor = h.cursor;
+      } else if (endHit) {
+        const arrow = this.arrows.find((a) => a.id === endHit.arrow.id);
+        const endpoint = endHit.end === 'from' ? arrow.from : arrow.to;
+        if (endpoint.blockId && e.shiftKey) {
+          this.$refs.canvas.style.cursor = 'not-allowed'; // Will detach
+        } else {
+          this.$refs.canvas.style.cursor = 'move';
+        }
+      } else if (labelHit && labelHit.id === this.selectedArrowId) {
+        this.$refs.canvas.style.cursor = 'move';
+      } else if (this.dragBlock || this.dragLabel || this.dragArrowEnd) {
+        // Show snap cursor when dragging
+        if (this.snapPreview && this.snapPreview.mode !== 'free') {
+          this.$refs.canvas.style.cursor = 'crosshair'; // Snapping active
+        } else {
+          this.$refs.canvas.style.cursor = 'move';
+        }
+      } else if (this.renderer.hitTestBlock(e.offsetX, e.offsetY)) {
+        this.$refs.canvas.style.cursor = 'move';
+      } else if (this.renderer.hitTestArrow(e.offsetX, e.offsetY)) {
+        this.$refs.canvas.style.cursor = 'pointer';
+      } else {
+        this.$refs.canvas.style.cursor = 'default';
+      }
+    },
+
+    onMouseUp() {
+      // Final snap check on release
+      if (this.dragArrowEnd) {
+        const arrow = this.arrows.find((a) => a.id === this.dragArrowEnd.arrowId);
+        if (arrow) {
+          const endpoint = this.dragArrowEnd.end === 'from' ? arrow.from : arrow.to;
+          
+          // Если конец был на границе или плавающий — проверяем подключение к блоку
+          if (endpoint.blockId === null && endpoint.edge !== null) {
+            const pos = this.renderer.screenToWorld(0, 0); // Will be updated
+            // Ищем ближайший блок
+            let nearestBlock = null;
+            let nearestDist = Infinity;
+            for (const b of this.blocks) {
+              const dist = Math.hypot(pos.x - (b.x + b.w / 2), pos.y - (b.y + b.h / 2));
+              if (dist < nearestDist && dist < 100) {
+                nearestDist = dist;
+                nearestBlock = b;
+              }
+            }
+            if (nearestBlock) {
+              // Подключаем к блоку
+              this.tryConnectArrowEndToBlock(arrow, this.dragArrowEnd.end, nearestBlock);
+            }
+          }
+        }
+        
+        // Clear snap preview
+        this.snapPreview = null;
+        this.snapGuides = [];
+      }
+
+      if (this.isPanning || this.isResizing || this.dragBlock || this.dragArrowEnd || this.dragLabel) {
+        this.debouncedSave();
+      }
+      this.isPanning = false;
+      this.isResizing = false;
+      this.resizeHandler = null;
+      this.resizeStart = null;
+      this.dragBlock = null;
+      this.dragArrowEnd = null;
+      this.dragLabel = null;
+    },
+
+    onWheel(e) {
+      e.preventDefault();
+
+      // Rotate label if Alt is held and hovering over a label
+      if (e.altKey && this.selectedArrowId) {
+        const labelArrow = this.renderer.hitTestLabel(e.offsetX, e.offsetY);
+        if (labelArrow && labelArrow.id === this.selectedArrowId) {
+          const arrow = this.arrows.find((a) => a.id === this.selectedArrowId);
+          if (arrow) {
+            if (arrow.labelAngle == null) arrow.labelAngle = 0;
+            arrow.labelAngle += e.deltaY > 0 ? 5 : -5;
+            this.sync();
+            this.debouncedSave();
+          }
+          return;
+        }
+      }
+
+      const zoomIntensity = 0.1;
+      const pos = this.renderer.screenToWorld(e.offsetX, e.offsetY);
+      const delta = e.deltaY > 0 ? -zoomIntensity : zoomIntensity;
+      const newScale = Math.max(0.2, Math.min(5, this.renderer.scale + delta));
+
+      this.renderer.offsetX -= pos.x * (newScale - this.renderer.scale);
+      this.renderer.offsetY -= pos.y * (newScale - this.renderer.scale);
+      this.renderer.scale = newScale;
+      this.sync();
+    },
+
+    // --- Export ---
+
+    exportPNG() {
+      exportToPNG(this.$refs.canvas, `idef0-${this.currentDiagramId}.png`);
+    },
+
+    exportSVG() {
+      exportToSVG(this.currentDiagram, this.$refs.canvas.clientWidth, this.$refs.canvas.clientHeight);
+    },
+
+    exportJSON() {
+      exportToJSON({ diagrams: this.diagrams }, `idef0-${this.projectId}.json`);
+    },
+  },
+};
+</script>
+
+<style scoped>
+.idef0-editor {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+.idef0-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+
+.idef0-panning {
+  cursor: grab;
+}
+
+.idef0-panning:active {
+  cursor: grabbing;
+}
+
+.idef0-resizing {
+  cursor: nwse-resize;
+}
+
+.idef0-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+}
+
+.idef0-toolbar button {
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 3px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.idef0-toolbar button:hover {
+  background: #f0f0f0;
+}
+
+.idef0-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.idef0-separator {
+  width: 1px;
+  height: 18px;
+  background: #ddd;
+  margin: 0 4px;
+}
+
+.idef0-breadcrumb {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.idef0-zoom {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+  text-align: right;
+}
+
+.idef0-inline-editor {
+  position: absolute;
+  z-index: 10;
+}
+
+.idef0-inline-editor input {
+  width: 100%;
+  height: 100%;
+  border: 2px solid #3498db;
+  border-radius: 2px;
+  padding: 2px 6px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.idef0-status-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid #ddd;
+}
+
+.idef0-status-error {
+  color: #e74c3c;
+}
+
+/* Minimap styles injected by Minimap class, but scoped here for safety */
+.idef0-editor >>> .idef0-minimap {
+  position: absolute;
+  bottom: 30px;
+  right: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: rgba(240, 240, 240, 0.9);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Snap visual feedback */
+.idef0-canvas.idef0-snapping {
+  cursor: crosshair;
+}
+</style>
