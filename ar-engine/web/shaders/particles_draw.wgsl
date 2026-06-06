@@ -54,17 +54,18 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
     let speed = length(p.vel);
 
     // Audio-reactive color: hue drifts with high, saturation with mid
-    let hue = fract(p.hue + u.high * 0.15 + u.beat_pulse * 0.05);
+    let hue = fract(p.hue + u.high * 0.15);
     let sat = clamp(0.75 + u.mid * 0.25, 0.0, 1.0);
     let lum = clamp(0.35 + speed * 14.0 + u.energy * 0.4, 0.0, 0.95);
-    let rgb = hsl2rgb(hue, sat, lum * 0.5); // halve lum for HSL convention
+    let rgb = hsl2rgb(hue, sat, lum * 0.5);
 
-    // Very dim output: accumulation over many frames builds bright trails
-    let alpha = life * 0.022;
+    // Beat brightens particles directly: spike on kick → fast decay (beat_pulse already decays)
+    let beat_boost = 1.0 + u.beat_pulse * 4.0;
+    let base_alpha = life * 0.022 * beat_boost;
 
     var out: VSOut;
     out.pos   = vec4<f32>(ndc, 0.0, 1.0);
-    out.color = vec4<f32>(rgb * life * 0.022, alpha);
+    out.color = vec4<f32>(rgb * life * 0.022 * beat_boost, base_alpha);
     return out;
 }
 

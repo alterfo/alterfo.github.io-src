@@ -79,13 +79,6 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         col = hueRotate(col, u.hue_shift);
     }
 
-    // Beat flash: Screen-blend a violet-white pulse when beat_pulse peaks
-    if (u.beat_pulse > 0.7) {
-        let str   = (u.beat_pulse - 0.7) / 0.3;         // 0..1 within flash window
-        let flash = vec3<f32>(str * 0.7, str * 0.35, str * 0.9);
-        col = screen(col, flash);
-    }
-
     // blend_mode post-process (meaningful in Advanced multi-layer compositing)
     if (u.blend_mode == 1u) {
         // Screen: boost darker regions slightly for a "glow" look

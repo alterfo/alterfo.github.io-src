@@ -86,12 +86,12 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     var p = particles[i];
 
-    // ---- curl noise force -----------------------------------------------
-    let bass_amp = 1.0 + u.bass * 2.5;
+    // ---- curl noise force (bass + beat both amplify turbulence) ----------
+    let bass_amp = 1.0 + u.bass * 2.5 + u.beat_pulse * 3.0;
     let c = curl2d(p.pos, u.time);
     p.vel += c * u.noise_str * bass_amp;
 
-    // ---- beat: radial burst from random attractor point -----------------
+    // ---- beat rising edge: radial explosion from random point -----------
     let is_beat = u.beat_pulse > 0.7 && u.prev_beat <= 0.7;
     if is_beat {
         let seed = uhash(i ^ u32(u.time * 1000.0));
@@ -100,7 +100,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         let dir  = p.pos - vec2<f32>(bx, by);
         let d    = length(dir);
         if d > 0.001 {
-            p.vel += normalize(dir) * u.beat_pulse * 0.12;
+            p.vel += normalize(dir) * 0.18;
         }
     }
 
@@ -110,9 +110,9 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     let pull  = vec2<f32>(cx, cy) - p.pos;
     p.vel += pull * 0.0003 * (1.0 - u.energy);
 
-    // ---- damping + integrate --------------------------------------------
+    // ---- damping + integrate (beat reduces damping → faster swirl) ------
     let spd = u.speed * (0.5 + u.energy * 1.5);
-    p.vel *= 0.93;
+    p.vel *= (0.93 - u.beat_pulse * 0.05);
     p.pos += p.vel * spd;
     p.pos  = fract(p.pos);   // wrap at boundary
 
