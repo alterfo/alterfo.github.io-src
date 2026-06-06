@@ -15,7 +15,7 @@ fi
 
 # build
 yarn install --immutable
-yarn run build
+npx vitepress build
 
 # copy AR Engine web assets into dist (if ar-engine/web exists)
 if [ -d "ar-engine/web" ]; then
@@ -24,7 +24,7 @@ if [ -d "ar-engine/web" ]; then
 fi
 
 # navigate into the build output directory
-cd blog/.vuepress/dist
+cd .vitepress/dist
 git config --global user.email "github-actions@example.com"
 git config --global user.name "GitHubActions[Bot]"
 

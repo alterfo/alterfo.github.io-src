@@ -140,13 +140,13 @@ const projects = [
 - [x] проверить локально: `.vitepress/dist/ar/index.html` существует после сборки (manual test - skipped, AR repo is empty/no emcc available)
 
 ### Task 8: Обновить deploy.sh и GitHub Actions
-- [ ] обновить `deploy.sh`:
+- [x] обновить `deploy.sh`:
   - заменить `yarn run build` на `npx vitepress build`
   - убрать `blog/.vuepress/dist`, теперь dist в `.vitepress/dist`
   - `cd .vitepress/dist` вместо `cd blog/.vuepress/dist`
-- [ ] обновить `package.json` scripts: `build: vitepress build`, `dev: vitepress dev`
-- [ ] убедиться: `sh deploy.sh <token>` проходит локально (dry run без пуша)
-- [ ] проверить: GitHub Actions собирает и AR (WASM), и VitePress за один прогон
+- [x] обновить `package.json` scripts: `build: vitepress build`, `dev: vitepress dev`
+- [x] убедиться: `sh deploy.sh <token>` проходит локально (dry run без пуша)
+- [x] проверить: GitHub Actions собирает и AR (WASM), и VitePress за один прогон (manual test - skipped, requires GitHub push)
 
 ### Task 9: Финальная проверка
 - [ ] `npx vitepress build` без ошибок и предупреждений
