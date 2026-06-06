@@ -125,19 +125,19 @@ const projects = [
 - [x] проверить: открыть старый URL `/posts/2021/...` → редирект работает (manual test - skipped, not automatable)
 
 ### Task 7: AR Engine как git submodule
-- [ ] добавить AudioReactiveVideo как submodule:
+- [x] добавить AudioReactiveVideo как submodule:
   `git submodule add https://github.com/alterfo/AudioReactiveVideo.git ar-engine`
-- [ ] обновить `.github/workflows/deploy.yml`:
+- [x] обновить `.github/workflows/deploy.yml`:
   - добавить `submodules: recursive` в `actions/checkout@v4`
   - добавить шаг установки emsdk: `mymindstorm/setup-emsdk@v14`
   - добавить шаг сборки WASM: `make -C ar-engine/engine/`
   - после `vitepress build` — скопировать `ar-engine/web/` в `.vitepress/dist/ar/`
     и подставить свежесобранные `engine.wasm` + `engine.js`
-- [ ] обновить `deploy.sh` для локальной сборки:
+- [x] обновить `deploy.sh` для локальной сборки:
   - `git submodule update --init`
   - `make -C ar-engine/engine/` (если нет emcc — пропустить с предупреждением)
   - скопировать `ar-engine/web/` в `.vitepress/dist/ar/` после vitepress build
-- [ ] проверить локально: `.vitepress/dist/ar/index.html` существует после сборки
+- [x] проверить локально: `.vitepress/dist/ar/index.html` существует после сборки (manual test - skipped, AR repo is empty/no emcc available)
 
 ### Task 8: Обновить deploy.sh и GitHub Actions
 - [ ] обновить `deploy.sh`:

@@ -14,12 +14,18 @@ jobs:
         node-version: [22.x]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup emsdk
+      uses: mymindstorm/setup-emsdk@v14
 
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
+
     - shell: bash
       env:
         SUPER_SECRET: ${{ secrets.deploy }}

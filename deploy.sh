@@ -3,9 +3,25 @@
 # abort on errors
 set -e
 
+# init submodules
+git submodule update --init
+
+# build AR Engine WASM if emcc is available
+if command -v emcc >/dev/null 2>&1; then
+  make -C ar-engine/engine/
+else
+  echo "Warning: emcc not found, skipping AR Engine WASM build"
+fi
+
 # build
 yarn install --immutable
 yarn run build
+
+# copy AR Engine web assets into dist (if ar-engine/web exists)
+if [ -d "ar-engine/web" ]; then
+  mkdir -p .vitepress/dist/ar
+  cp -r ar-engine/web/. .vitepress/dist/ar/
+fi
 
 # navigate into the build output directory
 cd blog/.vuepress/dist
