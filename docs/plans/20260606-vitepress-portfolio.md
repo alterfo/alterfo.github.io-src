@@ -88,12 +88,12 @@ const projects = [
 - [x] проверить: отдельный пост открывается с нормальным markdown
 
 ### Task 3: Перенос темы и стилей
-- [ ] скопировать стили из `blog/.vuepress/styles/` → `.vitepress/theme/styles/`
-- [ ] адаптировать Stylus → CSS (VitePress не поддерживает Stylus нативно)
+- [x] скопировать стили из `blog/.vuepress/styles/` → `.vitepress/theme/styles/`
+- [x] адаптировать Stylus → CSS (VitePress не поддерживает Stylus нативно)
   - конвертировать вручную или через `stylus-to-css` утилиту
-- [ ] перенести `public/particles/` → `public/particles/` (путь тот же)
-- [ ] воссоздать шапку с particles в `Layout.vue` (тот же WebGL код)
-- [ ] проверить: внешний вид блога близок к оригиналу
+- [x] перенести `public/particles/` → `public/particles/` (путь тот же)
+- [x] воссоздать шапку с particles в `Layout.vue` (тот же WebGL код)
+- [x] проверить: внешний вид блога близок к оригиналу (manual test - skipped, not automatable)
 
 ### Task 4: IDEF0Editor — портирование на Vue 3
 - [ ] прочитать `IDEF0Editor.vue` (1081 строк), составить список Vue 2 → Vue 3 паттернов:
@@ -124,22 +124,37 @@ const projects = [
   (VitePress build hook: после сборки создать redirect HTML в `dist/posts/`)
 - [ ] проверить: открыть старый URL `/posts/2021/...` → редирект работает
 
-### Task 7: Обновить deploy.sh и GitHub Actions
+### Task 7: AR Engine как git submodule
+- [ ] добавить AudioReactiveVideo как submodule:
+  `git submodule add https://github.com/alterfo/AudioReactiveVideo.git ar-engine`
+- [ ] обновить `.github/workflows/deploy.yml`:
+  - добавить `submodules: recursive` в `actions/checkout@v4`
+  - добавить шаг установки emsdk: `mymindstorm/setup-emsdk@v14`
+  - добавить шаг сборки WASM: `make -C ar-engine/engine/`
+  - после `vitepress build` — скопировать `ar-engine/web/` в `.vitepress/dist/ar/`
+    и подставить свежесобранные `engine.wasm` + `engine.js`
+- [ ] обновить `deploy.sh` для локальной сборки:
+  - `git submodule update --init`
+  - `make -C ar-engine/engine/` (если нет emcc — пропустить с предупреждением)
+  - скопировать `ar-engine/web/` в `.vitepress/dist/ar/` после vitepress build
+- [ ] проверить локально: `.vitepress/dist/ar/index.html` существует после сборки
+
+### Task 8: Обновить deploy.sh и GitHub Actions
 - [ ] обновить `deploy.sh`:
   - заменить `yarn run build` на `npx vitepress build`
   - убрать `blog/.vuepress/dist`, теперь dist в `.vitepress/dist`
   - `cd .vitepress/dist` вместо `cd blog/.vuepress/dist`
 - [ ] обновить `package.json` scripts: `build: vitepress build`, `dev: vitepress dev`
 - [ ] убедиться: `sh deploy.sh <token>` проходит локально (dry run без пуша)
-- [ ] проверить: GitHub Actions workflow запускается и деплоит без ошибок
+- [ ] проверить: GitHub Actions собирает и AR (WASM), и VitePress за один прогон
 
-### Task 8: Финальная проверка
+### Task 9: Финальная проверка
 - [ ] `npx vitepress build` без ошибок и предупреждений
 - [ ] проверить все страницы: `/`, `/blog/`, `/idef0`, один пост
 - [ ] проверить редиректы: `/posts/...` → `/blog/posts/...`
 - [ ] проверить mobile: портфолио-сетка, блог, IDEF0
-- [ ] проверить что `/ar/` карточка ведёт на правильный URL (задеплоен из AudioReactiveVideo)
-- [ ] убедиться что старый VuePress код (`blog/.vuepress/`) можно удалить (или архивировать в ветку)
+- [ ] открыть `alterfo.github.io/ar/` — AR движок загружается, drag-drop трек работает
+- [ ] убедиться что старый VuePress код (`blog/.vuepress/`) можно удалить
 
 ## Post-Completion
 
