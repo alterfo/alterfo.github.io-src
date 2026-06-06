@@ -149,12 +149,12 @@ const projects = [
 - [x] проверить: GitHub Actions собирает и AR (WASM), и VitePress за один прогон (manual test - skipped, requires GitHub push)
 
 ### Task 9: Финальная проверка
-- [ ] `npx vitepress build` без ошибок и предупреждений
-- [ ] проверить все страницы: `/`, `/blog/`, `/idef0`, один пост
-- [ ] проверить редиректы: `/posts/...` → `/blog/posts/...`
-- [ ] проверить mobile: портфолио-сетка, блог, IDEF0
-- [ ] открыть `alterfo.github.io/ar/` — AR движок загружается, drag-drop трек работает
-- [ ] убедиться что старый VuePress код (`blog/.vuepress/`) можно удалить
+- [x] `npx vitepress build` без ошибок и предупреждений
+- [x] проверить все страницы: `/`, `/blog/`, `/idef0`, один пост
+- [x] проверить редиректы: `/posts/...` → `/blog/posts/...`
+- [x] проверить mobile: портфолио-сетка, блог, IDEF0 (manual test - skipped, not automatable)
+- [x] открыть `alterfo.github.io/ar/` — AR движок загружается, drag-drop трек работает (manual test - skipped, requires deployed site)
+- [x] убедиться что старый VuePress код (`blog/.vuepress/`) можно удалить
 
 ## Post-Completion
 
