@@ -150,9 +150,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ---- Hue slowly converges toward nearest pole's colour ----
     // Each pole has a complementary hue; colour regions flow and merge
     // as poles drift — the colours themselves become part of the animation.
-    let phues = array<f32, 4>(0.06, 0.56, 0.16, 0.66);
-    let target = fract(phues[nearest_pole] + u.hue_base);
-    var dh     = target - p.hue;
+    let phues      = array<f32, 4>(0.06, 0.56, 0.16, 0.66);
+    let target_hue = fract(phues[nearest_pole] + u.hue_base);
+    var dh         = target_hue - p.hue;
     if dh > 0.5  { dh -= 1.0; }
     if dh < -0.5 { dh += 1.0; }
     p.hue = fract(p.hue + dh * 0.012);
