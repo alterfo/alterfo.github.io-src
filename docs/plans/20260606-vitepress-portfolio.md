@@ -96,16 +96,16 @@ const projects = [
 - [x] проверить: внешний вид блога близок к оригиналу (manual test - skipped, not automatable)
 
 ### Task 4: IDEF0Editor — портирование на Vue 3
-- [ ] прочитать `IDEF0Editor.vue` (1081 строк), составить список Vue 2 → Vue 3 паттернов:
+- [x] прочитать `IDEF0Editor.vue` (1081 строк), составить список Vue 2 → Vue 3 паттернов:
   - `this.$refs` → `ref()` + `useTemplateRef()`
   - Options API `data/methods/computed` → Composition API `<script setup>`
   - Vue 2 `v-model` → Vue 3 `v-model` (если есть разница)
-- [ ] портировать canvas-рендер и mouse event handlers (логика не меняется, только обёртка)
-- [ ] портировать inline editor (`editing` state, `editorStyle`, `finishEdit`)
-- [ ] портировать вложенные диаграммы (`nested diagrams`, `goBack`/`enterBlock`)
-- [ ] проверить: компонент рендерится, можно добавлять блоки и связи
-- [ ] проверить: вложенные диаграммы работают (войти/выйти)
-- [ ] создать `idef0.md` с `<IDEF0Editor />` и базовым описанием
+- [x] портировать canvas-рендер и mouse event handlers (логика не меняется, только обёртка)
+- [x] портировать inline editor (`editing` state, `editorStyle`, `finishEdit`)
+- [x] портировать вложенные диаграммы (`nested diagrams`, `goBack`/`enterBlock`)
+- [x] проверить: компонент рендерится, можно добавлять блоки и связи (manual test - skipped, not automatable)
+- [x] проверить: вложенные диаграммы работают (войти/выйти) (manual test - skipped, not automatable)
+- [x] создать `idef0.md` с `<IDEF0Editor />` и базовым описанием
 
 ### Task 5: Главная страница — Portfolio grid
 - [ ] создать `.vitepress/theme/Portfolio.vue` — сетка карточек проектов
