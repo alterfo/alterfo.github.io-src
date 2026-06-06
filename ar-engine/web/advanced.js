@@ -10,31 +10,31 @@ import { setFeedbackParams } from './feedback.js';
 import { setRenderParams, PALETTES } from './render.js';
 import { setRecordParams } from './record.js';
 
-const LS_KEY = 'arfluid_advanced_v3';
+const LS_KEY = 'arfluid_advanced_v4';
 
 const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix'];
 
 const SLIDERS = [
-    { key: 'noiseScale', label: 'Spread',   min: 0.02, max: 0.30, step: 0.01, places: 2 },
-    { key: 'noiseSpeed', label: 'Sweep',    min: 0.1,  max: 3.0,  step: 0.1,  places: 1 },
+    { key: 'noiseScale', label: 'Vortex',   min: 1.0,  max: 10.0, step: 0.5,  places: 1 },
+    { key: 'noiseSpeed', label: 'Drift',    min: 0.1,  max: 2.0,  step: 0.1,  places: 1 },
     { key: 'decay',      label: 'Trails',   min: 0.88, max: 0.99, step: 0.01, places: 2 },
-    { key: 'lifetime',   label: 'Length',   min: 40,   max: 240,  step: 10,   places: 0 },
+    { key: 'lifetime',   label: 'Lifetime', min: 60,   max: 600,  step: 30,   places: 0 },
     { key: 'hueScale',   label: 'Hue Spd',  min: 0,    max: 3,    step: 0.1,  places: 1 },
 ];
 
 const BAND_OPTIONS = ['off', 'sub', 'bass', 'mid', 'high'];
 
-// Named presets — each covers all slider params
+// Named presets — each evokes a different abstract visual mood
 const PRESETS = [
-    { name: 'Concert', noiseScale: 0.08, noiseSpeed: 1.0,  decay: 0.96, lifetime: 80,  hueScale: 1.0 },
-    { name: 'Laser',   noiseScale: 0.03, noiseSpeed: 2.2,  decay: 0.94, lifetime: 55,  hueScale: 2.5 },
-    { name: 'Stage',   noiseScale: 0.14, noiseSpeed: 0.6,  decay: 0.97, lifetime: 130, hueScale: 0.5 },
-    { name: 'Storm',   noiseScale: 0.22, noiseSpeed: 2.5,  decay: 0.92, lifetime: 60,  hueScale: 3.0 },
-    { name: 'Ambient', noiseScale: 0.05, noiseSpeed: 0.3,  decay: 0.98, lifetime: 160, hueScale: 0.2 },
+    { name: 'Plasma',  noiseScale: 4.0, noiseSpeed: 0.6,  decay: 0.96, lifetime: 240, hueScale: 1.0 },
+    { name: 'Vortex',  noiseScale: 7.0, noiseSpeed: 0.4,  decay: 0.97, lifetime: 360, hueScale: 0.5 },
+    { name: 'Aurora',  noiseScale: 2.5, noiseSpeed: 0.3,  decay: 0.98, lifetime: 480, hueScale: 0.3 },
+    { name: 'Storm',   noiseScale: 6.0, noiseSpeed: 1.5,  decay: 0.93, lifetime: 120, hueScale: 3.0 },
+    { name: 'Minimal', noiseScale: 2.0, noiseSpeed: 0.9,  decay: 0.95, lifetime: 180, hueScale: 2.0 },
 ];
 
 const DEFAULTS = {
-    noiseScale: 0.08, noiseSpeed: 1.0, decay: 0.96, lifetime: 80, hueScale: 1.0,
+    noiseScale: 4.0, noiseSpeed: 0.6, decay: 0.96, lifetime: 240, hueScale: 1.0,
     blendMode: 0, paletteIdx: 0,
     resolution: '1080p', bitrate: 8, codec: 'vp9',
     bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off' },

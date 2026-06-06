@@ -1,6 +1,8 @@
-// Beam draw shader — renders point-list particles to trail texture.
-// Particles start bright at the emitter and fade as they travel (age 0→1).
-// Additive blending: dense beam core accumulates toward white; edges stay coloured.
+// Vortex draw shader — renders point-list particles to trail texture.
+// Brightness driven by orbital speed: fast-orbiting particles near poles
+// are brighter than slow-drifting particles between poles, naturally
+// highlighting the vortex structure without any explicit geometry.
+// Additive blending: dense orbits bloom toward white; streams stay coloured.
 
 struct Particle {
     pos  : vec2<f32>,
@@ -47,21 +49,26 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
 
     let ndc = vec2f(p.pos.x * 2.0 - 1.0, 1.0 - p.pos.y * 2.0);
 
-    // Brightness: concentrated near emitter (age≈0), fades toward tip (age≈1).
-    // pow(x, 0.6) keeps it bright longer then drops — mimics a spotlight beam.
-    let brightness = pow(clamp(1.0 - p.age, 0.0, 1.0), 0.6);
+    // Speed-based brightness: fast orbital particles (near poles) are vivid;
+    // slow-drifting interstitial particles are dim — reveals the vortex structure
+    // without explicit geometry. Scale 28 maps typical orbit speed → 0.6..1.0 range.
+    let spd_env  = clamp(length(p.vel) * 28.0, 0.0, 1.0);
+    // Age envelope: fade in at birth (0.08s), persist, fade at death
+    let age_env  = sin(clamp(p.age, 0.0, 1.0) * 3.14159);
+    // Blend: speed is dominant; age adds soft birth/death fade
+    let brightness = mix(age_env * 0.5, 1.0, spd_env);
 
-    // Hue: slight shift with high frequencies; vivid saturation
-    let hue = fract(p.hue + u.high * 0.06);
-    let sat = clamp(0.88 + u.mid * 0.12, 0.0, 1.0);
-    let rgb = hsl2rgb(hue, sat, 0.46);
+    // Hue: slight shift with high-frequency content (hi-hat shimmer on colour)
+    let hue = fract(p.hue + u.high * 0.05);
+    // Saturation: midrange voices push colours toward vivid
+    let sat = clamp(0.85 + u.mid * 0.15, 0.0, 1.0);
+    let rgb = hsl2rgb(hue, sat, 0.48);
 
-    // Energy makes the entire beam breathe: loud sections are visibly brighter
+    // Energy breathes the whole field; beat punctuates each kick
     let energy_boost = 1.0 + u.energy * 3.5;
-    // Beat flashes the beam on kick
-    let beat_boost   = 1.0 + u.beat_pulse * 2.5;
+    let beat_boost   = 1.0 + u.beat_pulse * 2.2;
 
-    let base_alpha = brightness * 0.0022 * energy_boost * beat_boost;
+    let base_alpha = brightness * 0.0018 * energy_boost * beat_boost;
 
     var out: VSOut;
     out.pos   = vec4f(ndc, 0.0, 1.0);
