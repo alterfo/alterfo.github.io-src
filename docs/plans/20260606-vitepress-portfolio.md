@@ -80,12 +80,12 @@ const projects = [
 - [x] старый VuePress (папка `blog/`) не трогаем пока
 
 ### Task 2: Перенос постов блога
-- [ ] скопировать все `blog/_posts/*.md` в `posts/` (переименовать `_posts` → `posts`)
-- [ ] проверить frontmatter — VitePress требует `date`, `title`; адаптировать если нужно
-- [ ] настроить `createContentLoader('posts/*.md')` в config для листинга
-- [ ] создать `blog/index.md` — страница со списком постов (VitePress blog layout)
-- [ ] проверить: `npx vitepress dev` — посты отображаются на `/blog/`
-- [ ] проверить: отдельный пост открывается с нормальным markdown
+- [x] скопировать все `blog/_posts/*.md` в `posts/` (переименовать `_posts` → `posts`)
+- [x] проверить frontmatter — VitePress требует `date`, `title`; адаптировать если нужно
+- [x] настроить `createContentLoader('posts/*.md')` в config для листинга
+- [x] создать `blog/index.md` — страница со списком постов (VitePress blog layout)
+- [x] проверить: `npx vitepress dev` — посты отображаются на `/blog/`
+- [x] проверить: отдельный пост открывается с нормальным markdown
 
 ### Task 3: Перенос темы и стилей
 - [ ] скопировать стили из `blog/.vuepress/styles/` → `.vitepress/theme/styles/`
