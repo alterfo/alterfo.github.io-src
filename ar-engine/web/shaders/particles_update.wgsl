@@ -86,33 +86,40 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     var p = particles[i];
 
-    // ---- curl noise force (bass + beat both amplify turbulence) ----------
-    let bass_amp = 1.0 + u.bass * 2.5 + u.beat_pulse * 3.0;
+    // ---- curl noise force (bass amplifies turbulence) -------------------
+    let bass_amp = 1.0 + u.bass * 2.0;
     let c = curl2d(p.pos, u.time);
     p.vel += c * u.noise_str * bass_amp;
 
-    // ---- beat rising edge: radial explosion from random point -----------
-    let is_beat = u.beat_pulse > 0.7 && u.prev_beat <= 0.7;
-    if is_beat {
-        let seed = uhash(i ^ u32(u.time * 1000.0));
-        let bx   = uf01(uhash(seed));
-        let by   = uf01(uhash(seed + 1u));
-        let dir  = p.pos - vec2<f32>(bx, by);
-        let d    = length(dir);
-        if d > 0.001 {
-            p.vel += normalize(dir) * 0.18;
-        }
+    // ---- beat: staggered direction change per particle ------------------
+    // Each particle has a unique sensitivity threshold (0..0.65).
+    // When beat_pulse exceeds the threshold, that particle gets a random
+    // direction nudge — so different particles respond at different beat levels,
+    // creating an organic wave instead of a simultaneous explosion.
+    let thresh    = uf01(uhash(i * 7919u + 1u)) * 0.65;
+    let beat_over = clamp(u.beat_pulse - thresh, 0.0, 1.0);
+    if beat_over > 0.0 {
+        let h     = uhash(i * 3u + u32(u.beat_pulse * 500.0));
+        let angle = uf01(h) * 6.28318;
+        p.vel += vec2<f32>(cos(angle), sin(angle)) * beat_over * 0.10;
     }
 
-    // ---- gentle attractor (shifts with mid energy) ----------------------
+    // ---- voice/mid: perpendicular force — particles gently curve --------
+    let vel_len = length(p.vel);
+    if vel_len > 0.00001 && u.mid > 0.05 {
+        let perp = vec2<f32>(-p.vel.y, p.vel.x) / vel_len;
+        p.vel += perp * u.mid * 0.0004;
+    }
+
+    // ---- gentle attractor (drifts over time) ----------------------------
     let cx    = 0.5 + sin(u.time * 0.07) * 0.15;
     let cy    = 0.5 + cos(u.time * 0.11) * 0.12;
     let pull  = vec2<f32>(cx, cy) - p.pos;
     p.vel += pull * 0.0003 * (1.0 - u.energy);
 
-    // ---- damping + integrate (beat reduces damping → faster swirl) ------
+    // ---- damping + integrate --------------------------------------------
     let spd = u.speed * (0.5 + u.energy * 1.5);
-    p.vel *= (0.93 - u.beat_pulse * 0.05);
+    p.vel *= 0.93;
     p.pos += p.vel * spd;
     p.pos  = fract(p.pos);   // wrap at boundary
 
