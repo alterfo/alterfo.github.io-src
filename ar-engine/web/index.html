@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Reactive Fluid</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ---- canvas wrapper maintains 16:9 ---- */
+    #canvas-wrap {
+      position: relative;
+      width: min(100vw, 177.78vh); /* 16/9 = 1.7778 */
+      aspect-ratio: 16 / 9;
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #0a0020;
+    }
+
+    /* ---- drag-drop overlay ---- */
+    #drop-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: rgba(10, 0, 32, 0.85);
+      border: 2px dashed #8b00ff;
+      border-radius: 8px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    #drop-overlay.drag-over {
+      background: rgba(139, 0, 255, 0.25);
+      border-color: #00ffff;
+    }
+    #drop-overlay .drop-icon { font-size: 3.5rem; line-height: 1; }
+    #drop-overlay .drop-text { font-size: 1.1rem; color: #ccc; }
+    #drop-overlay .drop-hint { font-size: 0.8rem; color: #666; }
+    #file-input { display: none; }
+
+    /* ---- controls bar (hidden until file loaded) ---- */
+    #controls {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    #controls.visible { opacity: 1; pointer-events: auto; }
+
+    .ctrl-btn {
+      background: rgba(20, 0, 50, 0.8);
+      border: 1px solid #8b00ff;
+      color: #fff;
+      border-radius: 50%;
+      width: 52px;
+      height: 52px;
+      font-size: 1.4rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .ctrl-btn:hover { background: rgba(139, 0, 255, 0.35); border-color: #00ffff; }
+    .ctrl-btn:active { transform: scale(0.94); }
+
+    #btn-rec {
+      border-color: #ff2244;
+    }
+    #btn-rec.recording {
+      background: rgba(255, 34, 68, 0.4);
+      border-color: #ff2244;
+      animation: rec-blink 1s ease-in-out infinite;
+    }
+    @keyframes rec-blink { 50% { opacity: 0.5; } }
+
+    /* ---- BPM badge ---- */
+    #bpm-badge {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid #8b00ff;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      color: #c080ff;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #bpm-badge.visible { opacity: 1; }
+
+    /* ---- settings button ---- */
+    #btn-settings {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      background: rgba(20,0,50,0.7);
+      border: 1px solid #444;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #btn-settings:hover { border-color: #8b00ff; color: #fff; }
+
+    /* ---- track label ---- */
+    #track-label {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      font-size: 0.75rem;
+      color: #666;
+      max-width: 55%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #track-label.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="canvas-wrap">
+    <canvas id="canvas" width="960" height="540"></canvas>
+
+    <!-- drag-drop overlay -->
+    <div id="drop-overlay" role="button" aria-label="Drop audio file or click to browse">
+      <div class="drop-icon">🎵</div>
+      <div class="drop-text">Drop audio file here</div>
+      <div class="drop-hint">mp3 · flac · wav · ogg</div>
+      <input id="file-input" type="file" accept="audio/*">
+    </div>
+
+    <!-- BPM display -->
+    <div id="bpm-badge">— BPM</div>
+
+    <!-- track name -->
+    <div id="track-label"></div>
+
+    <!-- playback + record controls -->
+    <div id="controls">
+      <button class="ctrl-btn" id="btn-play" title="Play / Pause">▶</button>
+      <button class="ctrl-btn" id="btn-rec"  title="Record">⏺</button>
+    </div>
+
+    <!-- advanced settings toggle -->
+    <button id="btn-settings" title="Advanced settings">⚙️</button>
+  </div>
+
+  <!-- engine.js is generated by emcc and exposes AudioEngine() factory -->
+  <script src="engine.js"></script>
+  <script type="module">
+    import {
+      initAudio, loadFile as audioLoadFile,
+      play, pause, resume, isPlaying, getAudioFrame,
+    } from './audio.js';
+    import { initRenderer, startLoop, addFrameTick } from './renderer.js';
+    import { initParticlePipeline } from './particles.js';
+    import { initFeedbackPipeline } from './feedback.js';
+    import { initRenderPipeline } from './render.js';
+    import { initRecord, startRecording, stopRecording, isRecording } from './record.js';
+    import { initAdvanced } from './advanced.js';
+
+    (async () => {
+      /* ---- DOM refs ---- */
+      const dropOverlay = document.getElementById('drop-overlay');
+      const fileInput   = document.getElementById('file-input');
+      const controls    = document.getElementById('controls');
+      const bpmBadge    = document.getElementById('bpm-badge');
+      const trackLabel  = document.getElementById('track-label');
+      const btnPlay     = document.getElementById('btn-play');
+      const btnRec      = document.getElementById('btn-rec');
+      const btnSettings = document.getElementById('btn-settings');
+      const canvas      = document.getElementById('canvas');
+
+      /* ---- load WASM engine ---- */
+      let engineReady = false;
+      try {
+        const mod = await AudioEngine();
+        const engine = {
+          init:        mod.cwrap('engine_init',         null, ['number','number']),
+          reset:       mod.cwrap('engine_reset',        null, []),
+          pushSamples: mod.cwrap('engine_push_samples', null, ['number','number']),
+          getFrame:    mod.cwrap('engine_get_frame',    null, ['number']),
+          setEnvelope: mod.cwrap('engine_set_envelope', null, ['number','number','number']),
+          mod,
+        };
+        await initAudio(engine);
+        engineReady = true;
+        console.log('[engine] WASM loaded OK — AudioFrame:', 11 * 4, 'bytes');
+      } catch (e) {
+        console.error('[engine] WASM load failed:', e);
+      }
+
+      /* ---- WebGPU renderer + particle pipeline ---- */
+      let advPanel = null;
+      try {
+        const { device, textures, passes } = await initRenderer(canvas);
+        const { tick: particleTick } = await initParticlePipeline(device, textures, passes);
+        const { tick: fbTick }       = await initFeedbackPipeline(device, textures, passes);
+        const { tick: renderTick }   = await initRenderPipeline(device, textures, passes);
+        addFrameTick(particleTick);
+        addFrameTick(fbTick);
+        addFrameTick(renderTick);
+        startLoop();
+        initRecord(canvas);
+        // Advanced panel wired up after pipelines are ready
+        advPanel = initAdvanced({
+          canvasWrap: document.getElementById('canvas-wrap'),
+          onClose: () => { btnSettings.title = 'Advanced settings'; },
+        });
+        console.log('[renderer] render loop started');
+      } catch (e) {
+        console.error('[renderer] WebGPU init failed:', e.message);
+        // Fallback: dark background already set by CSS (#0a0020)
+      }
+
+      /* ---- BPM badge updater (rAF loop, separate from render loop) ---- */
+      let logCounter = 0;
+      function tick() {
+        const frame = getAudioFrame();
+        if (frame && frame.tempo_bpm > 0) {
+          bpmBadge.textContent = `${frame.tempo_bpm.toFixed(0)} BPM`;
+
+          /* DevTools log every ~60 frames (≈1s) */
+          if (++logCounter % 60 === 0) {
+            console.log('[AudioFrame]',
+              'energy', frame.energy.toFixed(3),
+              'sub',    frame.sub.toFixed(3),
+              'bass',   frame.bass.toFixed(3),
+              'mid',    frame.mid.toFixed(3),
+              'high',   frame.high.toFixed(3),
+              'beat',   frame.beat_pulse.toFixed(3),
+              'bpm',    frame.tempo_bpm.toFixed(1),
+              'onset',  frame.onset.map(v => v.toFixed(0)).join('/'));
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      /* ---- drag-drop ---- */
+      dropOverlay.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropOverlay.classList.add('drag-over');
+      });
+      dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.remove('drag-over'));
+      dropOverlay.addEventListener('drop', e => {
+        e.preventDefault();
+        dropOverlay.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) _loadAndPlay(file);
+      });
+      dropOverlay.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files[0]) _loadAndPlay(fileInput.files[0]);
+      });
+
+      let _trackName = 'recording';
+
+      async function _loadAndPlay(file) {
+        if (!file.type.startsWith('audio/') && !/\.(mp3|flac|wav|ogg|aac|m4a)$/i.test(file.name)) {
+          alert('Please drop an audio file (mp3, flac, wav, ogg).');
+          return;
+        }
+        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        try {
+          const { name, duration } = await audioLoadFile(file);
+          _trackName = name;
+          dropOverlay.style.display = 'none';
+          controls.classList.add('visible');
+          bpmBadge.classList.add('visible');
+          trackLabel.textContent = name;
+          trackLabel.classList.add('visible');
+          console.log('[audio] loaded:', name, duration.toFixed(1), 's');
+          play();
+          btnPlay.textContent = '⏸';
+        } catch (e) {
+          console.error('[audio] load failed:', e);
+          alert('Failed to load audio: ' + e.message);
+        }
+      }
+
+      /* ---- play/pause button ---- */
+      btnPlay.addEventListener('click', () => {
+        if (isPlaying()) {
+          pause();
+          btnPlay.textContent = '▶';
+        } else {
+          resume();
+          btnPlay.textContent = '⏸';
+        }
+      });
+
+      /* ---- record button ---- */
+      btnRec.addEventListener('click', async () => {
+        if (!btnRec.classList.contains('recording')) {
+          startRecording(60);
+          btnRec.classList.add('recording');
+          console.log('[record] started');
+        } else {
+          btnRec.classList.remove('recording');
+          const blob = await stopRecording();
+          if (blob) {
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = _trackName.replace(/\.[^.]+$/, '') + '.webm';
+            a.click();
+            URL.revokeObjectURL(url);
+            console.log('[record] saved', blob.size, 'bytes →', a.download);
+          }
+        }
+      });
+
+      /* ---- settings button — toggle advanced panel ---- */
+      btnSettings.addEventListener('click', () => {
+        if (!advPanel) { console.warn('[advanced] panel not available (WebGPU failed?)'); return; }
+        if (advPanel.isOpen()) {
+          advPanel.close();
+        } else {
+          advPanel.open();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
