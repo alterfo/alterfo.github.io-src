@@ -1,6 +1,6 @@
-// Particle draw shader — renders 500k point-list particles to trail texture.
-// Uses additive blending; each particle contributes a tiny HSL-coloured dot.
-// Accumulation over many frames via the feedback trail creates glowing light streams.
+// Beam draw shader — renders point-list particles to trail texture.
+// Particles start bright at the emitter and fade as they travel (age 0→1).
+// Additive blending: dense beam core accumulates toward white; edges stay coloured.
 
 struct Particle {
     pos  : vec2<f32>,
@@ -26,19 +26,18 @@ struct VSOut {
     @location(0)       color : vec4<f32>,
 };
 
-// HSL → RGB (all inputs/outputs 0..1)
 fn hsl2rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
     let c = (1.0 - abs(2.0 * l - 1.0)) * s;
     let x = c * (1.0 - abs(fract(h * 6.0) * 2.0 - 1.0));
     let m = l - c * 0.5;
     let h6 = h * 6.0;
     var rgb: vec3<f32>;
-    if      h6 < 1.0 { rgb = vec3<f32>(c, x, 0.0); }
-    else if h6 < 2.0 { rgb = vec3<f32>(x, c, 0.0); }
-    else if h6 < 3.0 { rgb = vec3<f32>(0.0, c, x); }
-    else if h6 < 4.0 { rgb = vec3<f32>(0.0, x, c); }
-    else if h6 < 5.0 { rgb = vec3<f32>(x, 0.0, c); }
-    else              { rgb = vec3<f32>(c, 0.0, x); }
+    if      h6 < 1.0 { rgb = vec3f(c, x, 0.0); }
+    else if h6 < 2.0 { rgb = vec3f(x, c, 0.0); }
+    else if h6 < 3.0 { rgb = vec3f(0.0, c, x); }
+    else if h6 < 4.0 { rgb = vec3f(0.0, x, c); }
+    else if h6 < 5.0 { rgb = vec3f(x, 0.0, c); }
+    else              { rgb = vec3f(c, 0.0, x); }
     return rgb + m;
 }
 
@@ -46,26 +45,27 @@ fn hsl2rgb(h: f32, s: f32, l: f32) -> vec3<f32> {
 fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
     let p = particles[idx];
 
-    // Map [0,1] particle pos to NDC [-1,1]; Y is flipped (WebGPU Y=1 at top)
-    let ndc = vec2<f32>(p.pos.x * 2.0 - 1.0, 1.0 - p.pos.y * 2.0);
+    let ndc = vec2f(p.pos.x * 2.0 - 1.0, 1.0 - p.pos.y * 2.0);
 
-    // Life envelope: 0 at birth/death, 1 at mid-life
-    let life  = sin(p.age * 3.14159);
-    let speed = length(p.vel);
+    // Brightness: concentrated near emitter (age≈0), fades toward tip (age≈1).
+    // pow(x, 0.6) keeps it bright longer then drops — mimics a spotlight beam.
+    let brightness = pow(clamp(1.0 - p.age, 0.0, 1.0), 0.6);
 
-    // Audio-reactive color: hue drifts with high, saturation with mid
-    let hue = fract(p.hue + u.high * 0.15);
-    let sat = clamp(0.75 + u.mid * 0.25, 0.0, 1.0);
-    let lum = clamp(0.35 + speed * 14.0 + u.energy * 0.4, 0.0, 0.95);
-    let rgb = hsl2rgb(hue, sat, lum * 0.5);
+    // Hue: slight shift with high frequencies; vivid saturation
+    let hue = fract(p.hue + u.high * 0.06);
+    let sat = clamp(0.88 + u.mid * 0.12, 0.0, 1.0);
+    let rgb = hsl2rgb(hue, sat, 0.46);
 
-    // Beat brightens particles directly: spike on kick → fast decay (beat_pulse already decays)
-    let beat_boost = 1.0 + u.beat_pulse * 4.0;
-    let base_alpha = life * 0.022 * beat_boost;
+    // Energy makes the entire beam breathe: loud sections are visibly brighter
+    let energy_boost = 1.0 + u.energy * 3.5;
+    // Beat flashes the beam on kick
+    let beat_boost   = 1.0 + u.beat_pulse * 2.5;
+
+    let base_alpha = brightness * 0.0022 * energy_boost * beat_boost;
 
     var out: VSOut;
-    out.pos   = vec4<f32>(ndc, 0.0, 1.0);
-    out.color = vec4<f32>(rgb * life * 0.022 * beat_boost, base_alpha);
+    out.pos   = vec4f(ndc, 0.0, 1.0);
+    out.color = vec4f(rgb * base_alpha, base_alpha);
     return out;
 }
 

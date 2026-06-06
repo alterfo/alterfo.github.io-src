@@ -10,22 +10,31 @@ import { setFeedbackParams } from './feedback.js';
 import { setRenderParams, PALETTES } from './render.js';
 import { setRecordParams } from './record.js';
 
-const LS_KEY = 'arfluid_advanced_v2';
+const LS_KEY = 'arfluid_advanced_v3';
 
 const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix'];
 
 const SLIDERS = [
-    { key: 'noiseScale', label: 'Noise',    min: 1.0,  max: 8.0,  step: 0.5,  places: 1 },
-    { key: 'noiseSpeed', label: 'Speed',    min: 0.02, max: 0.8,  step: 0.02, places: 2 },
-    { key: 'decay',      label: 'Decay',    min: 0.70, max: 0.99, step: 0.01, places: 2 },
-    { key: 'lifetime',   label: 'Lifetime', min: 120,  max: 900,  step: 60,   places: 0 },
+    { key: 'noiseScale', label: 'Spread',   min: 0.02, max: 0.30, step: 0.01, places: 2 },
+    { key: 'noiseSpeed', label: 'Sweep',    min: 0.1,  max: 3.0,  step: 0.1,  places: 1 },
+    { key: 'decay',      label: 'Trails',   min: 0.88, max: 0.99, step: 0.01, places: 2 },
+    { key: 'lifetime',   label: 'Length',   min: 40,   max: 240,  step: 10,   places: 0 },
     { key: 'hueScale',   label: 'Hue Spd',  min: 0,    max: 3,    step: 0.1,  places: 1 },
 ];
 
 const BAND_OPTIONS = ['off', 'sub', 'bass', 'mid', 'high'];
 
+// Named presets — each covers all slider params
+const PRESETS = [
+    { name: 'Concert', noiseScale: 0.08, noiseSpeed: 1.0,  decay: 0.96, lifetime: 80,  hueScale: 1.0 },
+    { name: 'Laser',   noiseScale: 0.03, noiseSpeed: 2.2,  decay: 0.94, lifetime: 55,  hueScale: 2.5 },
+    { name: 'Stage',   noiseScale: 0.14, noiseSpeed: 0.6,  decay: 0.97, lifetime: 130, hueScale: 0.5 },
+    { name: 'Storm',   noiseScale: 0.22, noiseSpeed: 2.5,  decay: 0.92, lifetime: 60,  hueScale: 3.0 },
+    { name: 'Ambient', noiseScale: 0.05, noiseSpeed: 0.3,  decay: 0.98, lifetime: 160, hueScale: 0.2 },
+];
+
 const DEFAULTS = {
-    noiseScale: 3.5, noiseSpeed: 0.18, decay: 0.93, lifetime: 420, hueScale: 1.0,
+    noiseScale: 0.08, noiseSpeed: 1.0, decay: 0.96, lifetime: 80, hueScale: 1.0,
     blendMode: 0, paletteIdx: 0,
     resolution: '1080p', bitrate: 8, codec: 'vp9',
     bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off' },
@@ -91,6 +100,15 @@ function injectStyles() {
             width: 100%; cursor: pointer;
         }
         .bind-sel:focus { outline: none; border-color: #8b00ff; }
+        .preset-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 2px; }
+        .preset-btn {
+            flex: 1; min-width: 50px; padding: 6px 3px;
+            background: #0d0020; border: 1px solid #2a004a; color: #888;
+            border-radius: 4px; cursor: pointer; font-size: 0.68rem; text-align: center;
+            transition: border-color 0.15s, color 0.15s, background 0.15s;
+        }
+        .preset-btn.active { background: #1a0035; border-color: #00ffcc; color: #00ffcc; }
+        .preset-btn:hover:not(.active) { border-color: #8b00ff; color: #c080ff; }
         .pal-row { display: flex; gap: 5px; flex-wrap: wrap; }
         .pal-btn {
             flex: 1; min-width: 56px; padding: 5px 4px;
@@ -138,10 +156,18 @@ function buildPanelHTML() {
         `<button class="pal-btn" data-idx="${i}">${n}</button>`
     ).join('');
 
+    const presetBtns = PRESETS.map(p =>
+        `<button class="preset-btn" data-preset="${p.name}">${p.name}</button>`
+    ).join('');
+
     return `
         <div class="adv-header">
             Advanced
             <button id="adv-close">✕</button>
+        </div>
+        <div class="adv-section">
+            <div class="adv-label">Presets</div>
+            <div class="preset-row">${presetBtns}</div>
         </div>
         <div class="adv-section">
             <div class="adv-label">Spectrum</div>
@@ -328,6 +354,47 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             state.bindings[s.key] = bindSel.value;
             save();
         });
+    }
+
+    // ---- Preset buttons ----------------------------------------------------
+    const presetBtnEls = panel.querySelectorAll('.preset-btn');
+
+    function applyPreset(name) {
+        const p = PRESETS.find(pr => pr.name === name);
+        if (!p) return;
+        // Copy preset values into state
+        Object.assign(state, {
+            noiseScale: p.noiseScale,
+            noiseSpeed: p.noiseSpeed,
+            decay:      p.decay,
+            lifetime:   p.lifetime,
+            hueScale:   p.hueScale,
+        });
+        // Sync all slider elements to new values
+        for (const s of SLIDERS) {
+            const input   = panel.querySelector(`#sl-${s.key}`);
+            const valSpan = panel.querySelector(`#sl-val-${s.key}`);
+            if (input && state[s.key] !== undefined) {
+                input.value = state[s.key];
+                if (valSpan) valSpan.textContent = Number(state[s.key]).toFixed(s.places);
+            }
+        }
+        presetBtnEls.forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+        applyParams();
+        save();
+    }
+
+    presetBtnEls.forEach(btn => {
+        btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+
+    // Highlight preset if current state matches one exactly
+    const matchingPreset = PRESETS.find(p =>
+        p.noiseScale === state.noiseScale && p.noiseSpeed === state.noiseSpeed &&
+        p.decay === state.decay && p.lifetime === state.lifetime
+    );
+    if (matchingPreset) {
+        panel.querySelector(`[data-preset="${matchingPreset.name}"]`)?.classList.add('active');
     }
 
     // ---- Blend mode --------------------------------------------------------

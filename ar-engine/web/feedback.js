@@ -6,8 +6,8 @@
 
 import { WIDTH, HEIGHT } from './renderer.js';
 
-const DECAY_NORMAL  = 0.93;   // trail persistence (0=instant clear, 1=never fade)
-const DECAY_ON_BEAT = 0.25;   // sharp flush on beat drop
+const DECAY_NORMAL  = 0.96;   // long beam trails (stadium look)
+const DECAY_ON_BEAT = 0.78;   // moderate flush on beat — clears old trails without full reset
 
 let _decayOverride = DECAY_NORMAL;
 
@@ -100,17 +100,15 @@ export async function initFeedbackPipeline(device, texMgr, passMgr) {
 
     writeFeedbackUniforms(DECAY_NORMAL);
 
-    let _prevBeat = 0;
-
     function tick(frame) {
         texMgr.swap('fbA', 'fbB');
         _swapCount++;
 
-        const beat   = frame?.beat_pulse ?? 0;
-        const isBeat = beat > 0.7 && _prevBeat <= 0.7;
-        _prevBeat = beat;
-
-        writeFeedbackUniforms(isBeat ? DECAY_ON_BEAT : _decayOverride);
+        const beat = frame?.beat_pulse ?? 0;
+        // Continuous beat-driven decay: trails shrink on every kick then rebuild.
+        // DECAY_NORMAL (0.96) at silence → 0.58 at peak beat → beams "breathe".
+        const decay = Math.max(_decayOverride - beat * 0.38, 0.50);
+        writeFeedbackUniforms(decay);
     }
 
     console.log('[feedback] trail accumulation pipeline ready | decay:', DECAY_NORMAL);
