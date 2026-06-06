@@ -9,16 +9,14 @@
   },
   "repository": "https://github.com/alterfo/alterfo.github.io-src.git",
   "scripts": {
-    "dev": "vuepress dev blog",
-    "build": "vuepress build blog",
+    "dev": "vitepress dev",
+    "build": "vitepress build",
     "deploy": "sh ./deploy.sh"
   },
   "license": "UNLICENSED",
   "devDependencies": {
-    "@vuepress/plugin-blog": "^1.9.2",
-    "@vuepress/plugin-google-analytics": "^1.5.4",
-    "@vuepress/theme-blog": "^2.3.2",
-    "vuepress": "^1.9.10"
-  },
-  "packageManager": "yarn@4.7.0"
+    "gray-matter": "^4.0.3",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.0"
+  }
 }

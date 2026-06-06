@@ -1,0 +1,4 @@
+[submodule "ar-engine"]
+	path = ar-engine
+	url = https://github.com/alterfo/AudioReactiveVideo.git
+	branch = master
