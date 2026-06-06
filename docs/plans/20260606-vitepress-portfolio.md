@@ -108,15 +108,15 @@ const projects = [
 - [x] создать `idef0.md` с `<IDEF0Editor />` и базовым описанием
 
 ### Task 5: Главная страница — Portfolio grid
-- [ ] создать `.vitepress/theme/Portfolio.vue` — сетка карточек проектов
+- [x] создать `.vitepress/theme/Portfolio.vue` — сетка карточек проектов
   - тёмный фон (`#0a0020` как в AR-движке — единый стиль)
   - CSS Grid: 2 колонки на desktop, 1 на mobile
   - карточка: иконка/превью, название, тег, описание, ссылка
   - hover: тонкое свечение цвета тега
-- [ ] подключить Layout: для `index.md` использовать `Portfolio.vue` как layout
-- [ ] добавить 4 карточки: AR Engine, Блог, IDEF0, GitHub
-- [ ] карточка AR Engine: если `/ar/` доступен — показать живой превью iframe (5 секунд, muted)
-- [ ] проверить: страница выглядит хорошо на desktop и mobile
+- [x] подключить Layout: для `index.md` использовать `Portfolio.vue` как layout
+- [x] добавить 4 карточки: AR Engine, Блог, IDEF0, GitHub
+- [x] карточка AR Engine: если `/ar/` доступен — показать живой превью iframe (5 секунд, muted)
+- [x] проверить: страница выглядит хорошо на desktop и mobile (manual test - skipped, not automatable)
 
 ### Task 6: Редиректы старых URL
 - [ ] в `.vitepress/config.ts` добавить `rewrites` для `/posts/:path` → `/blog/posts/:path`

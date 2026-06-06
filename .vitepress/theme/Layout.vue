@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <Portfolio v-if="frontmatter.layout === 'portfolio'" />
+  <div v-else>
     <header class="site-header" id="large-header">
       <canvas ref="canvasEl"></canvas>
 
@@ -32,8 +33,9 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useData, Content } from 'vitepress'
 import CountDown from './components/CountDown.vue'
 import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
+import Portfolio from './Portfolio.vue'
 
-const { page } = useData()
+const { page, frontmatter } = useData()
 
 const pageTitle = computed(() => page.value.title)
 const isHomePage = computed(() => page.value.relativePath === 'index.md')

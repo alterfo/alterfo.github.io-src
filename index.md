@@ -1,5 +1,4 @@
 ---
 title: Alterfo
+layout: portfolio
 ---
-
-# Hello VitePress
