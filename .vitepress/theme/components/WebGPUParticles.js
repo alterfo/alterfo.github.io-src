@@ -91,6 +91,7 @@ export class WebGPUParticles {
     });
 
     this.particleCount = Math.floor(height / 2.5);
+    this.maxParticleCount = this.particleCount;
     const bufferSize = this.particleCount * 32;
 
     const particleData = new Float32Array(this.particleCount * 8);
@@ -223,7 +224,7 @@ export class WebGPUParticles {
   resize(width, height) {
     this.params.width = width;
     this.params.height = height;
-    this.particleCount = Math.floor(height / 2.5);
+    this.particleCount = Math.min(Math.floor(height / 2.5), this.maxParticleCount);
   }
 
   render() {
@@ -273,6 +274,7 @@ export class WebGPUParticles {
   }
 
   start() {
+    this.stop();
     this.startTime = Date.now();
     const loop = () => {
       this.render();

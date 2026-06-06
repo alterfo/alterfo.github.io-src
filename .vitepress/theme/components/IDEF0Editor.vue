@@ -59,8 +59,8 @@ import { COLORS, SIZES, DEFAULT_DIAGRAM } from './IDEF0Editor/constants.js'
 import { loadProject, saveProject, onExternalChange } from './IDEF0Editor/db.js'
 import { validateDiagram } from './IDEF0Editor/validation.js'
 import { exportToPNG, exportToSVG as exportToSVGFn, exportToJSON as exportToJSONFn } from './IDEF0Editor/exporter.js'
-import { getDiagramIdFromQuery } from './IDEF0Editor/router.js'
-import { generateChildDiagramId, getParentDiagramId } from './IDEF0Editor/hierarchy.js'
+import { getDiagramIdFromQuery, setDiagramIdInQuery } from './IDEF0Editor/router.js'
+import { generateChildDiagramId, getParentDiagramId, deleteDiagramRecursive } from './IDEF0Editor/hierarchy.js'
 
 const props = defineProps({
   projectId: { type: String, default: 'project-1' }
@@ -249,6 +249,8 @@ function loadDiagram() {
 function saveDiagram() {
   const d = currentDiagram.value
   if (d) {
+    d.blocks = blocks.value
+    d.arrows = arrows.value
     d.view = { x: offsetX.value, y: offsetY.value, scale: scale.value }
   }
   saveProject(props.projectId, { diagrams: diagrams.value })
@@ -584,7 +586,11 @@ function deleteSelectedBlock() {
   const b = blocks.value[idx]
   arrows.value = arrows.value.filter(a => a.from.blockId !== b.id && a.to.blockId !== b.id)
   blocks.value.splice(idx, 1)
-  if (b.diagramId) delete diagrams.value[b.diagramId]
+  if (b.diagramId) {
+    for (const id of deleteDiagramRecursive(b.diagramId, diagrams.value)) {
+      delete diagrams.value[id]
+    }
+  }
   selectedBlockId.value = null
   render()
   saveDiagram()
@@ -651,6 +657,7 @@ function enterBlock() {
     diagrams.value[childId] = child
   }
   currentDiagramId.value = b.diagramId
+  setDiagramIdInQuery(b.diagramId)
   selectedBlockId.value = null
   selectedArrowId.value = null
   loadDiagram()
@@ -661,6 +668,7 @@ function goBack() {
   const parentId = getParentDiagramId(currentDiagramId.value)
   if (!parentId || !diagrams.value[parentId]) return
   currentDiagramId.value = parentId
+  setDiagramIdInQuery(parentId)
   selectedBlockId.value = null
   selectedArrowId.value = null
   loadDiagram()
@@ -669,6 +677,7 @@ function goBack() {
 function navigateToDiagram(id) {
   if (diagrams.value[id]) {
     currentDiagramId.value = id
+    setDiagramIdInQuery(id)
     loadDiagram()
   }
 }
@@ -904,8 +913,8 @@ function onWheel(e) {
 // --- Export ---
 
 function exportPNG() { exportToPNG(canvasEl.value, currentDiagram.value?.name || 'idef0') }
-function exportSVG() { exportToSVGFn(canvasEl.value, currentDiagram.value?.name || 'idef0') }
-function exportJSON() { exportToJSONFn(props.projectId, diagrams.value) }
+function exportSVG() { exportToSVGFn(currentDiagram.value, canvasEl.value?.width || 800, canvasEl.value?.height || 600) }
+function exportJSON() { exportToJSONFn({ diagrams: diagrams.value }, props.projectId + '.json') }
 </script>
 
 <style scoped>
