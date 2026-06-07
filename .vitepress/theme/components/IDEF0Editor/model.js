@@ -1,4 +1,5 @@
 import { reactive, computed, ref } from 'vue'
+import { autoLayout } from './layout.js'
 
 let _idCounter = 1
 function uid(prefix = 'id') {
@@ -108,8 +109,12 @@ function navigateTo(diagramId) {
 function addBox(partial = {}, diagramId = null) {
   const d = diagramId ? project.diagrams[diagramId] : currentDiagram.value
   if (!d) return null
+  const hasManualPos = partial.x !== undefined && partial.y !== undefined
   const box = makeBox(partial)
   d.boxes.push(box)
+  if (!hasManualPos) {
+    autoLayout(d)
+  }
   return box
 }
 
