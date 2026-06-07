@@ -18,6 +18,7 @@
           :rel="project.external ? 'noopener noreferrer' : undefined"
           class="portfolio-card"
           :style="{ '--tag-color': project.color }"
+          @click="navigate(project, $event)"
         >
           <div class="card-preview">
             <template v-if="project.id === 'ar'">
@@ -169,6 +170,15 @@ function drawFrame() {
   }
 
   raf = requestAnimationFrame(drawFrame)
+}
+
+// Use window.location for internal links so Vue Router does NOT intercept them.
+// Without this, clicking /ar/ stays inside the VitePress SPA and shows a blank
+// page because VitePress has no route for /ar/ (it's a standalone app).
+function navigate(project: { href: string; external: boolean }, event: MouseEvent) {
+  if (project.external) return  // let the browser handle target="_blank" normally
+  event.preventDefault()
+  window.location.href = project.href
 }
 
 async function checkArAvailable() {
