@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [ master, vitepress-portfolio ]
+    branches: [ master ]
 
 jobs:
   build:
