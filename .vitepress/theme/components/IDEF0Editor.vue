@@ -25,14 +25,14 @@
         <svg
           ref="svgRef"
           class="idef0-svg"
-          :style="{ cursor: isDraggingBox ? 'move' : isPanning ? 'grabbing' : 'grab' }"
+          :style="{ cursor: drawingArrow ? 'crosshair' : isDraggingBox ? 'move' : isPanning ? 'grabbing' : 'grab' }"
           :viewBox="`0 0 ${VIEW_W} ${VIEW_H}`"
           xmlns="http://www.w3.org/2000/svg"
           @wheel.prevent="onWheel"
           @mousedown="onSvgMouseDown"
           @mousemove="onMouseMove"
           @mouseup="onMouseUp"
-          @mouseleave="onMouseUp"
+          @mouseleave="onMouseLeave"
         >
           <!-- Viewport background -->
           <rect x="0" y="0" :width="VIEW_W" :height="VIEW_H" fill="#f0f0f0" />
@@ -108,6 +108,8 @@
                 :key="rbox.box.id"
                 class="idef0-box"
                 @mousedown.stop="onBoxMouseDown(rbox.box, $event)"
+                @mouseenter="onBoxMouseEnter(rbox.box)"
+                @mouseleave="onBoxMouseLeave(rbox.box)"
               >
                 <rect v-bind="rbox.rect" />
                 <text
@@ -138,8 +140,36 @@
                   font-size="10"
                   fill="#2563eb"
                 >[+]</text>
+                <!-- ICOM handles: shown on hover or as drop targets during drawing -->
+                <template v-if="shouldShowHandles(rbox.box.id)">
+                  <circle
+                    v-for="(pt, side) in getHandlePositions(rbox.box)"
+                    :key="'h-' + side"
+                    :cx="pt.x"
+                    :cy="pt.y"
+                    :r="HANDLE_RADIUS"
+                    :fill="isTargetHandle(rbox.box.id, side) ? '#f59e0b' : '#2563eb'"
+                    stroke="white"
+                    stroke-width="1.5"
+                    style="cursor: crosshair"
+                    @mousedown.stop="onHandleMouseDown(rbox.box, side, $event)"
+                  />
+                </template>
               </g>
             </g>
+
+            <!-- Rubber-band line during arrow drawing -->
+            <line
+              v-if="drawingArrow && rubberBandStart"
+              :x1="rubberBandStart.x"
+              :y1="rubberBandStart.y"
+              :x2="drawingArrow.currentX"
+              :y2="drawingArrow.currentY"
+              stroke="#2563eb"
+              stroke-width="1.5"
+              stroke-dasharray="4,4"
+              pointer-events="none"
+            />
 
             <!-- Empty state -->
             <text
@@ -168,14 +198,17 @@
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo } from './IDEF0Editor/model.js'
+import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo, addArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
 import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
   routeBoundaryArrow, renderBoundaryArrow,
 } from './IDEF0Editor/renderer.js'
+import { icomCode } from './IDEF0Editor/icom.js'
 
 const VIEW_W = 1200
 const VIEW_H = 800
+const HANDLE_RADIUS = 5
+const HANDLE_HIT_DIST = 10
 
 const ICOM_LEGEND = [
   { code: 'I', desc: 'Input — enters left' },
@@ -189,6 +222,11 @@ const ICOM_LEGEND = [
 const selectedBoxId = ref(null)
 const isDraggingBox = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
+
+// --- Arrow Drawing ---
+const hoveredBoxId = ref(null)
+const drawingArrow = ref(null)  // { fromBoxId, fromSide, currentX, currentY }
+const targetHandle = ref(null)  // { boxId, side } when hovering a valid drop target
 
 // --- Zoom / Pan ---
 const svgRef = ref(null)
@@ -227,6 +265,11 @@ function onWheel(e) {
 
 function onSvgMouseDown(e) {
   if (e.button !== 0) return
+  if (drawingArrow.value) {
+    drawingArrow.value = null
+    targetHandle.value = null
+    return
+  }
   selectedBoxId.value = null
   isPanning.value = true
   lastMouse.value = { x: e.clientX, y: e.clientY }
@@ -234,6 +277,7 @@ function onSvgMouseDown(e) {
 
 function onBoxMouseDown(box, e) {
   if (e.button !== 0) return
+  if (drawingArrow.value) return
   e.stopPropagation()
   selectedBoxId.value = box.id
   isDraggingBox.value = true
@@ -242,6 +286,13 @@ function onBoxMouseDown(box, e) {
 }
 
 function onMouseMove(e) {
+  if (drawingArrow.value) {
+    const world = toWorldCoords(e.clientX, e.clientY)
+    drawingArrow.value.currentX = world.x
+    drawingArrow.value.currentY = world.y
+    targetHandle.value = findNearestHandle(world.x, world.y, drawingArrow.value.fromBoxId)
+    return
+  }
   if (isDraggingBox.value && selectedBoxId.value) {
     const world = toWorldCoords(e.clientX, e.clientY)
     updateBox(selectedBoxId.value, {
@@ -259,7 +310,44 @@ function onMouseMove(e) {
   lastMouse.value = { x: e.clientX, y: e.clientY }
 }
 
-function onMouseUp() {
+function onMouseUp(e) {
+  if (drawingArrow.value) {
+    if (targetHandle.value) {
+      const { fromBoxId, fromSide } = drawingArrow.value
+      const { boxId: toBoxId, side: toSide } = targetHandle.value
+      const arrowType = typeFromSides(fromSide, toSide)
+      if (arrowType) {
+        addArrow({ label: '', type: arrowType, sourceBoxId: fromBoxId, targetBoxId: toBoxId })
+      }
+    } else if (e) {
+      // Release near boundary → create boundary arrow
+      const world = toWorldCoords(e.clientX, e.clientY)
+      const BOUNDARY_ZONE = 40
+      const { fromBoxId } = drawingArrow.value
+      let bType = null
+      if (world.x <= BOUNDARY_ZONE) bType = 'input'
+      else if (world.x >= VIEW_W - BOUNDARY_ZONE) bType = 'output'
+      else if (world.y <= BOUNDARY_ZONE) bType = 'control'
+      else if (world.y >= VIEW_H - BOUNDARY_ZONE) bType = 'mechanism'
+      if (bType && currentDiagram.value) {
+        const count = currentDiagram.value.boundaryArrows.filter(ba => ba.type === bType).length
+        addBoundaryArrow({ label: '', type: bType, icomCode: icomCode(bType, count + 1), boxId: fromBoxId })
+      }
+    }
+    drawingArrow.value = null
+    targetHandle.value = null
+    return
+  }
+  isPanning.value = false
+  isDraggingBox.value = false
+}
+
+function onMouseLeave() {
+  if (drawingArrow.value) {
+    drawingArrow.value = null
+    targetHandle.value = null
+    return
+  }
   isPanning.value = false
   isDraggingBox.value = false
 }
@@ -281,6 +369,71 @@ function handleResetView() {
   panX.value = 0
   panY.value = 0
 }
+
+// --- Arrow Drawing Helpers ---
+function getHandlePositions(box) {
+  return {
+    left:   { x: box.x,             y: box.y + box.h / 2 },
+    right:  { x: box.x + box.w,     y: box.y + box.h / 2 },
+    top:    { x: box.x + box.w / 2, y: box.y             },
+    bottom: { x: box.x + box.w / 2, y: box.y + box.h     },
+  }
+}
+
+function findNearestHandle(worldX, worldY, excludeBoxId) {
+  if (!currentDiagram.value) return null
+  for (const box of currentDiagram.value.boxes) {
+    if (box.id === excludeBoxId) continue
+    for (const [side, pt] of Object.entries(getHandlePositions(box))) {
+      if (Math.hypot(worldX - pt.x, worldY - pt.y) <= HANDLE_HIT_DIST) {
+        return { boxId: box.id, side }
+      }
+    }
+  }
+  return null
+}
+
+function shouldShowHandles(boxId) {
+  if (drawingArrow.value) return boxId !== drawingArrow.value.fromBoxId
+  return boxId === hoveredBoxId.value
+}
+
+function isTargetHandle(boxId, side) {
+  return targetHandle.value?.boxId === boxId && targetHandle.value?.side === side
+}
+
+function typeFromSides(fromSide, toSide) {
+  if (toSide === 'left')   return 'input'
+  if (toSide === 'top')    return 'control'
+  if (toSide === 'right')  return 'output'
+  if (toSide === 'bottom') return fromSide === 'bottom' ? 'call' : 'mechanism'
+  return null
+}
+
+function onHandleMouseDown(box, side, e) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  const world = toWorldCoords(e.clientX, e.clientY)
+  isDraggingBox.value = false
+  isPanning.value = false
+  hoveredBoxId.value = null
+  drawingArrow.value = { fromBoxId: box.id, fromSide: side, currentX: world.x, currentY: world.y }
+}
+
+function onBoxMouseEnter(box) {
+  if (!drawingArrow.value) hoveredBoxId.value = box.id
+}
+
+function onBoxMouseLeave(box) {
+  if (hoveredBoxId.value === box.id && !drawingArrow.value) hoveredBoxId.value = null
+}
+
+const rubberBandStart = computed(() => {
+  if (!drawingArrow.value || !currentDiagram.value) return null
+  const box = currentDiagram.value.boxes.find(b => b.id === drawingArrow.value.fromBoxId)
+  if (!box) return null
+  return getHandlePositions(box)[drawingArrow.value.fromSide] ?? null
+})
 
 // --- Toolbar actions ---
 function handleAddBox() {
