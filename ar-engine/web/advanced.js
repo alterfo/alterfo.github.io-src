@@ -12,7 +12,7 @@ import { setRecordParams } from './record.js';
 
 const LS_KEY = 'arfluid_advanced_v4';
 
-const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix'];
+const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix', 'Chladni'];
 
 const SLIDERS = [
     { key: 'noiseScale', label: 'Vortex',   min: 1.0,  max: 10.0, step: 0.5,  places: 1 },
@@ -51,6 +51,12 @@ const PRESETS = [
     // Storm — electric chaos: maximum vortex + fastest poles + short trails.
     // Each frame looks different; strong bass/beat create visible arcing sparks.
     { name: 'Storm',   noiseScale: 9.5, noiseSpeed: 1.80, decay: 0.91, lifetime: 110, hueScale: 3.0 },
+
+    // Cymatics — Chladni standing-wave patterns: 4-pole interference at near-frozen drift.
+    // Poles barely move (7-min orbit period) so particles trace the same nodal paths
+    // repeatedly, building up bright geometric lines — like sand on a vibrating plate.
+    // Beat pulse displaces poles → sudden "mode jump" → crystallises back into pattern.
+    { name: 'Cymatics', noiseScale: 3.0, noiseSpeed: 0.10, decay: 0.975, lifetime: 450, hueScale: 0.05, paletteIdx: 4 },
 ];
 
 const DEFAULTS = {
@@ -390,6 +396,14 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             lifetime:   p.lifetime,
             hueScale:   p.hueScale,
         });
+        // Switch palette if preset specifies one
+        if (p.paletteIdx !== undefined && p.paletteIdx !== state.paletteIdx) {
+            _palA = currentPalette();
+            _palB = flatPalette(p.paletteIdx);
+            _palT = 0.0;
+            state.paletteIdx = p.paletteIdx;
+            palBtns.forEach((b, i) => b.classList.toggle('active', i === p.paletteIdx));
+        }
         // Sync all slider elements to new values
         for (const s of SLIDERS) {
             const input   = panel.querySelector(`#sl-${s.key}`);

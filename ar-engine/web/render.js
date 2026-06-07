@@ -24,6 +24,9 @@ export const PALETTES = [
     [[0.000, 0.039, 0.063], [0.000, 0.200, 0.353], [0.000, 0.533, 1.000], [0.667, 0.957, 1.000]],
     // Matrix: black green → mid green → bright green → pale green
     [[0.000, 0.063, 0.000], [0.000, 0.220, 0.000], [0.000, 0.800, 0.000], [0.667, 1.000, 0.667]],
+    // Chladni: near-black warm → deep amber → gold → pale warm white
+    // Evokes sand grains illuminated on a vibrating metal plate.
+    [[0.040, 0.020, 0.000], [0.550, 0.300, 0.020], [0.920, 0.680, 0.100], [1.000, 0.960, 0.800]],
 ];
 
 // Module-level state updated by setRenderParams()
