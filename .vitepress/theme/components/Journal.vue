@@ -1,0 +1,481 @@
+<script setup>
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { loadEnvelope, saveEnvelope, initCrossTabSync } from './Journal/db.js'
+import { emptyVault, upsertEntry, countWords, goalMet, computeStreak } from './Journal/vault.js'
+import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
+
+// ---- Volatile session state (never persisted) ----
+let _key = null
+let _salt = null
+let _iterations = 600000
+
+// ---- Reactive UI state ----
+const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
+const hasVault = ref(false)
+const passphraseInput = ref('')
+const error = ref('')
+const focusMode = ref(false)
+
+const vault = reactive({ version: 1, entries: {}, createdAt: '' })
+
+const todayISO = ref(new Date().toISOString().slice(0, 10))
+const todayText = ref('')
+
+// ---- Derived values ----
+const wordCount = computed(() => countWords(todayText.value))
+const progress = computed(() => Math.min(100, (wordCount.value / 500) * 100))
+const streak = computed(() => computeStreak(vault, todayISO.value))
+const isGoalMet = computed(() => wordCount.value >= 500)
+const focusLocked = computed(() => focusMode.value && !isGoalMet.value)
+
+const pastEntries = computed(() =>
+  Object.entries(vault.entries)
+    .filter(([date]) => date !== todayISO.value)
+    .sort(([a], [b]) => b.localeCompare(a))
+)
+
+// ---- Autosave (debounced via db.saveEnvelope's own 300 ms debounce; we add 100 ms here) ----
+let _saveTimer = null
+
+async function persistVault() {
+  if (!_key) return
+  try {
+    upsertEntry(vault, todayISO.value, todayText.value)
+    const { iv, ciphertext } = await encryptJSON(_key, vault)
+    const envelope = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
+    saveEnvelope(envelope)
+  } catch (e) {
+    console.warn('[journal] save failed:', e)
+  }
+}
+
+function onTextInput() {
+  clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(persistVault, 100)
+}
+
+// ---- Unlock existing vault ----
+async function unlock() {
+  error.value = ''
+  try {
+    const envelopeStr = await loadEnvelope()
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
+    _salt = salt
+    _iterations = iterations
+    _key = await deriveKey(passphraseInput.value, salt, iterations)
+    const data = await decryptJSON(_key, { iv, ciphertext })
+    Object.assign(vault, data)
+    todayText.value = vault.entries[todayISO.value]?.text ?? ''
+    passphraseInput.value = ''
+    phase.value = 'unlocked'
+  } catch {
+    error.value = 'Cannot unlock — wrong passphrase or corrupted data.'
+    _key = null
+  }
+}
+
+// ---- Create a new vault ----
+async function createVault() {
+  error.value = ''
+  if (!passphraseInput.value) {
+    error.value = 'Enter a passphrase to protect your journal.'
+    return
+  }
+  try {
+    _salt = randomBytes(16)
+    _iterations = 600000
+    _key = await deriveKey(passphraseInput.value, _salt, _iterations)
+    const newVault = emptyVault()
+    Object.assign(vault, newVault)
+    todayText.value = ''
+    const { iv, ciphertext } = await encryptJSON(_key, vault)
+    const envelope = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
+    saveEnvelope(envelope)
+    passphraseInput.value = ''
+    hasVault.value = true
+    phase.value = 'unlocked'
+  } catch (e) {
+    error.value = 'Failed to create vault: ' + e.message
+    _key = null
+  }
+}
+
+function onPassphraseKeydown(e) {
+  if (e.key === 'Enter') hasVault.value ? unlock() : createVault()
+}
+
+// ---- Cross-tab sync ----
+let _cleanupSync = () => {}
+
+onMounted(async () => {
+  const envelopeStr = await loadEnvelope()
+  hasVault.value = envelopeStr != null
+  phase.value = 'locked'
+
+  _cleanupSync = initCrossTabSync(async () => {
+    if (!_key) return
+    const str = await loadEnvelope()
+    if (!str) return
+    try {
+      const { salt, iterations, iv, ciphertext } = unpackEnvelope(str)
+      const data = await decryptJSON(_key, { iv, ciphertext })
+      Object.assign(vault, data)
+      // Preserve in-progress edits for today if they're newer than what just synced
+      const synced = vault.entries[todayISO.value]
+      if (!synced || countWords(todayText.value) >= countWords(synced.text)) return
+      todayText.value = synced.text
+    } catch {}
+  })
+})
+
+onUnmounted(() => {
+  _cleanupSync()
+  clearTimeout(_saveTimer)
+  _key = null
+})
+</script>
+
+<template>
+  <div class="journal-root">
+
+    <!-- Loading -->
+    <div v-if="phase === 'loading'" class="journal-center">
+      <span class="journal-muted">Loading…</span>
+    </div>
+
+    <!-- Lock screen -->
+    <div v-else-if="phase === 'locked'" class="journal-center">
+      <div class="journal-lock-card">
+        <div class="journal-lock-icon">🔒</div>
+        <h2 class="journal-lock-title">
+          {{ hasVault ? 'Unlock your journal' : 'Create your journal' }}
+        </h2>
+        <p class="journal-lock-desc">
+          {{ hasVault
+            ? 'Enter your passphrase to decrypt and open your journal.'
+            : 'Choose a passphrase. It encrypts your journal locally — it is never sent anywhere.' }}
+        </p>
+        <input
+          v-model="passphraseInput"
+          type="password"
+          class="journal-passphrase-input"
+          :placeholder="hasVault ? 'Passphrase' : 'New passphrase'"
+          autocomplete="current-password"
+          @keydown="onPassphraseKeydown"
+        />
+        <div class="journal-lock-actions">
+          <button v-if="hasVault" class="journal-btn journal-btn-primary" @click="unlock">Unlock</button>
+          <button v-else class="journal-btn journal-btn-primary" @click="createVault">Create journal</button>
+        </div>
+        <p v-if="error" class="journal-error">{{ error }}</p>
+      </div>
+    </div>
+
+    <!-- Journal UI -->
+    <div v-else class="journal-layout">
+
+      <!-- Sidebar -->
+      <aside class="journal-sidebar">
+        <div class="journal-streak-box">
+          <div class="journal-streak-count">{{ streak }}</div>
+          <div class="journal-streak-label">day streak</div>
+        </div>
+
+        <div class="journal-focus-toggle">
+          <label class="journal-toggle-label">
+            <input type="checkbox" v-model="focusMode" class="journal-toggle-input" />
+            Focus mode
+          </label>
+          <div class="journal-toggle-desc">Lock editing until 500 words</div>
+        </div>
+
+        <div class="journal-past-header">Past entries</div>
+        <div class="journal-past-list">
+          <div
+            v-for="[date, entry] in pastEntries"
+            :key="date"
+            class="journal-past-item"
+            :class="{ 'journal-past-item--met': goalMet(entry) }"
+          >
+            <span class="journal-past-date">{{ date }}</span>
+            <span class="journal-past-words">{{ entry.words }}w</span>
+          </div>
+          <div v-if="!pastEntries.length" class="journal-muted journal-past-empty">
+            No past entries yet.
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main editor -->
+      <main class="journal-main">
+        <div class="journal-today-header">
+          <span class="journal-today-date">{{ todayISO }}</span>
+          <span
+            class="journal-word-count"
+            :class="{ 'journal-word-count--met': isGoalMet }"
+          >{{ wordCount }} / 500 words</span>
+        </div>
+
+        <div class="journal-progress-bar-track">
+          <div
+            class="journal-progress-bar-fill"
+            :class="{ 'journal-progress-bar-fill--met': isGoalMet }"
+            :style="{ width: progress + '%' }"
+          ></div>
+        </div>
+
+        <div v-if="focusLocked" class="journal-focus-locked">
+          Keep writing — {{ 500 - wordCount }} more words to go.
+        </div>
+
+        <textarea
+          v-model="todayText"
+          class="journal-textarea"
+          :disabled="focusLocked"
+          placeholder="Write today's entry…"
+          @input="onTextInput"
+          spellcheck="true"
+          autocorrect="on"
+        ></textarea>
+
+        <div v-if="isGoalMet" class="journal-goal-met">
+          500-word goal reached for today.
+        </div>
+      </main>
+
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.journal-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1e293b;
+  min-height: 0;
+}
+
+/* ---- Lock screen ---- */
+.journal-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.journal-lock-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 40px 48px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,0,0,.06);
+}
+
+.journal-lock-icon { font-size: 36px; margin-bottom: 12px; }
+.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
+.journal-lock-desc { margin: 0 0 20px; font-size: 14px; color: #64748b; line-height: 1.5; }
+
+.journal-passphrase-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  font-size: 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color .15s;
+}
+.journal-passphrase-input:focus { border-color: #6366f1; }
+
+.journal-lock-actions { margin-top: 16px; }
+
+.journal-btn {
+  padding: 10px 24px;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity .15s;
+}
+.journal-btn:hover { opacity: .88; }
+.journal-btn-primary { background: #6366f1; color: #fff; }
+
+.journal-error {
+  margin-top: 14px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+/* ---- Layout ---- */
+.journal-layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---- Sidebar ---- */
+.journal-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.journal-streak-box {
+  text-align: center;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 16px 8px;
+}
+.journal-streak-count {
+  font-size: 40px;
+  font-weight: 700;
+  color: #6366f1;
+  line-height: 1;
+}
+.journal-streak-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.journal-focus-toggle {}
+.journal-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.journal-toggle-input { cursor: pointer; }
+.journal-toggle-desc { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+.journal-past-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #94a3b8;
+}
+
+.journal-past-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.journal-past-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #f8fafc;
+}
+.journal-past-item--met { background: #f0fdf4; }
+.journal-past-date { color: #475569; }
+.journal-past-words { color: #94a3b8; font-size: 11px; }
+.journal-past-item--met .journal-past-words { color: #22c55e; }
+
+.journal-past-empty { font-size: 12px; padding: 4px 0; }
+
+/* ---- Main editor ---- */
+.journal-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.journal-today-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.journal-today-date {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.journal-word-count {
+  font-size: 14px;
+  color: #64748b;
+  transition: color .2s;
+}
+.journal-word-count--met { color: #22c55e; font-weight: 600; }
+
+.journal-progress-bar-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.journal-progress-bar-fill {
+  height: 100%;
+  background: #6366f1;
+  border-radius: 999px;
+  transition: width .3s ease, background .3s;
+}
+.journal-progress-bar-fill--met { background: #22c55e; }
+
+.journal-focus-locked {
+  background: #fef9c3;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #713f12;
+  margin-bottom: 12px;
+}
+
+.journal-textarea {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 16px;
+  line-height: 1.7;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #1e293b;
+  background: #fff;
+  resize: none;
+  outline: none;
+  transition: border-color .15s;
+  min-height: 300px;
+}
+.journal-textarea:focus { border-color: #6366f1; }
+.journal-textarea:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+
+.journal-goal-met {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #22c55e;
+  font-weight: 500;
+  text-align: right;
+}
+
+.journal-muted { color: #94a3b8; }
+</style>
