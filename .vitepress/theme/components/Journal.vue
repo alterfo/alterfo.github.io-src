@@ -43,7 +43,6 @@ const pastEntries = computed(() =>
 let _saveTimer = null
 
 async function buildEnvelope() {
-  upsertEntry(vault, todayISO.value, todayText.value)
   const { iv, ciphertext } = await encryptJSON(_key, vault)
   return packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
 }
@@ -51,6 +50,7 @@ async function buildEnvelope() {
 async function persistVault() {
   if (!_key) return
   try {
+    upsertEntry(vault, todayISO.value, todayText.value)
     saveEnvelope(await buildEnvelope())
   } catch (e) {
     console.warn('[journal] save failed:', e)
@@ -81,6 +81,7 @@ function scheduleDayRollover() {
 // ---- Unlock existing vault ----
 async function unlock() {
   error.value = ''
+  if (!passphraseInput.value) { error.value = 'Enter your passphrase.'; return }
   try {
     const envelopeStr = await loadEnvelope()
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
@@ -146,6 +147,7 @@ let _pendingImportStr = null
 let _fileInputEl = null
 
 function triggerImportPicker() {
+  importError.value = ''
   if (!_fileInputEl) {
     _fileInputEl = document.createElement('input')
     _fileInputEl.type = 'file'
@@ -166,7 +168,7 @@ async function onImportFileChange(e) {
     importPhase.value = 'awaiting-passphrase'
   } catch {
     importError.value = 'Failed to read the selected file.'
-    importPhase.value = 'awaiting-passphrase'
+    importPhase.value = 'idle'
   }
 }
 
@@ -225,7 +227,9 @@ onMounted(async () => {
       Object.assign(vault, merged)
       const mergedToday = vault.entries[todayISO.value]
       if (mergedToday) todayText.value = mergedToday.text
-    } catch {}
+    } catch (err) {
+      console.warn('[journal] cross-tab sync failed:', err)
+    }
   })
 })
 
@@ -233,6 +237,10 @@ onUnmounted(() => {
   _cleanupSync()
   clearTimeout(_saveTimer)
   clearTimeout(_dayTimer)
+  if (_fileInputEl) {
+    _fileInputEl.removeEventListener('change', onImportFileChange)
+    _fileInputEl = null
+  }
   _key = null
 })
 </script>
@@ -296,6 +304,7 @@ onUnmounted(() => {
           <div class="journal-past-header">Sync</div>
           <button class="journal-btn journal-btn-sync" @click="doExport">Export .journal</button>
           <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">Import .journal</button>
+          <div v-if="importPhase === 'idle' && importError" class="journal-error">{{ importError }}</div>
 
           <!-- Import passphrase dialog -->
           <div v-if="importPhase === 'awaiting-passphrase' || importPhase === 'merging'" class="journal-import-dialog">

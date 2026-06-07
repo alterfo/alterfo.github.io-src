@@ -80,12 +80,20 @@ export function packEnvelope({ salt, iterations, iv, ciphertext }) {
   });
 }
 
+const MAX_ITERATIONS = 2_000_000;
+
 export function unpackEnvelope(str) {
-  const { salt, iterations, iv, ciphertext } = JSON.parse(str);
+  const parsed = JSON.parse(str);
+  if (!Number.isInteger(parsed.iterations) || parsed.iterations < 1 || parsed.iterations > MAX_ITERATIONS) {
+    throw new Error('Invalid iterations in envelope');
+  }
+  if (typeof parsed.salt !== 'string' || typeof parsed.iv !== 'string' || typeof parsed.ciphertext !== 'string') {
+    throw new Error('Malformed envelope');
+  }
   return {
-    salt: base64ToBytes(salt),
-    iterations,
-    iv: base64ToBytes(iv),
-    ciphertext: base64ToBytes(ciphertext),
+    salt: base64ToBytes(parsed.salt),
+    iterations: parsed.iterations,
+    iv: base64ToBytes(parsed.iv),
+    ciphertext: base64ToBytes(parsed.ciphertext),
   };
 }
