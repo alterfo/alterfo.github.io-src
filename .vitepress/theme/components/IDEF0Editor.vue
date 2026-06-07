@@ -21,6 +21,21 @@
       />
     </div>
 
+    <div
+      v-if="arrowTypeMenu"
+      class="idef0-type-menu"
+      :style="{ left: arrowTypeMenu.x + 'px', top: arrowTypeMenu.y + 'px' }"
+    >
+      <button
+        v-for="t in ['input','output','control','mechanism','call']"
+        :key="t"
+        class="idef0-type-btn"
+        :style="{ '--tc': COLORS.arrow[t] }"
+        :title="t"
+        @mousedown.prevent="changeArrowType(t)"
+      >{{ { input:'I', output:'O', control:'C', mechanism:'M', call:'R' }[t] }}</button>
+    </div>
+
     <div class="idef0-toolbar">
       <button @click="addBlock" title="Добавить блок">+ Блок</button>
       <span class="idef0-separator" />
@@ -82,6 +97,7 @@ const selectedBlockId = ref(null)
 const selectedArrowId = ref(null)
 const errors = ref([])
 const editing = ref(null)
+const arrowTypeMenu = ref(null)
 
 // Non-reactive state (methods only)
 let ctx = null
@@ -137,6 +153,13 @@ function onKeydown(e) {
   if ((e.key === 'y' && (e.ctrlKey || e.metaKey) || e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) && !editing.value) {
     e.preventDefault()
     redo()
+  }
+  if (e.key === 't' && !editing.value && selectedArrowId.value) {
+    e.preventDefault()
+    openArrowTypeMenu()
+  }
+  if (e.key === 'Escape') {
+    arrowTypeMenu.value = null
   }
   if (e.key === ' ' && !editing.value) {
     e.preventDefault()
@@ -780,6 +803,25 @@ function finishEdit() {
 
 function cancelEdit() { editing.value = null }
 
+function openArrowTypeMenu() {
+  const a = arrows.value.find(x => x.id === selectedArrowId.value)
+  if (!a) return
+  const pts = getArrowPoints(a)
+  const mid = pts[Math.floor(pts.length / 2)]
+  const sp = worldToScreen(mid.x, mid.y)
+  arrowTypeMenu.value = { x: sp.x, y: sp.y - 36 }
+}
+
+function changeArrowType(type) {
+  const a = arrows.value.find(x => x.id === selectedArrowId.value)
+  if (!a) return
+  pushHistory()
+  a.type = type
+  render()
+  saveDiagram()
+  arrowTypeMenu.value = null
+}
+
 // --- Mouse events ---
 
 function screenToWorld(sx, sy) {
@@ -836,6 +878,7 @@ function pointSegDist(p, a, b) {
 }
 
 function onMouseDown(e) {
+  arrowTypeMenu.value = null
   if (editing.value) { finishEdit(); return }
   if (e.button === 1 || (e.button === 0 && (e.altKey || isPanning))) {
     isPanning = true; lastX = e.clientX; lastY = e.clientY; return
@@ -1059,6 +1102,36 @@ function exportJSON() { exportToJSONFn({ diagrams: diagrams.value }, props.proje
   background: #fee;
   color: #c00;
   border: 1px solid #fcc;
+}
+.idef0-type-menu {
+  position: absolute;
+  z-index: 25;
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.idef0-type-btn {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--tc, #999);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--tc, #333);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.idef0-type-btn:hover {
+  background: var(--tc, #eee);
+  color: #fff;
 }
 .idef0-inline-editor {
   position: absolute;
