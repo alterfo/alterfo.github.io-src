@@ -93,12 +93,50 @@ let dragOffsetX = 0
 let dragOffsetY = 0
 let dragArrowEnd = null
 let cleanupExternalChange = null
+const historyStack = []
+let historyIndex = -1
+
+function pushHistory() {
+  const snap = JSON.parse(JSON.stringify({ blocks: blocks.value, arrows: arrows.value }))
+  historyStack.splice(historyIndex + 1)
+  historyStack.push(snap)
+  if (historyStack.length > 50) historyStack.shift()
+  else historyIndex++
+}
+
+function undo() {
+  if (historyIndex <= 0) return
+  historyIndex--
+  const snap = historyStack[historyIndex]
+  blocks.value = snap.blocks
+  arrows.value = snap.arrows
+  render()
+  saveDiagram()
+}
+
+function redo() {
+  if (historyIndex >= historyStack.length - 1) return
+  historyIndex++
+  const snap = historyStack[historyIndex]
+  blocks.value = snap.blocks
+  arrows.value = snap.arrows
+  render()
+  saveDiagram()
+}
 
 function onWindowResize() { handleResize() }
 function onKeydown(e) {
   if ((e.key === 'Delete' || e.key === 'Backspace') && !editing.value) {
     if (selectedBlockId.value) deleteSelectedBlock()
     if (selectedArrowId.value) deleteSelectedArrow()
+  }
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !editing.value) {
+    e.preventDefault()
+    undo()
+  }
+  if ((e.key === 'y' && (e.ctrlKey || e.metaKey) || e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) && !editing.value) {
+    e.preventDefault()
+    redo()
   }
   if (e.key === ' ' && !editing.value) {
     e.preventDefault()
@@ -238,6 +276,8 @@ function loadDiagram() {
   if (!d) return
   blocks.value = d.blocks || []
   arrows.value = d.arrows || []
+  historyStack.length = 0
+  historyIndex = -1
   if (d.view) {
     offsetX.value = d.view.x
     offsetY.value = d.view.y
@@ -535,6 +575,7 @@ function drawSelection() {
 // --- Block operations ---
 
 function addBlock() {
+  pushHistory()
   const rect = canvasEl.value.getBoundingClientRect()
   const cw = screenToWorld(rect.width / 2, rect.height / 2)
   const id = `block-${Date.now()}`
@@ -582,6 +623,7 @@ function createAutoArrows(block) {
 
 function deleteSelectedBlock() {
   if (!selectedBlockId.value) return
+  pushHistory()
   const idx = blocks.value.findIndex(b => b.id === selectedBlockId.value)
   if (idx === -1) return
   const b = blocks.value[idx]
@@ -599,6 +641,7 @@ function deleteSelectedBlock() {
 
 function deleteSelectedArrow() {
   if (!selectedArrowId.value) return
+  pushHistory()
   arrows.value = arrows.value.filter(a => a.id !== selectedArrowId.value)
   selectedArrowId.value = null
   render()
@@ -721,6 +764,7 @@ function startEditArrow(a) {
 
 function finishEdit() {
   if (!editing.value) return
+  pushHistory()
   const txt = editing.value.text.trim()
   if (editing.value.type === 'block') {
     const b = blocks.value.find(x => x.id === editing.value.id)
@@ -802,6 +846,7 @@ function onMouseDown(e) {
   if (endHit) {
     const ep = endHit.end === 'from' ? endHit.arrow.from : endHit.arrow.to
     if (e.shiftKey && ep.blockId) {
+      pushHistory()
       ep.blockId = null; ep.edge = null
       const pts = getArrowPoints(endHit.arrow)
       endHit.arrow.segments = pts.length > 2 ? pts.slice(1, -1) : []
@@ -809,6 +854,7 @@ function onMouseDown(e) {
       saveDiagram()
       return
     }
+    pushHistory()
     dragArrowEnd = { arrowId: endHit.arrow.id, end: endHit.end }
     selectedArrowId.value = endHit.arrow.id
     selectedBlockId.value = null
@@ -819,6 +865,7 @@ function onMouseDown(e) {
   if (b) {
     selectedBlockId.value = b.id
     selectedArrowId.value = null
+    pushHistory()
     dragBlock = b
     const p = screenToWorld(e.offsetX, e.offsetY)
     dragOffsetX = p.x - b.x
