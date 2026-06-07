@@ -1,5 +1,5 @@
 <template>
-  <Portfolio v-if="frontmatter.layout === 'portfolio'" />
+  <ClientOnly v-if="frontmatter.layout === 'portfolio'"><Portfolio /></ClientOnly>
   <DefaultLayout v-else>
     <template #layout-top>
       <header class="site-header" id="large-header">
