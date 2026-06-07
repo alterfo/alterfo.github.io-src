@@ -226,6 +226,28 @@
         </svg>
       </div>
 
+      <!-- Validation panel -->
+      <div class="idef0-validation-bar" v-if="validationErrors.length > 0 || showValidationPanel">
+        <button
+          class="idef0-validation-toggle"
+          :class="{ 'idef0-validation-toggle--error': validationErrors.some(e => e.type === 'error'), 'idef0-validation-toggle--warn': !validationErrors.some(e => e.type === 'error') && validationErrors.length > 0 }"
+          @click="showValidationPanel = !showValidationPanel"
+        >
+          <span v-if="validationErrors.length === 0">✓ Valid</span>
+          <span v-else>{{ validationErrors.filter(e => e.type === 'error').length }} error(s), {{ validationErrors.filter(e => e.type === 'warn').length }} warning(s) {{ showValidationPanel ? '▲' : '▼' }}</span>
+        </button>
+        <div v-if="showValidationPanel && validationErrors.length > 0" class="idef0-validation-list">
+          <div
+            v-for="(err, i) in validationErrors"
+            :key="i"
+            :class="['idef0-validation-item', err.type === 'error' ? 'idef0-validation-item--error' : 'idef0-validation-item--warn']"
+          >
+            <span class="idef0-validation-icon">{{ err.type === 'error' ? '✕' : '⚠' }}</span>
+            {{ err.message }}
+          </div>
+        </div>
+      </div>
+
       <!-- ICOM Legend -->
       <div class="idef0-legend">
         <span v-for="item in ICOM_LEGEND" :key="item.code" class="idef0-legend-item">
@@ -246,7 +268,7 @@ import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
   routeBoundaryArrow, renderBoundaryArrow,
 } from './IDEF0Editor/renderer.js'
-import { icomCode } from './IDEF0Editor/icom.js'
+import { icomCode, validateDiagram } from './IDEF0Editor/icom.js'
 import { loadProject, saveProject, initCrossTabSync } from './IDEF0Editor/db.js'
 import { exportToSVG, exportToPNG, exportToJSON, importFromJSON } from './IDEF0Editor/exporter.js'
 
@@ -668,11 +690,27 @@ const breadcrumb = computed(() => {
   return path
 })
 
+// --- Validation ---
+const validationErrors = computed(() => {
+  if (!currentDiagram.value) return []
+  return validateDiagram(currentDiagram.value)
+})
+
+const errorBoxIds = computed(() => {
+  const ids = new Set()
+  for (const e of validationErrors.value) {
+    if (e.boxId) ids.add(e.boxId)
+  }
+  return ids
+})
+
+const showValidationPanel = ref(true)
+
 // --- Rendered data ---
 const renderedBoxes = computed(() => {
   if (!currentDiagram.value) return []
   return currentDiagram.value.boxes.map((box, idx) =>
-    renderBox(box, box.id === selectedBoxId.value, idx + 1)
+    renderBox(box, box.id === selectedBoxId.value, idx + 1, errorBoxIds.value.has(box.id))
   )
 })
 
@@ -839,5 +877,68 @@ const arrowLabels = computed(() => {
   padding: 1px 5px;
   border-radius: 2px;
   font-size: 11px;
+}
+
+.idef0-validation-bar {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  font-size: 12px;
+}
+
+.idef0-validation-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #555;
+}
+
+.idef0-validation-toggle--error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.idef0-validation-toggle--warn {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.idef0-validation-list {
+  padding: 4px 12px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.idef0-validation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.idef0-validation-item--error {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.idef0-validation-item--warn {
+  color: #d97706;
+  background: #fffbeb;
+}
+
+.idef0-validation-icon {
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
 }
 </style>

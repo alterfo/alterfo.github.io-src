@@ -31,9 +31,20 @@ function wrapText(text, boxW) {
  * @param {object} box - Box from the data model
  * @param {boolean} isSelected - Whether the box is currently selected
  * @param {number|null} index - 1-based position number shown in bottom-right corner
+ * @param {boolean} isError - Whether the box has validation errors (shows red border)
  */
-export function renderBox(box, isSelected = false, index = null) {
+export function renderBox(box, isSelected = false, index = null, isError = false) {
   const { x, y, w, h } = box
+
+  let stroke = 'black'
+  let strokeWidth = 1
+  if (isSelected) {
+    stroke = '#2563eb'
+    strokeWidth = 2
+  } else if (isError) {
+    stroke = '#ef4444'
+    strokeWidth = 2
+  }
 
   const rect = {
     x,
@@ -41,8 +52,8 @@ export function renderBox(box, isSelected = false, index = null) {
     width: w,
     height: h,
     fill: 'white',
-    stroke: isSelected ? '#2563eb' : 'black',
-    'stroke-width': isSelected ? 2 : 1,
+    stroke,
+    'stroke-width': strokeWidth,
   }
 
   const lines = wrapText(box.label, w)
