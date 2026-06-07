@@ -1,7 +1,8 @@
 // Web Audio API → WASM engine bridge.
-// Exports: initAudio, loadFile, play, pause, resume, isPlaying,
-//          getCurrentTime, getAudioFrame.
-// Consumed by renderer.js (getAudioFrame) and index.html (everything else).
+// Exports: initAudio, loadFile, connectStream, play, pause, resume,
+//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame.
+// connectStream() uses getDisplayMedia to capture a browser tab's audio —
+// used for Yandex Music / Spotify / any tab playing music.
 
 // AudioFrame layout (must match engine.h):
 //   [0] energy  [1] sub  [2] bass  [3] mid  [4] high
@@ -20,8 +21,10 @@ let _source = null;
 let _audioBuffer = null;
 
 let _playing = false;
+let _loop     = false;
 let _startOffset = 0;
 let _startTime = 0;
+let _liveNode = null;   // MediaStreamAudioSourceNode when in tab-capture mode
 
 let _currentFrame = _emptyFrame();
 let _beatTimestamps = [];
@@ -46,6 +49,7 @@ export async function initAudio(engine) {
 // from a user gesture handler in the caller before awaiting).
 export async function loadFile(file) {
     await _ensureContext();
+    _stopSource();
     const ab = await file.arrayBuffer();
     _audioBuffer = await _audioCtx.decodeAudioData(ab);
     if (_eng) _eng.reset();
@@ -53,6 +57,57 @@ export async function loadFile(file) {
     _prevBeatPulse  = 0;
     return { name: file.name, duration: _audioBuffer.duration };
 }
+
+// Capture audio from a browser tab via getDisplayMedia.
+// The user picks which tab to share (e.g. Yandex Music) in Chrome's dialog.
+// Returns { name } where name is the captured stream label.
+export async function connectStream() {
+    await _ensureContext();
+    _stopSource();
+
+    // Chrome requires video:true in the picker; we stop it immediately.
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { width: 1, height: 1, frameRate: 1 },
+            audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 },
+        });
+    } catch (e) {
+        throw new Error('Cancelled or no permission: ' + e.message);
+    }
+    stream.getVideoTracks().forEach(t => t.stop());
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+        throw new Error('No audio in stream — in Chrome\'s dialog tick "Share tab audio"');
+    }
+
+    if (_eng) _eng.reset();
+    _beatTimestamps = [];
+    _prevBeatPulse  = 0;
+    _audioBuffer    = null;
+
+    _captureNode = new AudioWorkletNode(_audioCtx, 'audio-capture-processor', {
+        numberOfInputs: 1, numberOfOutputs: 0,
+        channelCount: 2, channelCountMode: 'explicit',
+    });
+    _captureNode.port.onmessage = _onSamples;
+
+    _liveNode = _audioCtx.createMediaStreamSource(stream);
+    _liveNode.connect(_captureNode);
+
+    _startOffset = 0;
+    _startTime   = _audioCtx.currentTime;
+    _playing     = true;
+
+    audioTracks[0].addEventListener('ended', _stopSource);
+    _raf();
+
+    return { name: audioTracks[0].label || 'Live audio' };
+}
+
+export function setLoop(v) { _loop = v; }
+export function isLoop()   { return _loop; }
 
 export function getDuration() { return _audioBuffer?.duration ?? 0; }
 export function getBeatTimestamps() { return _beatTimestamps; }
@@ -90,9 +145,11 @@ export function play(offset = 0) {
 
     _source.start(0, offset);
     _startOffset = offset;
-    _startTime = _audioCtx.currentTime;
-    _playing = true;
-    _source.addEventListener('ended', () => { _playing = false; });
+    _startTime   = _audioCtx.currentTime;
+    _playing     = true;
+    _source.addEventListener('ended', () => {
+        if (_loop) { play(0); } else { _playing = false; }
+    });
     _raf();
 }
 
@@ -138,6 +195,7 @@ function _stopSource() {
         _source.disconnect();
         _source = null;
     }
+    if (_liveNode) { _liveNode.disconnect(); _liveNode = null; }
     _playing = false;
 }
 
