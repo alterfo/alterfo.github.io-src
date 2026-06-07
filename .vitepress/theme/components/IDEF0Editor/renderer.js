@@ -269,8 +269,7 @@ export function routeBoundaryArrow(bArrow, box, viewW, viewH) {
 export function renderBoundaryArrow(bArrow, route, boundaryPt) {
   if (!route || route.length < 2) return null
 
-  // Output arrows are solid; all others cross the frame boundary and are dashed
-  const isDashed = bArrow.type !== 'output'
+  const isDashed = true
   const arrowData = renderArrow(bArrow, route, isDashed)
   if (!arrowData) return null
 

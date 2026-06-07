@@ -535,6 +535,7 @@ function onMouseLeave() {
   }
   isPanning.value = false
   isDraggingBox.value = false
+  dragSnapshotNeeded.value = false
 }
 
 function onKeyDown(e) {
@@ -608,7 +609,7 @@ function isTargetHandle(boxId, side) {
 function typeFromSides(fromSide, toSide) {
   if (toSide === 'left')   return 'input'
   if (toSide === 'top')    return 'control'
-  if (toSide === 'right')  return 'output'
+  if (toSide === 'right')  return null
   if (toSide === 'bottom') return fromSide === 'bottom' ? 'call' : 'mechanism'
   return null
 }

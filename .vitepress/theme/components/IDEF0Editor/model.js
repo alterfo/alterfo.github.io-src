@@ -120,12 +120,24 @@ function addBox(partial = {}, diagramId = null) {
   return box
 }
 
+function _removeDiagramSubtree(diagramId) {
+  const d = project.diagrams[diagramId]
+  if (!d) return
+  for (const box of d.boxes) {
+    if (box.childDiagramId) _removeDiagramSubtree(box.childDiagramId)
+  }
+  delete project.diagrams[diagramId]
+}
+
 function removeBox(boxId, diagramId = null) {
   const d = diagramId ? project.diagrams[diagramId] : currentDiagram.value
   if (!d) return
   const idx = d.boxes.findIndex(b => b.id === boxId)
-  if (idx !== -1) d.boxes.splice(idx, 1)
-  // Remove arrows connected to this box
+  if (idx !== -1) {
+    const box = d.boxes[idx]
+    if (box.childDiagramId) _removeDiagramSubtree(box.childDiagramId)
+    d.boxes.splice(idx, 1)
+  }
   d.arrows = d.arrows.filter(a => a.sourceBoxId !== boxId && a.targetBoxId !== boxId)
   d.boundaryArrows = d.boundaryArrows.filter(a => a.boxId !== boxId)
 }

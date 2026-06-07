@@ -56,6 +56,7 @@ export function exportToPNG(svgEl, diagramId = 'diagram') {
       if (pngBlob) _downloadBlob(pngBlob, `idef0-${diagramId}.png`)
     }, 'image/png')
   }
+  img.onerror = () => URL.revokeObjectURL(url)
   img.src = url
 }
 
@@ -77,6 +78,7 @@ export function importFromJSON() {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json,application/json'
+    input.oncancel = () => reject(new Error('No file selected'))
     input.onchange = () => {
       const file = input.files?.[0]
       if (!file) { reject(new Error('No file selected')); return }

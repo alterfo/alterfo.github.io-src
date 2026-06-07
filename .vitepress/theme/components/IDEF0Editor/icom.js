@@ -92,16 +92,8 @@ export function validateDiagram(diagram) {
     if (arrow.sourceBoxId && arrow.targetBoxId && arrow.sourceBoxId === arrow.targetBoxId) {
       errors.push({ type: 'error', arrowId: arrow.id, boxId: arrow.sourceBoxId, message: `Arrow "${arrow.label || arrow.id}" is a self-loop (source and target are the same box)` })
     }
-    const expectedTargetSide = SIDE_FOR_TYPE[arrow.type]
-    if (expectedTargetSide && arrow.sourceSide && arrow.targetSide && arrow.targetSide !== expectedTargetSide) {
-      errors.push({ type: 'error', arrowId: arrow.id, boxId: arrow.targetBoxId, message: `Arrow "${arrow.label || arrow.id}" (${arrow.type}) connects to ${arrow.targetSide} side but should connect to ${expectedTargetSide}` })
-    }
   }
 
   return errors
 }
 
-// Returns true if the diagram has any error-level validation issues
-function hasErrors(diagram) {
-  return validateDiagram(diagram).some(e => e.type === 'error')
-}
