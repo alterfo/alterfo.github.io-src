@@ -1,5 +1,5 @@
 import { reactive, computed, ref } from 'vue'
-import { autoLayout } from './layout.js'
+import { nextBoxPosition } from './layout.js'
 
 let _idCounter = 1
 function uid(prefix = 'id') {
@@ -111,10 +111,12 @@ function addBox(partial = {}, diagramId = null) {
   if (!d) return null
   const hasManualPos = partial.x !== undefined && partial.y !== undefined
   const box = makeBox(partial)
-  d.boxes.push(box)
   if (!hasManualPos) {
-    autoLayout(d)
+    const pos = nextBoxPosition(d.boxes.length)
+    box.x = pos.x
+    box.y = pos.y
   }
+  d.boxes.push(box)
   return box
 }
 

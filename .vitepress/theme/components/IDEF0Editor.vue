@@ -289,17 +289,18 @@ const ICOM_LEGEND = [
 watch(currentDiagramId, () => resetHistory())
 
 // --- Persistence ---
-let _suppressSave = false
+// Use a counter so nested/concurrent withSuppressedSave calls don't clear prematurely
+let _suppressSaveDepth = 0
 let _crossTabCleanup = null
 
 watch(project, () => {
-  if (!_suppressSave) saveProject(project)
+  if (_suppressSaveDepth === 0) saveProject(project)
 }, { deep: true })
 
 async function withSuppressedSave(fn) {
-  _suppressSave = true
+  _suppressSaveDepth++
   try { await fn() }
-  finally { _suppressSave = false }
+  finally { _suppressSaveDepth-- }
 }
 
 async function initPersistence() {

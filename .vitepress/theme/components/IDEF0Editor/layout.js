@@ -73,4 +73,22 @@ function fitToView(boxes, viewportW, viewportH) {
   return { scale, translateX, translateY }
 }
 
-export { autoLayout }
+/**
+ * Returns the position {x, y} for a new box placed at index `existingCount`
+ * on the FIPS 183 diagonal, assuming up to 6 boxes maximum. Does not move
+ * any existing boxes.
+ */
+function nextBoxPosition(existingCount) {
+  const MAX_BOXES = 6  // FIPS 183 maximum
+  const x0 = BOUNDARY_MARGIN
+  const y0 = BOUNDARY_MARGIN + TITLE_MARGIN
+  const x1 = VIEW_W - BOUNDARY_MARGIN - DEFAULT_BOX_W
+  const y1 = VIEW_H - BOUNDARY_MARGIN - DEFAULT_BOX_H
+  const i = Math.min(existingCount, MAX_BOXES - 1)
+  return {
+    x: Math.round(x0 + i * (x1 - x0) / (MAX_BOXES - 1)),
+    y: Math.round(y0 + i * (y1 - y0) / (MAX_BOXES - 1)),
+  }
+}
+
+export { autoLayout, nextBoxPosition }

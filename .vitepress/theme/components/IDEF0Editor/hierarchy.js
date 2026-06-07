@@ -1,24 +1,14 @@
 import { project, currentDiagram, navigateTo, createDiagram } from './model.js'
 import { icomCode } from './icom.js'
 
-function uid() {
-  const pattern = /^hba-(\d+)$/
-  let max = 0
-  for (const d of Object.values(project.diagrams)) {
-    for (const ba of d.boundaryArrows) {
-      const m = pattern.exec(ba.id)
-      if (m) max = Math.max(max, +m[1])
-    }
-  }
-  return `hba-${max + 1}`
-}
-
 /**
  * Returns the child diagram ID for a box at a given index (0-based) in the parent diagram.
  * A0 box[0] → A1, A0 box[1] → A2, A1 box[2] → A13, etc.
  */
 function childDiagramId(parentId, boxIndex) {
-  return `${parentId}${boxIndex + 1}`
+  // A0's children are A1, A2... (not A01, A02...)
+  const base = parentId === 'A0' ? 'A' : parentId
+  return `${base}${boxIndex + 1}`
 }
 
 /**
@@ -42,6 +32,18 @@ function decomposeBox(box, diagram) {
     return project.diagrams[newId]
   }
 
+  // Compute a local ID counter for new boundary arrows so all IDs are unique
+  // within this single decomposeBox call (uid() would rescan each time and collide)
+  const hbaPattern = /^hba-(\d+)$/
+  let hbaMax = 0
+  for (const d of Object.values(project.diagrams)) {
+    for (const ba of d.boundaryArrows) {
+      const m = hbaPattern.exec(ba.id)
+      if (m) hbaMax = Math.max(hbaMax, +m[1])
+    }
+  }
+  function nextHbaId() { return `hba-${++hbaMax}` }
+
   const boundaryArrows = []
   const counts = { input: 0, control: 0, output: 0, mechanism: 0, call: 0 }
 
@@ -54,7 +56,7 @@ function decomposeBox(box, diagram) {
   for (const ba of diagram.boundaryArrows) {
     if (ba.boxId !== box.id) continue
     boundaryArrows.push({
-      id: uid(),
+      id: nextHbaId(),
       label: ba.label,
       type: ba.type,
       icomCode: nextCode(ba.type),
@@ -67,7 +69,7 @@ function decomposeBox(box, diagram) {
   for (const arrow of diagram.arrows) {
     if (arrow.targetBoxId === box.id) {
       boundaryArrows.push({
-        id: uid(),
+        id: nextHbaId(),
         label: arrow.label,
         type: arrow.type,
         icomCode: nextCode(arrow.type),
@@ -81,7 +83,7 @@ function decomposeBox(box, diagram) {
   for (const arrow of diagram.arrows) {
     if (arrow.sourceBoxId === box.id) {
       boundaryArrows.push({
-        id: uid(),
+        id: nextHbaId(),
         label: arrow.label,
         type: arrow.type,
         icomCode: nextCode(arrow.type),
