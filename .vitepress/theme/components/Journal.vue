@@ -1,8 +1,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { loadEnvelope, saveEnvelope, initCrossTabSync } from './Journal/db.js'
-import { emptyVault, upsertEntry, countWords, goalMet, computeStreak } from './Journal/vault.js'
+import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
+import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
 
 // ---- Volatile session state (never persisted) ----
 let _key = null
@@ -104,6 +105,79 @@ function onPassphraseKeydown(e) {
   if (e.key === 'Enter') hasVault.value ? unlock() : createVault()
 }
 
+// ---- Export ----
+async function doExport() {
+  if (!_key) return
+  try {
+    upsertEntry(vault, todayISO.value, todayText.value)
+    const { iv, ciphertext } = await encryptJSON(_key, vault)
+    const envelopeStr = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
+    exportEnvelope(envelopeStr)
+  } catch (e) {
+    console.warn('[journal] export failed:', e)
+  }
+}
+
+// ---- Import ----
+const importPhase = ref('idle')   // 'idle' | 'awaiting-passphrase' | 'merging' | 'error'
+const importPassphrase = ref('')
+const importError = ref('')
+let _pendingImportStr = null
+let _fileInputEl = null
+
+function triggerImportPicker() {
+  if (!_fileInputEl) {
+    _fileInputEl = document.createElement('input')
+    _fileInputEl.type = 'file'
+    _fileInputEl.accept = '.journal'
+    _fileInputEl.addEventListener('change', onImportFileChange)
+  }
+  _fileInputEl.value = ''
+  _fileInputEl.click()
+}
+
+async function onImportFileChange(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  try {
+    _pendingImportStr = await readEnvelopeFile(file)
+    importPassphrase.value = ''
+    importError.value = ''
+    importPhase.value = 'awaiting-passphrase'
+  } catch {
+    importError.value = 'Failed to read file.'
+    importPhase.value = 'error'
+  }
+}
+
+async function doImport() {
+  if (!_pendingImportStr || !_key) return
+  importPhase.value = 'merging'
+  importError.value = ''
+  try {
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
+    const importKey = await deriveKey(importPassphrase.value, salt, iterations)
+    const importedVault = await decryptJSON(importKey, { iv, ciphertext })
+    const merged = mergeVaults(vault, importedVault)
+    Object.assign(vault, merged)
+    todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
+    await persistVault()
+    importPassphrase.value = ''
+    _pendingImportStr = null
+    importPhase.value = 'idle'
+  } catch {
+    importError.value = 'Cannot decrypt — check the passphrase.'
+    importPhase.value = 'awaiting-passphrase'
+  }
+}
+
+function cancelImport() {
+  _pendingImportStr = null
+  importPassphrase.value = ''
+  importError.value = ''
+  importPhase.value = 'idle'
+}
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
@@ -187,6 +261,30 @@ onUnmounted(() => {
             Focus mode
           </label>
           <div class="journal-toggle-desc">Lock editing until 500 words</div>
+        </div>
+
+        <!-- Sync actions -->
+        <div class="journal-sync-section">
+          <div class="journal-past-header">Sync</div>
+          <button class="journal-btn journal-btn-sync" @click="doExport">Export .journal</button>
+          <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">Import .journal</button>
+
+          <!-- Import passphrase dialog -->
+          <div v-if="importPhase === 'awaiting-passphrase' || importPhase === 'merging'" class="journal-import-dialog">
+            <div class="journal-import-label">Passphrase for imported file:</div>
+            <input
+              v-model="importPassphrase"
+              type="password"
+              class="journal-passphrase-input journal-passphrase-input--small"
+              placeholder="Passphrase"
+              @keydown.enter="doImport"
+            />
+            <div class="journal-import-actions">
+              <button class="journal-btn journal-btn-primary journal-btn--sm" :disabled="importPhase === 'merging'" @click="doImport">Merge</button>
+              <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="cancelImport">Cancel</button>
+            </div>
+            <div v-if="importError" class="journal-error">{{ importError }}</div>
+          </div>
         </div>
 
         <div class="journal-past-header">Past entries</div>
@@ -478,4 +576,64 @@ onUnmounted(() => {
 }
 
 .journal-muted { color: #94a3b8; }
+
+/* ---- Sync section ---- */
+.journal-sync-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.journal-btn-sync {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  padding: 7px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background .15s;
+}
+.journal-btn-sync:hover { background: #e2e8f0; }
+
+.journal-import-dialog {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.journal-import-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.journal-passphrase-input--small {
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+.journal-import-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.journal-btn--sm {
+  font-size: 12px;
+  padding: 6px 14px;
+}
+
+.journal-btn-cancel {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+.journal-btn-cancel:hover { background: #e2e8f0; }
 </style>
