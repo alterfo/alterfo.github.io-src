@@ -5,3 +5,7 @@ dist
 .vitepress/cache
 .vitepress/dist
 docs/
+*.pdf
+*.doc
+*.docx
+*.zip
