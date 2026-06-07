@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { loadEnvelope, saveEnvelope, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
+import { createOffer, acceptOffer, sendEnvelope as sendRTCEnvelope, receiveAndMerge, packBlob, unpackBlob, QREncoder } from './Journal/sync.js'
 
 // ---- Volatile session state (never persisted) ----
 let _key = null
@@ -178,6 +179,127 @@ function cancelImport() {
   importPhase.value = 'idle'
 }
 
+// ---- P2P sync (WebRTC, same-LAN) ----
+const p2pPhase = ref('idle')
+// 'idle' | 'offer-ready' | 'awaiting-answer' | 'answer-ready' | 'awaiting-offer' | 'connected' | 'error'
+const p2pRole = ref('')        // 'initiator' | 'responder'
+const p2pBlob = ref('')        // offer or answer blob to show user
+const p2pPasteInput = ref('')  // user pastes the other side's blob
+const p2pError = ref('')
+let _p2pDc = null
+let _p2pSession = null         // { acceptAnswer, waitForChannel } or { waitForChannel }
+
+function renderQR(text) {
+  if (!p2pQRCanvas.value) return
+  QREncoder.encode(text, p2pQRCanvas.value, 3)
+}
+
+watch(p2pBlob, async (val) => {
+  if (!val) return
+  await nextTick()
+  renderQR(val)
+})
+
+async function p2pCreateOffer() {
+  p2pError.value = ''
+  p2pRole.value = 'initiator'
+  p2pPhase.value = 'offer-ready'
+  try {
+    _p2pSession = await createOffer()
+    p2pBlob.value = _p2pSession.blobStr
+    // Wait for answer paste
+    p2pPhase.value = 'awaiting-answer'
+  } catch (e) {
+    p2pError.value = 'Failed to create offer: ' + e.message
+    p2pPhase.value = 'error'
+  }
+}
+
+async function p2pSubmitAnswer() {
+  if (!_p2pSession || !p2pPasteInput.value.trim()) return
+  p2pError.value = ''
+  try {
+    await _p2pSession.acceptAnswer(p2pPasteInput.value.trim())
+    p2pPasteInput.value = ''
+    _p2pDc = await _p2pSession.waitForChannel(onP2PEnvelope)
+    p2pPhase.value = 'connected'
+    await p2pExchangeEnvelope()
+  } catch (e) {
+    p2pError.value = 'Connection failed: ' + e.message
+    p2pPhase.value = 'error'
+  }
+}
+
+async function p2pAcceptOffer() {
+  if (!p2pPasteInput.value.trim()) return
+  p2pError.value = ''
+  p2pRole.value = 'responder'
+  try {
+    _p2pSession = await acceptOffer(p2pPasteInput.value.trim())
+    p2pPasteInput.value = ''
+    p2pBlob.value = _p2pSession.blobStr
+    p2pPhase.value = 'answer-ready'
+    _p2pDc = await _p2pSession.waitForChannel(onP2PEnvelope)
+    p2pPhase.value = 'connected'
+    await p2pExchangeEnvelope()
+  } catch (e) {
+    p2pError.value = 'Connection failed: ' + e.message
+    p2pPhase.value = 'error'
+  }
+}
+
+async function p2pExchangeEnvelope() {
+  if (!_key || !_p2pDc) return
+  try {
+    upsertEntry(vault, todayISO.value, todayText.value)
+    const { iv, ciphertext } = await encryptJSON(_key, vault)
+    const envelopeStr = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
+    sendRTCEnvelope(_p2pDc, envelopeStr)
+  } catch (e) {
+    console.warn('[journal] p2p send failed:', e)
+  }
+}
+
+async function onP2PEnvelope(envelopeStr) {
+  if (!_key) return
+  try {
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
+    const importKey = await deriveKey(passphraseInput.value || '__same__', salt, iterations)
+      .catch(() => _key)
+    // Try current key first (same passphrase), fall back handled below
+    let importedVault
+    try {
+      importedVault = await decryptJSON(_key, { iv, ciphertext })
+    } catch {
+      p2pError.value = 'Peer uses a different passphrase — cannot auto-merge.'
+      return
+    }
+    const merged = receiveAndMerge(vault, importedVault)
+    Object.assign(vault, merged)
+    todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
+    await persistVault()
+  } catch (e) {
+    console.warn('[journal] p2p receive failed:', e)
+  }
+}
+
+function p2pReset() {
+  p2pPhase.value = 'idle'
+  p2pRole.value = ''
+  p2pBlob.value = ''
+  p2pPasteInput.value = ''
+  p2pError.value = ''
+  if (_p2pDc) { try { _p2pDc.close() } catch {} _p2pDc = null }
+  _p2pSession = null
+}
+
+function p2pStartResponder() {
+  p2pRole.value = 'responder'
+  p2pPhase.value = 'awaiting-offer'
+  p2pError.value = ''
+  p2pPasteInput.value = ''
+}
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
@@ -284,6 +406,57 @@ onUnmounted(() => {
               <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="cancelImport">Cancel</button>
             </div>
             <div v-if="importError" class="journal-error">{{ importError }}</div>
+          </div>
+
+          <!-- P2P pairing (WebRTC, same-LAN) -->
+          <div class="journal-past-header" style="margin-top:4px">Live sync (LAN)</div>
+          <div v-if="p2pPhase === 'idle'" class="journal-p2p-idle">
+            <button class="journal-btn journal-btn-sync" @click="p2pCreateOffer">Create offer</button>
+            <button class="journal-btn journal-btn-sync" @click="p2pStartResponder">Accept offer</button>
+          </div>
+
+          <!-- Initiator: show offer blob + QR, await answer -->
+          <div v-else-if="p2pPhase === 'awaiting-answer'" class="journal-p2p-panel">
+            <div class="journal-import-label">Share this offer with the peer:</div>
+            <canvas ref="p2pQRCanvas" class="journal-qr-canvas"></canvas>
+            <textarea readonly class="journal-p2p-blob" :value="p2pBlob"></textarea>
+            <div class="journal-import-label" style="margin-top:6px">Paste peer's answer:</div>
+            <textarea v-model="p2pPasteInput" class="journal-p2p-blob journal-p2p-paste" placeholder="Paste answer here…"></textarea>
+            <div class="journal-import-actions">
+              <button class="journal-btn journal-btn-primary journal-btn--sm" @click="p2pSubmitAnswer">Connect</button>
+              <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="p2pReset">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Responder: paste offer, show answer blob + QR -->
+          <div v-else-if="p2pPhase === 'awaiting-offer'" class="journal-p2p-panel">
+            <div class="journal-import-label">Paste the initiator's offer:</div>
+            <textarea v-model="p2pPasteInput" class="journal-p2p-blob journal-p2p-paste" placeholder="Paste offer here…"></textarea>
+            <div class="journal-import-actions">
+              <button class="journal-btn journal-btn-primary journal-btn--sm" @click="p2pAcceptOffer">Generate answer</button>
+              <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="p2pReset">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Responder: show answer blob + QR (waiting for connection) -->
+          <div v-else-if="p2pPhase === 'answer-ready'" class="journal-p2p-panel">
+            <div class="journal-import-label">Share this answer with the initiator:</div>
+            <canvas ref="p2pQRCanvas" class="journal-qr-canvas"></canvas>
+            <textarea readonly class="journal-p2p-blob" :value="p2pBlob"></textarea>
+            <div class="journal-muted" style="font-size:11px;margin-top:4px">Waiting for connection…</div>
+            <button class="journal-btn journal-btn-cancel journal-btn--sm" style="margin-top:4px" @click="p2pReset">Cancel</button>
+          </div>
+
+          <!-- Connected -->
+          <div v-else-if="p2pPhase === 'connected'" class="journal-p2p-panel journal-p2p-connected">
+            Live sync connected. Entries merged.
+            <button class="journal-btn journal-btn-cancel journal-btn--sm" style="margin-top:6px" @click="p2pReset">Disconnect</button>
+          </div>
+
+          <!-- Error -->
+          <div v-else-if="p2pPhase === 'error'" class="journal-p2p-panel">
+            <div class="journal-error">{{ p2pError }}</div>
+            <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="p2pReset">Reset</button>
           </div>
         </div>
 
@@ -636,4 +809,57 @@ onUnmounted(() => {
   border: 1px solid #e2e8f0;
 }
 .journal-btn-cancel:hover { background: #e2e8f0; }
+
+/* ---- P2P panel ---- */
+.journal-p2p-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journal-p2p-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.journal-p2p-connected {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+  font-weight: 500;
+}
+
+.journal-qr-canvas {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.journal-p2p-blob {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+  font-size: 9px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  resize: none;
+  height: 56px;
+  overflow: auto;
+  color: #475569;
+}
+
+.journal-p2p-paste {
+  background: #fafafa;
+  color: #1e293b;
+}
 </style>
