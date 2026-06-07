@@ -351,6 +351,33 @@ static int test_tonalness_silence(void) {
     return ok;
 }
 
+/* ---- Task 2 tests: descriptors exposed through the AudioFrame ABI ---- */
+
+static int test_frame_descriptors_tone(void) {
+    /* 1 kHz pure tone → frame.centroid and frame.tonal finite, in [0,1];
+       tone is harmonic so tonal should read clearly tonal */
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 1000.0f, 0.8f, SR);
+    AudioFrame f = push_signal(g_buf, SR);
+    int ok = (f.centroid >= 0.0f && f.centroid <= 1.0f &&
+              f.tonal    >= 0.0f && f.tonal    <= 1.0f &&
+              f.tonal > 0.3f);
+    printf("[%s] frame descriptors (1kHz tone): centroid=%.3f tonal=%.3f\n",
+           ok ? "PASS" : "FAIL", f.centroid, f.tonal);
+    return ok;
+}
+
+static int test_frame_descriptors_silence(void) {
+    /* silence → centroid/tonal finite, in [0,1] (safe defaults, no NaN/Inf) */
+    memset(g_buf, 0, sizeof g_buf);
+    AudioFrame f = push_signal(g_buf, SR);
+    int ok = (f.centroid >= 0.0f && f.centroid <= 1.0f &&
+              f.tonal    >= 0.0f && f.tonal    <= 1.0f);
+    printf("[%s] frame descriptors (silence): centroid=%.4f tonal=%.4f\n",
+           ok ? "PASS" : "FAIL", f.centroid, f.tonal);
+    return ok;
+}
+
 int main(void) {
     engine_init(SR, FFT_SIZE);
 
@@ -375,6 +402,9 @@ int main(void) {
     RUN(test_tonalness_pure_sine);
     RUN(test_tonalness_noise);
     RUN(test_tonalness_silence);
+
+    RUN(test_frame_descriptors_tone);
+    RUN(test_frame_descriptors_silence);
 
     printf("\n%d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;

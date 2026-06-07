@@ -118,16 +118,19 @@ anchor blends).
 - [x] run C tests: `cc -O2 -lm engine/engine.c engine/test_fft.c -o /tmp/test_fft && /tmp/test_fft` — 17 passed, 0 failed.
 
 ### Task 2: Expose descriptors through AudioFrame ABI
-- [ ] Append to `AudioFrame` in `engine/engine.h` (AFTER `tempo_bpm`):
+- [x] Append to `AudioFrame` in `engine/engine.h` (AFTER `tempo_bpm`):
       `float centroid;` (norm 0..1) and `float tonal;` (0..1). Order matters — append only.
-- [ ] Populate `g_frame.centroid` / `g_frame.tonal` at the end of `engine_push_samples`.
-- [ ] Update `web/audio.js`: `FRAME_FLOATS = 13`; read `centroid: F[fp+11]`,
-      `tonal: F[fp+12]` into `_currentFrame`; verify `_framePtr` malloc size covers 13
-      floats (bump if it hardcodes 11).
-- [ ] Rebuild WASM: `make -C engine` → confirm `web/engine.wasm` + `web/engine.js` regenerate.
-- [ ] write/extend a C test asserting `engine_get_frame` returns finite `centroid`/`tonal`
-      in [0,1] after pushing a synthetic tone (success + silence edge case).
-- [ ] run C tests + confirm `make -C engine` exits 0 — must pass before Task 3.
+- [x] Populate `g_frame.centroid` / `g_frame.tonal` at the end of `engine_push_samples`
+      (copied from smoothed `g_centroid`/`g_tonal`).
+- [x] Update `web/audio.js`: `FRAME_FLOATS = 13`; read `centroid: F[fp+11]`,
+      `tonal: F[fp+12]` into `_currentFrame` (+ `_emptyFrame()`); `_framePtr` malloc uses
+      `FRAME_FLOATS * 4` so it scales to 13 floats automatically (no hardcoded 11).
+- [x] Rebuild WASM: `make -C engine` → `web/engine.wasm` + `web/engine.js` regenerated
+      (gitignored build artifacts), exit 0.
+- [x] write/extend a C test asserting `engine_get_frame` returns finite `centroid`/`tonal`
+      in [0,1] after pushing a synthetic tone (success + silence edge case) —
+      `test_frame_descriptors_tone` + `test_frame_descriptors_silence`.
+- [x] run C tests + confirm `make -C engine` exits 0 — 19 passed, 0 failed; make exit 0.
 
 ### Task 3: Timbre→hue color module (JS)
 - [ ] Create `web/timbre_color.js` exporting `timbreToColor(centroid, tonal)` →

@@ -10,6 +10,8 @@ typedef struct {
     float beat_pulse;   /* 0..1, spike + exponential decay ~0.1s */
     float onset[4];     /* per-band onset flags (0 or 1, with cooldown) */
     float tempo_bpm;    /* rolling average BPM */
+    float centroid;     /* spectral centroid, log-normalized 0..1 (timbre brightness) */
+    float tonal;        /* spectral tonalness/harmonicity 0..1 (timbre → color) */
 } AudioFrame;
 
 /* lifecycle */

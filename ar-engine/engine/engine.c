@@ -433,6 +433,8 @@ void engine_push_samples(const float *buf, int n) {
     g_frame.high       = high;
     g_frame.beat_pulse = g_beat_pulse;
     g_frame.tempo_bpm  = g_tempo_bpm;
+    g_frame.centroid   = g_centroid;
+    g_frame.tonal      = g_tonal;
 }
 
 void engine_get_frame(AudioFrame *out) {
