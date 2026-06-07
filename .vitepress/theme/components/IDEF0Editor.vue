@@ -15,6 +15,18 @@
         <span class="idef0-diagram-title">{{ currentDiagram?.title ?? 'IDEF0 Editor' }}</span>
         <div class="idef0-toolbar-actions">
           <button class="idef0-btn" @click="handleAddBox">+ Block</button>
+          <button
+            v-if="selectedBoxId"
+            class="idef0-btn idef0-btn--enter"
+            @click="handleEnterBox"
+            title="Decompose and enter child diagram"
+          >↳ Войти</button>
+          <button
+            v-if="currentDiagram && currentDiagram.parentId"
+            class="idef0-btn"
+            @click="handleNavigateUp"
+            title="Go up to parent diagram"
+          >↑ Выйти</button>
           <button class="idef0-btn" @click="handleResetView">Reset View</button>
           <button class="idef0-btn" @click="handleExportSVG">Export SVG</button>
         </div>
@@ -223,6 +235,7 @@
 <script setup>
 import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
+import { navigateInto, navigateUp } from './IDEF0Editor/hierarchy.js'
 import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
   routeBoundaryArrow, renderBoundaryArrow,
@@ -537,6 +550,19 @@ function handleAddBox() {
   addBox({ label: 'New Block' })
 }
 
+function handleEnterBox() {
+  if (!selectedBoxId.value || !currentDiagram.value) return
+  const box = currentDiagram.value.boxes.find(b => b.id === selectedBoxId.value)
+  if (!box) return
+  selectedBoxId.value = null
+  navigateInto(box, currentDiagram.value)
+}
+
+function handleNavigateUp() {
+  selectedBoxId.value = null
+  navigateUp()
+}
+
 function handleExportSVG() {
   const svgEl = svgRef.value
   if (!svgEl) return
@@ -680,6 +706,16 @@ const arrowLabels = computed(() => {
 
 .idef0-btn:hover {
   background: #e8e8e8;
+}
+
+.idef0-btn--enter {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.idef0-btn--enter:hover {
+  background: #dbeafe;
 }
 
 .idef0-canvas-wrap {
