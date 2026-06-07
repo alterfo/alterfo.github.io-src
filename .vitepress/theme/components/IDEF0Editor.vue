@@ -290,27 +290,28 @@ watch(currentDiagramId, () => resetHistory())
 
 // --- Persistence ---
 let _suppressSave = false
+let _crossTabCleanup = null
 
 watch(project, () => {
   if (!_suppressSave) saveProject(project)
 }, { deep: true })
 
-async function initPersistence() {
+async function withSuppressedSave(fn) {
   _suppressSave = true
-  try {
+  try { await fn() }
+  finally { _suppressSave = false }
+}
+
+async function initPersistence() {
+  await withSuppressedSave(async () => {
     const saved = await loadProject()
     if (saved) loadProjectData(saved)
-  } finally {
-    _suppressSave = false
-  }
-  initCrossTabSync(async () => {
-    _suppressSave = true
-    try {
+  })
+  _crossTabCleanup = initCrossTabSync(async () => {
+    await withSuppressedSave(async () => {
       const saved = await loadProject()
       if (saved) loadProjectData(saved)
-    } finally {
-      _suppressSave = false
-    }
+    })
   })
 }
 
@@ -508,8 +509,10 @@ function onMouseUp(e) {
       else if (world.y >= VIEW_H - BOUNDARY_ZONE) bType = 'mechanism'
       if (bType && currentDiagram.value) {
         pushSnapshot(currentDiagram.value)
-        const count = currentDiagram.value.boundaryArrows.filter(ba => ba.type === bType).length
-        addBoundaryArrow({ label: '', type: bType, icomCode: icomCode(bType, count + 1), boxId: fromBoxId })
+        const maxIdx = currentDiagram.value.boundaryArrows
+          .filter(ba => ba.type === bType)
+          .reduce((m, ba) => Math.max(m, parseInt(ba.icomCode.slice(1)) || 0), 0)
+        addBoundaryArrow({ label: '', type: bType, icomCode: icomCode(bType, maxIdx + 1), boxId: fromBoxId })
       }
     }
     drawingArrow.value = null
@@ -556,7 +559,10 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   initPersistence()
 })
-onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeyDown)
+  _crossTabCleanup?.()
+})
 
 function handleResetView() {
   zoom.value = 1
@@ -663,12 +669,7 @@ function handleExportJSON() {
 async function handleImportJSON() {
   try {
     const data = await importFromJSON()
-    _suppressSave = true
-    try {
-      loadProjectData(data)
-    } finally {
-      _suppressSave = false
-    }
+    await withSuppressedSave(() => loadProjectData(data))
   } catch (err) {
     if (err.message !== 'No file selected') {
       alert('Import failed: ' + err.message)

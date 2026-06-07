@@ -63,11 +63,14 @@ function saveProject(project) {
 }
 
 // onReload is called when another tab saves; storage event only fires in OTHER tabs
+// Returns a cleanup function to remove the listener on unmount
 function initCrossTabSync(onReload) {
-  if (typeof window === 'undefined') return
-  window.addEventListener('storage', e => {
+  if (typeof window === 'undefined') return () => {}
+  const handler = e => {
     if (e.key === 'idef0:saved') onReload()
-  })
+  }
+  window.addEventListener('storage', handler)
+  return () => window.removeEventListener('storage', handler)
 }
 
 export { loadProject, saveProject, initCrossTabSync }

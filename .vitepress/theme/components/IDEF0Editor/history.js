@@ -6,14 +6,7 @@ const undoStack = ref([])
 const redoStack = ref([])
 
 function snapshotDiagram(diagram) {
-  return JSON.stringify({
-    id: diagram.id,
-    title: diagram.title,
-    parentId: diagram.parentId,
-    boxes: diagram.boxes,
-    arrows: diagram.arrows,
-    boundaryArrows: diagram.boundaryArrows,
-  })
+  return JSON.stringify(diagram)
 }
 
 function applySnapshot(diagram, snapshot) {

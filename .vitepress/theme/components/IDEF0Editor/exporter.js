@@ -5,6 +5,17 @@ const SVG_STYLES = `
   text { font-family: sans-serif; }
 `
 
+function prepareSvgClone(svgEl) {
+  const clone = svgEl.cloneNode(true)
+  const transformG = clone.querySelector('g[transform]')
+  if (transformG) transformG.removeAttribute('transform')
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+  styleEl.textContent = SVG_STYLES
+  clone.insertBefore(styleEl, clone.firstChild)
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  return clone
+}
+
 /**
  * Export the current diagram SVG to a downloadable .svg file.
  * svgEl — the <svg> DOM element (passed from the component).
@@ -12,16 +23,7 @@ const SVG_STYLES = `
  */
 export function exportToSVG(svgEl, diagramId = 'diagram') {
   if (!svgEl) return
-  const clone = svgEl.cloneNode(true)
-  // Remove zoom/pan transform so exported SVG shows default view
-  const transformG = clone.querySelector('g[transform]')
-  if (transformG) transformG.removeAttribute('transform')
-  // Inject a basic style block so the SVG is self-contained
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  styleEl.textContent = SVG_STYLES
-  clone.insertBefore(styleEl, clone.firstChild)
-  // Ensure xmlns is set for standalone SVG
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  const clone = prepareSvgClone(svgEl)
   const svgStr = new XMLSerializer().serializeToString(clone)
   _downloadBlob(new Blob([svgStr], { type: 'image/svg+xml' }), `idef0-${diagramId}.svg`)
 }
@@ -31,14 +33,7 @@ export function exportToSVG(svgEl, diagramId = 'diagram') {
  */
 export function exportToPNG(svgEl, diagramId = 'diagram') {
   if (!svgEl) return
-  const clone = svgEl.cloneNode(true)
-  const transformG = clone.querySelector('g[transform]')
-  if (transformG) transformG.removeAttribute('transform')
-  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  styleEl.textContent = SVG_STYLES
-  clone.insertBefore(styleEl, clone.firstChild)
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-
+  const clone = prepareSvgClone(svgEl)
   const svgStr = new XMLSerializer().serializeToString(clone)
   const viewBox = svgEl.viewBox.baseVal
   const W = viewBox.width || 1200

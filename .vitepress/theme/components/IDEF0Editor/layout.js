@@ -73,4 +73,4 @@ function fitToView(boxes, viewportW, viewportH) {
   return { scale, translateX, translateY }
 }
 
-export { autoLayout, fitToView, VIEW_W, VIEW_H, DEFAULT_BOX_W, DEFAULT_BOX_H, BOUNDARY_MARGIN }
+export { autoLayout }

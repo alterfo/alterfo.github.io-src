@@ -1,9 +1,16 @@
 import { project, currentDiagram, navigateTo, createDiagram } from './model.js'
 import { icomCode } from './icom.js'
 
-let _baCounter = 1
 function uid() {
-  return `hba-${_baCounter++}`
+  const pattern = /^hba-(\d+)$/
+  let max = 0
+  for (const d of Object.values(project.diagrams)) {
+    for (const ba of d.boundaryArrows) {
+      const m = pattern.exec(ba.id)
+      if (m) max = Math.max(max, +m[1])
+    }
+  }
+  return `hba-${max + 1}`
 }
 
 /**

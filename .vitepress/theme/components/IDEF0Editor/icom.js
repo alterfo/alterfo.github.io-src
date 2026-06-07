@@ -1,4 +1,4 @@
-export const ICOM_TYPES = ['input', 'control', 'output', 'mechanism', 'call']
+const ICOM_TYPES = ['input', 'control', 'output', 'mechanism', 'call']
 
 // Side of the box where each arrow type connects
 export const SIDE_FOR_TYPE = {
@@ -10,7 +10,7 @@ export const SIDE_FOR_TYPE = {
 }
 
 // Whether the arrow enters or exits the box
-export const DIRECTION_FOR_TYPE = {
+const DIRECTION_FOR_TYPE = {
   input: 'enters',
   control: 'enters',
   output: 'exits',
@@ -34,7 +34,7 @@ export function icomCode(type, index) {
 
 // Returns true if the arrow type is consistent with the sides it connects on source/target box.
 // sourceBoxSide / targetBoxSide: 'left' | 'top' | 'right' | 'bottom' | null (null = boundary)
-export function isValidConnection(sourceBoxSide, targetBoxSide, arrowType) {
+function isValidConnection(sourceBoxSide, targetBoxSide, arrowType) {
   switch (arrowType) {
     case 'input':     return targetBoxSide === 'left'
     case 'control':   return targetBoxSide === 'top'
@@ -102,6 +102,6 @@ export function validateDiagram(diagram) {
 }
 
 // Returns true if the diagram has any error-level validation issues
-export function hasErrors(diagram) {
+function hasErrors(diagram) {
   return validateDiagram(diagram).some(e => e.type === 'error')
 }

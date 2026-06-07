@@ -62,7 +62,7 @@ function makeDefaultProject() {
     title: 'Context Diagram',
     boxes: [box1, box2],
     arrows: [
-      makeArrow({ id: 'arrow-1', label: 'Data', type: 'output', sourceBoxId: 'box-1', targetBoxId: 'box-2' }),
+      makeArrow({ id: 'arrow-1', label: 'Data', type: 'input', sourceBoxId: 'box-1', targetBoxId: 'box-2' }),
       makeArrow({ id: 'arrow-2', label: 'Config', type: 'control', sourceBoxId: 'box-1', targetBoxId: 'box-2' }),
     ],
     boundaryArrows: [
@@ -190,11 +190,24 @@ function updateBoundaryArrow(arrowId, changes, diagramId = null) {
 
 // ---- Project-level helpers ----
 
+function syncIdCounter() {
+  const pattern = /^(?:box|arrow|barrow)-(\d+)$/
+  let max = 0
+  for (const d of Object.values(project.diagrams)) {
+    for (const item of [...d.boxes, ...d.arrows, ...d.boundaryArrows]) {
+      const m = pattern.exec(item.id)
+      if (m) max = Math.max(max, +m[1])
+    }
+  }
+  if (max >= _idCounter) _idCounter = max + 1
+}
+
 function loadProjectData(data) {
   Object.assign(project, data)
   if (!project.diagrams[currentDiagramId.value]) {
     currentDiagramId.value = Object.keys(project.diagrams)[0] ?? 'A0'
   }
+  syncIdCounter()
 }
 
 function getProjectSnapshot() {
@@ -214,7 +227,6 @@ export {
   currentDiagram,
   // Diagram
   createDiagram,
-  getDiagram,
   navigateTo,
   // Box
   addBox,
@@ -233,9 +245,4 @@ export {
   loadProjectData,
   getProjectSnapshot,
   resetProject,
-  // Factories (used by other modules)
-  makeBox,
-  makeArrow,
-  makeBoundaryArrow,
-  makeDiagram,
 }

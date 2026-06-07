@@ -3,8 +3,6 @@ import { SIDE_FOR_TYPE } from './icom.js'
 
 const FONT_SIZE = 12
 const LINE_HEIGHT = 16
-const NUM_FONT_SIZE = 10
-const DECOMP_FONT_SIZE = 10
 const ARROW_SIZE = 6
 
 function wrapText(text, boxW) {
@@ -331,4 +329,3 @@ export function renderBoundaryArrow(bArrow, route, boundaryPt) {
   }
 }
 
-export { FONT_SIZE, LINE_HEIGHT, NUM_FONT_SIZE, DECOMP_FONT_SIZE }
