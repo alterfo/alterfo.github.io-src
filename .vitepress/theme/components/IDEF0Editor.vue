@@ -98,6 +98,8 @@
                 dominant-baseline="middle"
                 font-size="10"
                 fill="#555"
+                style="cursor: text"
+                @dblclick.stop="onArrowLabelDblClick(al, $event)"
               >{{ al.text }}</text>
             </g>
 
@@ -108,6 +110,7 @@
                 :key="rbox.box.id"
                 class="idef0-box"
                 @mousedown.stop="onBoxMouseDown(rbox.box, $event)"
+                @dblclick.stop="onBoxDblClick(rbox.box, $event)"
                 @mouseenter="onBoxMouseEnter(rbox.box)"
                 @mouseleave="onBoxMouseLeave(rbox.box)"
               >
@@ -158,6 +161,27 @@
               </g>
             </g>
 
+            <!-- Inline label editor -->
+            <foreignObject
+              v-if="editingBoxId || editingArrowId"
+              :x="inlineEditorRect.x"
+              :y="inlineEditorRect.y"
+              :width="inlineEditorRect.w"
+              :height="inlineEditorRect.h"
+            >
+              <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:2px;box-sizing:border-box;">
+                <input
+                  ref="editInputRef"
+                  type="text"
+                  v-model="editingValue"
+                  style="width:100%;border:2px solid #2563eb;border-radius:3px;text-align:center;font-size:12px;padding:2px 4px;background:white;box-sizing:border-box;outline:none;font-family:sans-serif;"
+                  @keydown.enter.prevent="confirmEdit"
+                  @keydown.escape.prevent="cancelEdit"
+                  @blur="confirmEdit"
+                />
+              </div>
+            </foreignObject>
+
             <!-- Rubber-band line during arrow drawing -->
             <line
               v-if="drawingArrow && rubberBandStart"
@@ -197,8 +221,8 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo, addArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
+import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
 import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
   routeBoundaryArrow, renderBoundaryArrow,
@@ -217,6 +241,78 @@ const ICOM_LEGEND = [
   { code: 'M', desc: 'Mechanism — enters bottom' },
   { code: 'R', desc: 'Call — exits bottom' },
 ]
+
+// --- Inline editing ---
+const editingBoxId = ref(null)
+const editingArrowId = ref(null)
+const editingValue = ref('')
+const editInputRef = ref(null)
+
+const editingBox = computed(() => {
+  if (!editingBoxId.value || !currentDiagram.value) return null
+  return currentDiagram.value.boxes.find(b => b.id === editingBoxId.value) ?? null
+})
+
+const editingArrowLabelInfo = computed(() => {
+  if (!editingArrowId.value) return null
+  return arrowLabels.value.find(al => al.arrow.id === editingArrowId.value) ?? null
+})
+
+const inlineEditorRect = computed(() => {
+  if (editingBoxId.value && editingBox.value) {
+    const b = editingBox.value
+    return { x: b.x, y: b.y, w: b.w, h: b.h }
+  }
+  if (editingArrowId.value && editingArrowLabelInfo.value) {
+    const { x, y } = editingArrowLabelInfo.value
+    return { x: x - 60, y: y - 12, w: 120, h: 24 }
+  }
+  return { x: 0, y: 0, w: 0, h: 0 }
+})
+
+function onBoxDblClick(box, e) {
+  e.stopPropagation()
+  editingArrowId.value = null
+  editingBoxId.value = box.id
+  editingValue.value = box.label
+  nextTick(() => {
+    if (editInputRef.value) {
+      editInputRef.value.focus()
+      editInputRef.value.select()
+    }
+  })
+}
+
+function onArrowLabelDblClick(arrowLabel, e) {
+  e.stopPropagation()
+  editingBoxId.value = null
+  editingArrowId.value = arrowLabel.arrow.id
+  editingValue.value = arrowLabel.arrow.label
+  nextTick(() => {
+    if (editInputRef.value) {
+      editInputRef.value.focus()
+      editInputRef.value.select()
+    }
+  })
+}
+
+function confirmEdit() {
+  if (!editingBoxId.value && !editingArrowId.value) return
+  if (editingBoxId.value) {
+    updateBox(editingBoxId.value, { label: editingValue.value.trim() || 'Unnamed' })
+    editingBoxId.value = null
+  } else if (editingArrowId.value) {
+    updateArrow(editingArrowId.value, { label: editingValue.value })
+    editingArrowId.value = null
+  }
+  editingValue.value = ''
+}
+
+function cancelEdit() {
+  editingBoxId.value = null
+  editingArrowId.value = null
+  editingValue.value = ''
+}
 
 // --- Selection / Drag ---
 const selectedBoxId = ref(null)
@@ -353,6 +449,7 @@ function onMouseLeave() {
 }
 
 function onKeyDown(e) {
+  if (editingBoxId.value || editingArrowId.value) return
   if (!selectedBoxId.value) return
   if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault()
