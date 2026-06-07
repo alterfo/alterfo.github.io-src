@@ -28,8 +28,49 @@
           font-size="18"
         >No diagram loaded</text>
 
-        <!-- Arrows (rendered below boxes so boxes appear on top) -->
+        <!-- Arrows and boundary arrows (rendered below boxes so boxes appear on top) -->
         <g v-if="currentDiagram">
+          <!-- Boundary arrows -->
+          <g
+            v-for="rba in renderedBoundaryArrows"
+            :key="rba.bArrow.id"
+            class="idef0-arrow"
+          >
+            <path
+              :d="rba.d"
+              stroke="black"
+              stroke-width="1"
+              :stroke-dasharray="rba.strokeDasharray || ''"
+              fill="none"
+            />
+            <polygon
+              :points="rba.arrowheadPoints"
+              fill="black"
+              stroke="none"
+            />
+            <!-- ICOM code near the boundary edge -->
+            <text
+              :x="rba.icomX"
+              :y="rba.icomY"
+              :text-anchor="rba.icomAnchor"
+              dominant-baseline="auto"
+              font-size="9"
+              font-style="italic"
+              fill="#444"
+            >{{ rba.icomCode }}</text>
+            <!-- Boundary arrow label near midpoint -->
+            <text
+              v-if="rba.labelX !== null"
+              :x="rba.labelX"
+              :y="rba.labelY"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              font-size="10"
+              fill="#555"
+            >{{ rba.label }}</text>
+          </g>
+
+          <!-- Internal arrows -->
           <g
             v-for="ra in renderedArrows"
             :key="ra.arrow.id"
@@ -113,7 +154,7 @@
 <script setup>
 import { computed } from 'vue'
 import { currentDiagram } from './IDEF0Editor/model.js'
-import { renderBox, routeArrow, renderArrow, renderArrowLabel } from './IDEF0Editor/renderer.js'
+import { renderBox, routeArrow, renderArrow, renderArrowLabel, routeBoundaryArrow, renderBoundaryArrow } from './IDEF0Editor/renderer.js'
 
 const VIEW_W = 1200
 const VIEW_H = 800
@@ -131,6 +172,20 @@ const renderedArrows = computed(() => {
     .map(arrow => {
       const route = routeArrow(arrow, currentDiagram.value.boxes)
       return route.length >= 2 ? renderArrow(arrow, route, false) : null
+    })
+    .filter(Boolean)
+})
+
+const renderedBoundaryArrows = computed(() => {
+  if (!currentDiagram.value) return []
+  const boxMap = {}
+  for (const b of currentDiagram.value.boxes) boxMap[b.id] = b
+  return currentDiagram.value.boundaryArrows
+    .map(bArrow => {
+      const box = boxMap[bArrow.boxId]
+      const result = routeBoundaryArrow(bArrow, box, VIEW_W, VIEW_H)
+      if (!result) return null
+      return renderBoundaryArrow(bArrow, result.route, result.boundaryPt)
     })
     .filter(Boolean)
 })

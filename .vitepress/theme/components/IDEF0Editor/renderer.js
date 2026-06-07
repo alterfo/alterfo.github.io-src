@@ -199,4 +199,125 @@ export function renderArrowLabel(arrow, route) {
   }
 }
 
+/**
+ * Computes the route for a boundary arrow between the diagram edge and a box.
+ * @param {object} bArrow - BoundaryArrow from the model
+ * @param {object} box - Box the boundary arrow connects to
+ * @param {number} viewW - SVG viewport width
+ * @param {number} viewH - SVG viewport height
+ * @returns {{ route: Array<{x,y}>, boundaryPt: {x,y} } | null}
+ */
+export function routeBoundaryArrow(bArrow, box, viewW, viewH) {
+  if (!box) return null
+  let boxPt, boundaryPt, route
+
+  switch (bArrow.type) {
+    case 'input': {
+      boxPt = { x: box.x, y: box.y + box.h / 2 }
+      boundaryPt = { x: 0, y: boxPt.y }
+      route = [boundaryPt, boxPt]
+      break
+    }
+    case 'output': {
+      boxPt = { x: box.x + box.w, y: box.y + box.h / 2 }
+      boundaryPt = { x: viewW, y: boxPt.y }
+      route = [boxPt, boundaryPt]
+      break
+    }
+    case 'control': {
+      boxPt = { x: box.x + box.w / 2, y: box.y }
+      boundaryPt = { x: boxPt.x, y: 0 }
+      route = [boundaryPt, boxPt]
+      break
+    }
+    case 'mechanism': {
+      // Enters box from outside at bottom edge, arrow tip points up toward box
+      boxPt = { x: box.x + box.w / 2, y: box.y + box.h }
+      boundaryPt = { x: boxPt.x, y: viewH }
+      route = [boundaryPt, boxPt]
+      break
+    }
+    case 'call': {
+      // Exits box downward toward bottom edge
+      boxPt = { x: box.x + box.w / 2, y: box.y + box.h }
+      boundaryPt = { x: boxPt.x, y: viewH }
+      route = [boxPt, boundaryPt]
+      break
+    }
+    default:
+      return null
+  }
+
+  return { route, boundaryPt }
+}
+
+/**
+ * Returns SVG rendering data for a boundary arrow (path, arrowhead, ICOM code, label).
+ * @param {object} bArrow - BoundaryArrow from the model
+ * @param {Array} route - Waypoints [{x,y}, ...]
+ * @param {{x,y}} boundaryPt - The point on the diagram edge
+ */
+export function renderBoundaryArrow(bArrow, route, boundaryPt) {
+  if (!route || route.length < 2) return null
+
+  // Output arrows are solid; all others cross the frame boundary and are dashed
+  const isDashed = bArrow.type !== 'output'
+  const arrowData = renderArrow(bArrow, route, isDashed)
+  if (!arrowData) return null
+
+  // ICOM code label position: just inside the boundary, beside the arrow
+  let icomX = boundaryPt.x
+  let icomY = boundaryPt.y
+  let icomAnchor = 'middle'
+
+  switch (bArrow.type) {
+    case 'input':
+      icomX = boundaryPt.x + 12
+      icomY = boundaryPt.y - 6
+      icomAnchor = 'start'
+      break
+    case 'output':
+      icomX = boundaryPt.x - 12
+      icomY = boundaryPt.y - 6
+      icomAnchor = 'end'
+      break
+    case 'control':
+      icomX = boundaryPt.x + 5
+      icomY = boundaryPt.y + 14
+      icomAnchor = 'start'
+      break
+    case 'mechanism':
+    case 'call':
+      icomX = boundaryPt.x + 5
+      icomY = boundaryPt.y - 6
+      icomAnchor = 'start'
+      break
+  }
+
+  // Arrow label at midpoint, offset perpendicular to the line
+  const p0 = route[0]
+  const p1 = route[route.length - 1]
+  const midX = (p0.x + p1.x) / 2
+  const midY = (p0.y + p1.y) / 2
+  const dx = p1.x - p0.x
+  const dy = p1.y - p0.y
+  const dist = Math.hypot(dx, dy) || 1
+  const ox = (-dy / dist) * 12
+  const oy = (dx / dist) * 12
+
+  return {
+    bArrow,
+    d: arrowData.d,
+    strokeDasharray: arrowData.strokeDasharray,
+    arrowheadPoints: arrowData.arrowheadPoints,
+    icomX,
+    icomY,
+    icomAnchor,
+    icomCode: bArrow.icomCode,
+    labelX: bArrow.label ? midX + ox : null,
+    labelY: bArrow.label ? midY + oy : null,
+    label: bArrow.label,
+  }
+}
+
 export { FONT_SIZE, LINE_HEIGHT, NUM_FONT_SIZE, DECOMP_FONT_SIZE }
