@@ -114,10 +114,10 @@
                 text-anchor="middle"
                 dominant-baseline="middle"
                 font-size="10"
-                fill="#555"
+                :fill="al.text ? '#555' : '#bbb'"
                 style="cursor: text"
                 @dblclick.stop="onArrowLabelDblClick(al, $event)"
-              >{{ al.text }}</text>
+              >{{ al.text || '·' }}</text>
             </g>
 
             <!-- Boxes (above arrows) -->
@@ -499,14 +499,16 @@ function onMouseUp(e) {
       }
     } else if (e) {
       // Release near boundary → create boundary arrow
-      const world = toWorldCoords(e.clientX, e.clientY)
+      // Use SVG coords (not world coords) so the zone is correct at any zoom/pan level
+      const svg = toSvgCoords(e.clientX, e.clientY)
       const BOUNDARY_ZONE = 40
-      const { fromBoxId } = drawingArrow.value
+      const { fromBoxId, fromSide } = drawingArrow.value
       let bType = null
-      if (world.x <= BOUNDARY_ZONE) bType = 'input'
-      else if (world.x >= VIEW_W - BOUNDARY_ZONE) bType = 'output'
-      else if (world.y <= BOUNDARY_ZONE) bType = 'control'
-      else if (world.y >= VIEW_H - BOUNDARY_ZONE) bType = 'mechanism'
+      if (svg.x <= BOUNDARY_ZONE) bType = 'input'
+      else if (svg.x >= VIEW_W - BOUNDARY_ZONE) bType = 'output'
+      else if (svg.y <= BOUNDARY_ZONE) bType = 'control'
+      // Bottom edge: call exits bottom; mechanism enters bottom
+      else if (svg.y >= VIEW_H - BOUNDARY_ZONE) bType = fromSide === 'bottom' ? 'call' : 'mechanism'
       if (bType && currentDiagram.value) {
         pushSnapshot(currentDiagram.value)
         const maxIdx = currentDiagram.value.boundaryArrows
@@ -670,6 +672,7 @@ async function handleImportJSON() {
   try {
     const data = await importFromJSON()
     await withSuppressedSave(() => loadProjectData(data))
+    resetHistory()
   } catch (err) {
     if (err.message !== 'No file selected') {
       alert('Import failed: ' + err.message)

@@ -186,7 +186,7 @@ export function renderArrow(arrow, route, isBoundary = false) {
  * Returns position and text for an arrow label, placed near the mid of the first segment.
  */
 export function renderArrowLabel(arrow, route) {
-  if (!route || route.length < 2 || !arrow.label) return null
+  if (!route || route.length < 2) return null
 
   const p0 = route[0]
   const p1 = route[1]
