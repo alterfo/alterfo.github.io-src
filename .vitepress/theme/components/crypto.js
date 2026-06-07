@@ -90,10 +90,14 @@ export function unpackEnvelope(str) {
   if (typeof parsed.salt !== 'string' || typeof parsed.iv !== 'string' || typeof parsed.ciphertext !== 'string') {
     throw new Error('Malformed envelope');
   }
+  const salt = base64ToBytes(parsed.salt);
+  const iv = base64ToBytes(parsed.iv);
+  if (salt.length !== 16) throw new Error('Invalid salt length');
+  if (iv.length !== 12) throw new Error('Invalid IV length');
   return {
-    salt: base64ToBytes(parsed.salt),
+    salt,
     iterations: parsed.iterations,
-    iv: base64ToBytes(parsed.iv),
+    iv,
     ciphertext: base64ToBytes(parsed.ciphertext),
   };
 }

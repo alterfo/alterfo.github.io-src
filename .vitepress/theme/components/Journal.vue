@@ -84,6 +84,7 @@ async function unlock() {
   if (!passphraseInput.value) { error.value = 'Enter your passphrase.'; return }
   try {
     const envelopeStr = await loadEnvelope()
+    if (!envelopeStr) { error.value = 'No vault found.'; return }
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
     _salt = salt
     _iterations = iterations
@@ -133,6 +134,7 @@ function onPassphraseKeydown(e) {
 async function doExport() {
   if (!_key) return
   try {
+    upsertEntry(vault, todayISO.value, todayText.value)
     exportEnvelope(await buildEnvelope())
   } catch (e) {
     console.warn('[journal] export failed:', e)
