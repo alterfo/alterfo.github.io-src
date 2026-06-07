@@ -179,30 +179,34 @@ anchor blends).
       Post-Completion visual check. Static validation (syntax + UBO byte consistency) clean.
 
 ### Task 5: Nova sphere meridian flow (compute shader)
-- [ ] Rewrite the `nova_mode` branch in `particles_update.wgsl` to the sphere model.
-      State packing (no struct change): meridian azimuth `θ` derived from `seed`
-      (bundle `arm_id` + permanent jitter + slight per-fiber wave); flow parameter
-      `φ = age·π` (repurpose `age` as the normalized polar flow coordinate).
-- [ ] Geometry (orthographic, ASPECT-corrected):
-      `R_sphere = 0.295`; `φ_pupil = asin(R_pupil/R_sphere)` (compute once);
+- [x] Rewrote the `nova_mode` branch in `particles_update.wgsl` to the sphere model.
+      No struct change: meridian azimuth `θ` derived from `seed` (`arm_id` over 72
+      bundles + permanent jitter ±2.1° + per-fiber meridian wave); flow parameter
+      `φ = age·π` (`age` repurposed as the normalized polar flow coordinate).
+- [x] Geometry (orthographic, ASPECT-corrected):
+      `R_sphere = 0.295`; `phi_pupil = asin(clamp(R_pupil/R_sphere,0,0.92))`;
       `r_screen = R_sphere·sin(φ)`; `pos = (cx + r_screen·cosθ/ASPECT, cy + r_screen·sinθ)`;
-      depth `d = cos(φ)`.
-- [ ] Flow dynamics: `dφ/dt = ω0 + beat·k_beat + energy·k_energy`; advance
-      `age += (dφ/π)·speed`. Beat dilates `R_pupil` → larger `φ_pupil` (mydriasis).
-      Respawn when `age ≥ 1 − φ_pupil/π` (past back pole) → reset to
-      `age = φ_pupil/π + small random` at the front edge with a fresh random meridian
-      phase offset (avoids synchronized dashes). Keep θ bundle stable across respawn.
-- [ ] Add per-particle θ jitter so meridians thicken into fiber bands that "wrap" the
-      ball; keep timbre/zone hue assignment (inner collarette vs outer by `r_screen`,
-      plus `seed` tint), clamped so pupil interior stays empty (`φ ≥ φ_pupil`).
-- [ ] Remove the obsolete `seed%8==7` sclera-orbit block (superseded by sphere volume).
-- [ ] write a C-side or JS-side **pure-math** unit test for the projection helper if
-      extracted (e.g., a small JS `novaProject(theta, phi)` mirror in a testable module):
-      `φ=π/2` → `r_screen=R_sphere` (rim); `φ→φ_pupil` → `r_screen≈R_pupil`; depth sign
-      front(+)/back(−). If kept inline in WGSL (untestable), document as manual-verify
-      and mark this checkbox done with note `(WGSL inline — manual verify)`.
-- [ ] verify clean load + no errors; particles visibly flow from center outward over a
-      ball, dense at rim — must pass before Task 6.
+      depth `d = cos(φ)` (consumed by the draw shader in Task 6).
+- [x] Flow dynamics: `dphi = 0.0060 + beat·0.030 + energy·0.010`; advance
+      `age += (dphi/π)·speed`. Beat dilates `R_pupil` (`+beat·0.070 +bass·0.018`) →
+      larger `phi_pupil` (mydriasis). Respawn when `age ≥ 1 − phi_pupil/π` (past back
+      pole) → reset to `age = phi_pupil/π + uf01(hash)·0.05` at the front edge (per-seed
+      random offset desyncs dashes). seed (θ bundle) kept stable across respawn.
+- [x] Per-particle θ jitter (±2.1°, < half the 5° arm spacing → bundles stay separated)
+      thickens meridians into wrapping fiber bands; two-zone hue kept (collarette amber
+      → blue-grey by `r_screen`, ±18° per-fiber `seed` tint); `φ` clamped to `≥ phi_pupil`
+      so the pupil interior stays empty.
+- [x] Removed the obsolete `seed%8==7` sclera-orbit block (superseded by sphere volume).
+- [x] Extracted the projection to a testable JS mirror `web/nova_project.js`
+      (`novaProject(theta, phi)`, `phiPupil`, `R_SPHERE`, `ASPECT`) + tests
+      `web/nova_project.test.mjs`: rim `φ=π/2`→`r_screen=R_SPHERE`; pupil edge
+      `φ→phi_pupil`→`r_screen≈R_pupil`; depth sign front(+)/rim(0)/back(−); aspect
+      mapping; `phiPupil` monotonic + asin-domain clamp; finiteness over the φ sweep.
+      `node --test web/nova_project.test.mjs` — 8 passed, 0 failed.
+- [x] verify clean load + no errors — WebGPU/WGSL not runnable in CI (naga not installed);
+      verified by proxy: shader braces/parens balanced, no dangling removed vars
+      (`R_iris`/`dxs`/sclera all gone), JS mirror tests pass, C suite 19/19, timbre 9/9.
+      Visual "particles flow center→rim over a ball" = manual (Post-Completion).
 
 ### Task 6: Nova volumetric shading (draw + render)
 - [ ] In `particles_draw.wgsl` `nova_mode`: compute `depth = cos(p.age·π)`;

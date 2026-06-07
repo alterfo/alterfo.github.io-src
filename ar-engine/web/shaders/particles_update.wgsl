@@ -170,154 +170,71 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     // =========================================================================
-    // NOVA MODE — living iris with dilating pupil. FOUNTAIN MODEL:
-    // Particles flow radially outward from pupil → limbus, then teleport
-    // back to inner edge. 72 fiber bundles with permanent per-particle
-    // angular jitter (±7°) and curvature → organic, not discrete sticks.
-    // Beat → mydriasis (pupil dilation) + outward burst.
-    // Two colour zones: collarette amber (inner) → blue-grey (outer).
-    // All geometry in screen space (ASPECT-corrected) → perfect circle.
+    // NOVA MODE — orthographic sphere meridian flow (volumetric eyeball).
+    // Particles flow ACROSS the volume of a ball: from the front cap (pupil edge,
+    // toward the observer) over the surface out to the rim (limbus) and around to
+    // the back. Meridian azimuth θ is fixed per fiber bundle; the polar flow angle
+    // φ = age·π advances with time. Orthographic projection (ASPECT-corrected):
+    //   r_screen = R·sin(φ);  pos = (cx + r·cosθ/ASPECT, cy + r·sinθ);  depth = cos(φ).
+    // dr_screen/dφ → 0 at the rim ⇒ particles bunch at the limbus (natural bright
+    // eye edge, no special case). Pupil = front cap: φ ∈ [φ_pupil, π−φ_pupil],
+    // φ_pupil = asin(R_pupil/R). Beat raises R_pupil ⇒ φ_pupil grows ⇒ mydriasis.
+    // Pure-math mirror + unit tests: web/nova_project.js.
     // =========================================================================
     if u.nova_mode > 0.5 {
         let ASPECT: f32 = 16.0 / 9.0;
         let cx = 0.5; let cy = 0.5;
+        let R_sphere = 0.295;
 
-        let dxs = (p.pos.x - cx) * ASPECT;
-        let dy  = p.pos.y - cy;
-        let r_s = max(sqrt(dxs * dxs + dy * dy), 0.001);
-        let th  = atan2(dy, dxs);
+        // Beat-reactive pupil (mydriasis on kick) + slow organic breathing.
+        let R_pupil   = 0.090 + u.beat_pulse * 0.070 + u.bass * 0.018
+                      + 0.005 * sin(u.time * 0.71);
+        let phi_pupil = asin(clamp(R_pupil / R_sphere, 0.0, 0.92));
+        let front_age = phi_pupil / PI;
+        let back_age  = 1.0 - front_age;
 
-        let R_iris  = 0.295;
-
-        // ~12.5 % of particles orbit the sclera zone (eyeball white, outside iris)
-        if (p.seed % 8u) == 7u {
-            let h_sr  = uhash(p.seed + 50u);
-            let R_orb = R_iris + 0.030 + uf01(h_sr) * 0.085;  // orbit 0.325..0.410
-            let tang  = vec2f(-sin(th) / ASPECT, cos(th));
-            let rad   = vec2f(cos(th) / ASPECT, sin(th));
-            let dir   = select(-1.0, 1.0, (p.seed & 1u) == 0u);
-            let t_spd = (0.00015 + u.energy * 0.00008) * dir;
-            p.vel += tang * t_spd;                          // slow tangential orbit
-            p.vel += rad  * (r_s - R_orb) * (-0.0010);     // spring back to orbit radius
-            p.vel *= 0.93;
-            let nx  = dxs + p.vel.x * u.speed * ASPECT;
-            let ny  = dy  + p.vel.y * u.speed;
-            let nr  = max(sqrt(nx * nx + ny * ny), 0.001);
-            let nt  = atan2(ny, nx);
-            let ncl = clamp(nr, R_iris + 0.002, 0.445);
-            p.pos   = vec2f(cx + cos(nt) * ncl / ASPECT, cy + sin(nt) * ncl);
-            p.hue   = 0.85 + (uf01(uhash(p.seed + 51u)) - 0.5) * 0.06;  // sclera hue marker
-            p.age  += 1.0 / max(u.lifetime * 2.5, 1.0);
-            if p.age > 1.0 || ncl >= 0.440 {
-                let ss  = uhash(p.seed ^ u32(u.time * 31.0 + f32(i)));
-                let ss1 = uhash(ss);
-                let a_s = uf01(ss1) * 6.28318;
-                let r_sc = R_iris + 0.005 + uf01(uhash(ss1 + 1u)) * 0.025;
-                p.pos = vec2f(cx + cos(a_s) * r_sc / ASPECT, cy + sin(a_s) * r_sc);
-                p.vel = vec2f(-sin(a_s) / ASPECT, cos(a_s)) * 0.00015 * dir;
-                p.age = uf01(uhash(ss1 + 2u)) * 0.4;
-            }
-            particles[i] = p;
-            return;
-        }
-
-        // Beat-reactive pupil (mydriasis on kick drum) + slow organic breathing
-        let R_pupil_base = 0.090 + u.beat_pulse * 0.070 + u.bass * 0.018
-                         + 0.005 * sin(u.time * 0.71);  // ~0.11 Hz gentle dilation
-        // 3-lobe irregularity from particle angle → natural non-circular pupil edge
-        let R_pupil = R_pupil_base + 0.007 * sin(th * 3.0 + u.time * 0.23);
-
-        // 72 fiber bundles; each particle has PERMANENT jitter from seed
-        // (not time-varying) → stable organic bundle shape, never a thin spike.
+        // Meridian azimuth θ: 72 fiber bundles + permanent per-particle jitter
+        // (thickens each meridian into a band that "wraps" the ball, kept below
+        // half the 5° arm spacing so bundles stay separated) + a gentle per-fiber
+        // wave along the meridian so the bands aren't dead-straight.
         let N_ARMS   = 72u;
         let arm_id   = p.seed % N_ARMS;
         let base_ang = f32(arm_id) / f32(N_ARMS) * 2.0 * PI;
+        let jitter   = (uf01(uhash(p.seed + 31u)) - 0.5) * 0.075;  // ±2.1°
+        let wave_ph  = uf01(uhash(p.seed + 35u)) * 6.28318;
 
-        let h_jit  = uhash(p.seed + 31u);
-        let h_curv = uhash(p.seed + 32u);
-        let h_ph   = uhash(p.seed + 33u);
+        // Advance the polar flow coordinate: dφ/dt = ω0 + beat·k_beat + energy·k_energy.
+        let dphi = 0.0060 + u.beat_pulse * 0.030 + u.energy * 0.010;
+        p.age += (dphi / PI) * u.speed;
 
-        // ±1.4° permanent per-particle offset (MUST be < arm_spacing/2 = 2.5°)
-        // so fiber bundles remain separated — no merging into solid ring.
-        let jitter = (uf01(h_jit) - 0.5) * 0.025;
-        let curv   = (uf01(h_curv) - 0.5) * 0.04;
-        let t_pos  = clamp((r_s - R_pupil) / (R_iris - R_pupil), 0.0, 1.0);
-        // Gentle undulation per fiber: random phase → each fiber waves independently
-        let h_wave  = uhash(p.seed + 35u);
-        let wave_ph = uf01(h_wave) * 6.28318;
-        let wave    = sin(t_pos * 4.5 + wave_ph) * 0.013;  // ±0.74° wavy offset
-        let fiber_ang = base_ang + jitter + curv * t_pos + wave;
-
-        var da = th - fiber_ang;
-        if da >  PI { da -= 2.0 * PI; }
-        if da < -PI { da += 2.0 * PI; }
-
-        let tang = vec2f(-sin(th) / ASPECT, cos(th));
-        let rad  = vec2f(cos(th) / ASPECT, sin(th));
-
-        // Angular spring: keeps particle on its personal fiber
-        p.vel += tang * (-da * 0.0025);
-
-        // RADIAL OUTWARD DRIFT — the fountain drive; beat sends burst
-        let v_rad = 0.00055 + u.beat_pulse * 0.0030 + u.energy * 0.00050;
-        p.vel += rad * v_rad;
-
-        // Treble flutter: fine trembling of fiber tips
-        let flutter = u.high * 0.00030 * sin(u.time * 16.0 + uf01(h_ph) * 6.28318);
-        p.vel += rad * flutter;
-
-        p.vel *= 0.86;
-
-        let new_dxs = dxs + p.vel.x * u.speed * ASPECT;
-        let new_dy  = dy  + p.vel.y * u.speed;
-        let new_r_s = sqrt(new_dxs * new_dxs + new_dy * new_dy);
-        let new_th  = atan2(new_dy, new_dxs);
-
-        // FOUNTAIN: particle reaches limbus → teleport to a RANDOM position along
-        // the same fiber (not always inner edge). This prevents synchronized waves
-        // that cause visible radial dashes; gives immediate uniform fiber fill.
-        if new_r_s >= R_iris - 0.010 {
-            let sp1 = uhash(p.seed ^ (u32(u.time * 13.0) + 1u));
-            let sp2 = uhash(sp1 + 1u);
-            let ang_sp = base_ang + jitter + (uf01(sp1) - 0.5) * 0.04;
-            let r_frac = uf01(sp2);   // 0 = inner edge, 1 = outer edge
-            let r_sp = R_pupil + 0.004 + r_frac * (R_iris - R_pupil - 0.014);
-            p.pos = vec2f(cx + cos(ang_sp) * r_sp / ASPECT,
-                          cy + sin(ang_sp) * r_sp);
-            p.vel = rad * (v_rad * (0.8 - r_frac * 0.4));
-            p.age = r_frac * 0.95;
-        } else {
-            // Normal step; inner boundary: never enter pupil
-            let r_cl = clamp(new_r_s, R_pupil + 0.002, R_iris - 0.002);
-            p.pos = vec2f(cx + cos(new_th) * r_cl / ASPECT,
-                          cy + sin(new_th) * r_cl);
+        // Past the back pole → re-enter at the front cap edge with a small random
+        // age offset so fibers don't pulse as synchronized dashes. seed (hence the
+        // θ bundle) is kept stable across respawn so fibers never jump.
+        if p.age >= back_age {
+            let rs = uhash(p.seed ^ (u32(u.time * 61.0) + i + 7u));
+            p.age = front_age + uf01(rs) * 0.05;
         }
 
-        // Two-zone hue: collarette amber → blue-grey; per-fiber color variety
-        let cdx = (p.pos.x - cx) * ASPECT;
-        let cdy = p.pos.y - cy;
-        let cr  = sqrt(cdx * cdx + cdy * cdy);
-        let t_r = clamp((cr - R_pupil) / (R_iris - R_pupil), 0.0, 1.0);
-        let h_hue = uhash(p.seed + 34u);
-        let hue_var = (uf01(h_hue) - 0.5) * 0.10;  // ±18° permanent per-fiber tint
+        let phi   = clamp(p.age * PI, phi_pupil, PI - phi_pupil);
+        let wave  = sin(phi * 2.0 + wave_ph) * 0.05;   // ±2.9° meridian wobble
+        let theta = base_ang + jitter + wave;
+
+        let sinp = sin(phi);
+        let cosp = cos(phi);
+        let ct   = cos(theta);
+        let st   = sin(theta);
+        let r_screen = R_sphere * sinp;
+
+        p.pos = vec2f(cx + r_screen * ct / ASPECT, cy + r_screen * st);
+        // Radial screen-space flow velocity (→ 0 at the rim); drives the draw
+        // shader's speed-brightness and stays small on respawn (no flash).
+        p.vel = vec2f(ct / ASPECT, st) * (R_sphere * cosp * dphi * u.speed);
+
+        // Two-zone iris hue by screen radius: collarette amber (inner) → blue-grey
+        // (outer) + permanent per-fiber tint. Timbre/zone blend applied in draw.
+        let t_r     = clamp((r_screen - R_pupil) / (R_sphere - R_pupil), 0.0, 1.0);
+        let hue_var = (uf01(uhash(p.seed + 34u)) - 0.5) * 0.10;
         p.hue = clamp(mix(0.09, 0.58, smoothstep(0.28, 0.72, t_r)) + hue_var, 0.01, 0.70);
-
-        // Age slowly (backup death if particle never reaches outer boundary)
-        let dyn_life = u.lifetime * clamp(0.6 + u.energy * 1.5, 0.4, 2.5);
-        p.age += 1.0 / max(dyn_life, 1.0);
-
-        if p.age > 1.0 {
-            let s  = uhash(p.seed ^ u32(u.time * 97.0 + f32(i)));
-            let s1 = uhash(s); let s2 = uhash(s1); let s3 = uhash(s2);
-            let ang_sp = base_ang + jitter + (uf01(s1) - 0.5) * 0.04;
-            let r_frac2 = uf01(s2);
-            let r_sp    = R_pupil + 0.004 + r_frac2 * (R_iris - R_pupil - 0.008);
-            p.pos = vec2f(cx + cos(ang_sp) * r_sp / ASPECT,
-                          cy + sin(ang_sp) * r_sp);
-            p.vel = rad * (v_rad * 0.6);
-            p.age = r_frac2 * 0.90;
-            // seed NOT changed → arm_id and jitter preserved
-        }
 
         particles[i] = p;
         return;
