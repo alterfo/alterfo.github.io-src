@@ -19,7 +19,7 @@
       WebGPUParticles.js  particle-система (WebGPU → Canvas 2D fallback)
 posts/                 35 постов в формате YYYY-MM-DD-slug.md
 public/particles/      WebGL шейдеры (legacy, шапка блога)
-ar-engine/             git submodule → AudioReactiveVideo (WebGPU AR движок)
+ar-engine/             AudioReactiveVideo (WebGPU AR движок)
 deploy.sh              локальный деплой
 .github/workflows/     CI деплой
 ```
@@ -49,10 +49,3 @@ ssh-keygen -t ed25519 -C "deploy" -f deploy_key -N ""
 **GitHub Actions** использует секрет `DEPLOY_KEY`.  
 **Локально:** `sh deploy.sh` (нужен SSH-агент с ключом).
 
-## Submodule AR Engine
-
-```sh
-# Обновить до последнего коммита
-git submodule update --remote ar-engine
-git add ar-engine && git commit -m "chore: update ar-engine"
-```
