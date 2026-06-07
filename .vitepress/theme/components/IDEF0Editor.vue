@@ -45,7 +45,9 @@
       <span class="idef0-separator" />
       <button @click="exportPNG">PNG</button>
       <button @click="exportSVG">SVG</button>
-      <button @click="exportJSON">JSON</button>
+      <button @click="exportJSON">↓ JSON</button>
+      <button @click="triggerImport">↑ JSON</button>
+      <input ref="importInput" type="file" accept=".json" style="display:none" @change="onImportFile" />
       <span class="idef0-separator" />
       <span class="idef0-breadcrumb">
         <span
@@ -73,7 +75,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { COLORS, SIZES, DEFAULT_DIAGRAM } from './IDEF0Editor/constants.js'
 import { loadProject, saveProject, onExternalChange } from './IDEF0Editor/db.js'
 import { validateDiagram } from './IDEF0Editor/validation.js'
-import { exportToPNG, exportToSVG as exportToSVGFn, exportToJSON as exportToJSONFn } from './IDEF0Editor/exporter.js'
+import { exportToPNG, exportToSVG as exportToSVGFn, exportToJSON as exportToJSONFn, importFromJSON } from './IDEF0Editor/exporter.js'
 import { getDiagramIdFromQuery, setDiagramIdInQuery } from './IDEF0Editor/router.js'
 import { generateChildDiagramId, getParentDiagramId, deleteDiagramRecursive } from './IDEF0Editor/hierarchy.js'
 
@@ -84,6 +86,7 @@ const props = defineProps({
 // Template refs
 const canvasEl = ref(null)
 const editorInput = ref(null)
+const importInput = ref(null)
 
 // Reactive state
 const diagrams = ref({})
@@ -1087,6 +1090,25 @@ function onWheel(e) {
 function exportPNG() { exportToPNG(canvasEl.value, currentDiagram.value?.name || 'idef0') }
 function exportSVG() { exportToSVGFn(currentDiagram.value, canvasEl.value?.width || 800, canvasEl.value?.height || 600) }
 function exportJSON() { exportToJSONFn({ diagrams: diagrams.value }, props.projectId + '.json') }
+function triggerImport() { importInput.value?.click() }
+async function onImportFile(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  e.target.value = ''
+  try {
+    const data = await importFromJSON(file)
+    if (!data || typeof data.diagrams !== 'object') {
+      alert('Неверный формат — ожидается { diagrams: {...} }')
+      return
+    }
+    diagrams.value = data.diagrams
+    currentDiagramId.value = 'A0'
+    loadDiagram()
+    saveDiagram()
+  } catch {
+    alert('Ошибка чтения файла')
+  }
+}
 </script>
 
 <style scoped>
