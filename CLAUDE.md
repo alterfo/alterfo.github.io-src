@@ -2,13 +2,19 @@
 
 ## Project overview
 
-VitePress-based personal site with a fully client-side IDEF0 diagram editor at `/idef0`.
+VitePress-based personal site with two fully client-side apps:
+- `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
+- `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day mechanic, file-based sync)
 
 ## Key paths
 
 - `.vitepress/theme/components/IDEF0Editor.vue` — root Vue component wrapped in `<ClientOnly>`, SVG-based editor
 - `.vitepress/theme/components/IDEF0Editor/` — editor modules (see below)
 - `idef0.md` — page that mounts the editor
+- `.vitepress/theme/components/crypto.js` — shared WebCrypto substrate (PBKDF2 → AES-GCM); reused by journal and future modules
+- `.vitepress/theme/components/Journal.vue` — journal root component (`<ClientOnly>`): unlock screen, editor, sync UI
+- `.vitepress/theme/components/Journal/` — journal modules (see below)
+- `journal.md` — page that mounts the journal (`layout: false`)
 
 ## IDEF0 Editor modules
 
@@ -33,11 +39,68 @@ VitePress-based personal site with a fully client-side IDEF0 diagram editor at `
 | MECHANISM | bottom (enters block) | M |
 | CALL | bottom (exits block) | R |
 
+## Journal app
+
+### Key paths
+
+- `crypto.js` — SHARED substrate; reused by any future module (planner, decision-journal, etc.)
+- `Journal/vault.js` — pure data model and logic
+- `Journal/db.js` — IndexedDB persistence (envelope only, no plaintext)
+- `Journal/exporter.js` — encrypted file export/import
+- `Journal.vue` — full UI (unlock, editor, progress, past entries, sync)
+
+### Journal modules
+
+| File | Purpose |
+|------|---------|
+| `components/crypto.js` | `randomBytes`, `deriveKey` (PBKDF2-SHA-256 → AES-GCM 256), `encryptJSON`/`decryptJSON`, `packEnvelope`/`unpackEnvelope` (base64 at-rest format) |
+| `Journal/vault.js` | `emptyVault`, `upsertEntry`, `countWords`, `goalMet`, `computeStreak`, `mergeVaults` (per-date LWW by `updatedAt`) |
+| `Journal/db.js` | IndexedDB open/save/load for a single packed envelope string; debounced save 300 ms; cross-tab sync via localStorage |
+| `Journal/exporter.js` | `exportEnvelope` → download `.journal` file; `readEnvelopeFile` → string |
+
+### Crypto model
+
+- Key derivation: `PBKDF2(passphrase, salt=16 bytes, iterations=600000, SHA-256)` → AES-GCM 256
+- Per-encryption: `iv` = 12 random bytes; `salt` is per-vault (generated once on vault creation)
+- At-rest envelope: `{ salt, iterations, iv, ciphertext }` all base64-encoded — no key, no plaintext ever persisted
+- Key lives only in memory for the session; re-derived on unlock
+
+### Vault shape
+
+```
+{ version, createdAt, entries: { "YYYY-MM-DD": { text, words, createdAt, updatedAt } } }
+```
+
+### Merge (single-user LWW)
+
+Union of dates; for a shared date keep the entry with the greater `updatedAt`. Deterministic, idempotent, commutative — safe for file sync, no CRDT needed.
+
+### Streak
+
+Walk back from today; a day counts if `goalMet` (≥ 500 words); first miss ends the streak. Today's in-progress entry does not break a prior streak until the day rolls over.
+
+### Sync
+
+- v1 (implemented): encrypted file export/import — Export downloads a `.journal` envelope; Import reads it, decrypts with current key (or prompts separately), merges with LWW, saves
+- Cross-tab sync: localStorage event triggers re-load + merge on other open tabs
+
+### Reusable vault substrate
+
+`components/crypto.js` + `Journal/vault.js` + `Journal/db.js` are designed for reuse. Future modules (planner, decision-journal, habit tracker) import the same crypto.js and can define their own vault shape and db.js variant without any shared-code changes.
+
+### Tests
+
+Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
+- `crypto.test.mjs` — derive→encrypt→decrypt round-trip; wrong passphrase rejects; envelope pack/unpack; large-buffer base64 (byte-loop, no spread-overflow)
+- `Journal/vault.test.mjs` — `countWords`, `upsertEntry`, `computeStreak`, `mergeVaults`
+- `Journal/exporter.test.mjs` — encrypt→pack→unpack→decrypt→merge round-trip; tampered ciphertext rejects
+
 ## Development
 
-- No automated tests — verification is manual via browser DevTools
-- Dev server: `yarn dev` (VitePress)
-- Build: `yarn build`
+- Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
+- DOM/IndexedDB/file UI: manual browser verification (no automated harness)
+- Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
+- Build: `npm run build`
 
 ## Key patterns
 
@@ -50,7 +113,9 @@ VitePress-based personal site with a fully client-side IDEF0 diagram editor at `
 - Decompose: toolbar "↳ Войти" button navigates into child diagram; breadcrumb for navigation
 - Plan files live in `docs/plans/` and are git-ignored (local only)
 
-## Completed features (as of 2026-06-07)
+## Completed features
+
+### IDEF0 editor (as of 2026-06-07)
 
 - Full rewrite: canvas → SVG + Vue 3, strictly following FIPS 183
 - Reactive model (model.js): Project / Diagram / Box / Arrow / BoundaryArrow data structures
@@ -64,3 +129,14 @@ VitePress-based personal site with a fully client-side IDEF0 diagram editor at `
 - IndexedDB persistence (auto-save debounced 300 ms) + cross-tab sync via localStorage
 - Export: SVG, PNG (2×), JSON; Import: JSON round-trip
 - FIPS 183 validation panel: errors shown in sidebar, red border on offending blocks
+
+### Journal app (as of 2026-06-08)
+
+- WebCrypto substrate: PBKDF2 key derivation + AES-GCM encrypt/decrypt + base64 envelope format
+- Vault data model: entries by date, word count, streak, per-date LWW merge
+- Encrypted IndexedDB persistence: only the packed envelope is stored (no plaintext, no key)
+- Journal UI: unlock screen, today's textarea with live word count, 500-word progress bar, streak display, past-entries list, optional focus-lock mode
+- Debounced autosave: edit → upsertEntry → encryptJSON → packEnvelope → db.saveEnvelope
+- Cross-tab sync via localStorage events
+- Sync v1: encrypted file export/import (.journal files) with LWW merge on import
+- Unit tests for all pure logic (crypto, vault, exporter data layer)
