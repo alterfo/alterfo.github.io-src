@@ -1046,8 +1046,24 @@ function onMouseMove(e) {
     dragBlock.x = p.x - dragOffsetX
     dragBlock.y = p.y - dragOffsetY
     for (const a of arrows.value) {
-      if (a.from?.blockId === dragBlock.id || a.to?.blockId === dragBlock.id) {
-        a.segments = []
+      const fromIsBlock = a.from?.blockId === dragBlock.id
+      const toIsBlock = a.to?.blockId === dragBlock.id
+      if (!fromIsBlock && !toIsBlock) continue
+      a.segments = []
+      if (fromIsBlock && a.to?.blockId === null && a.to?.edge) {
+        const edge = a.from.edge
+        if (edge === 'left' || edge === 'right') {
+          a.to.offset = dragBlock.y + dragBlock.h / 2 + (a.from.offset || 0)
+        } else {
+          a.to.offset = dragBlock.x + dragBlock.w / 2 + (a.from.offset || 0)
+        }
+      } else if (toIsBlock && a.from?.blockId === null && a.from?.edge) {
+        const edge = a.to.edge
+        if (edge === 'left' || edge === 'right') {
+          a.from.offset = dragBlock.y + dragBlock.h / 2 + (a.to.offset || 0)
+        } else {
+          a.from.offset = dragBlock.x + dragBlock.w / 2 + (a.to.offset || 0)
+        }
       }
     }
     render()
