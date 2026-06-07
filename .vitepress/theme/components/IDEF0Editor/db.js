@@ -1,3 +1,31 @@
+/**
+ * IndexedDB persistence for IDEF0 projects.
+ *
+ * Stored data shape (projectData):
+ *   { diagrams: Record<string, Diagram> }
+ *
+ * Diagram:
+ *   { id: string, name: string, parentDiagramId: string|null,
+ *     blocks: Block[], arrows: Arrow[],
+ *     view: { x: number, y: number, scale: number } }
+ *
+ * Block:
+ *   { id: string, name: string, x: number, y: number, w: number, h: number,
+ *     diagramId?: string }   // diagramId — linked child diagram (decomposition)
+ *
+ * Arrow:
+ *   { id: string, name: string, type: 'input'|'output'|'control'|'mechanism'|'call',
+ *     from: Endpoint, to: Endpoint,
+ *     segments?: {x,y}[],       // interior waypoints for Manhattan routing
+ *     labelOffset?: {x,y} }     // manual label position offset
+ *
+ * Endpoint:
+ *   { blockId: string|null,     // null = boundary / floating
+ *     edge: 'left'|'right'|'top'|'bottom'|null,
+ *     offset: number,           // perpendicular offset along the edge
+ *     x?: number, y?: number }  // world coords for floating endpoints
+ */
+
 const DB_NAME = 'IDEF0EditorDB';
 const DB_VERSION = 2;
 const STORE_NAME = 'projects';
