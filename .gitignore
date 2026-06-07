@@ -4,7 +4,8 @@ dist
 .DS_Store
 .vitepress/cache
 .vitepress/dist
-ar-engine/web/engine.js
-ar-engine/web/engine.wasm
-docs/plans/
-.DS_Store
+docs/
+*.pdf
+*.doc
+*.docx
+*.zip

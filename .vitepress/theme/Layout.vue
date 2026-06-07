@@ -276,6 +276,7 @@ watch(animateHeader, val => {
   color: white;
   font-size: calc(1.3em + 3vw);
   letter-spacing: -1px;
+  line-height: 1.2;
   position: absolute;
   margin: 0;
   padding: 0;
