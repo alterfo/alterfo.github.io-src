@@ -101,13 +101,23 @@ describe('packEnvelope / unpackEnvelope', () => {
   it('full crypto round-trip through envelope', async () => {
     const passphrase = 'my-secret-pass';
     const salt = randomBytes(16);
-    const key = await deriveKey(passphrase, salt, 1000);
+    const iterations = 100000;
+    const key = await deriveKey(passphrase, salt, iterations);
     const obj = { journal: 'entry text here', words: 42 };
     const { iv, ciphertext } = await encryptJSON(key, obj);
-    const packed = packEnvelope({ salt, iterations: 1000, iv, ciphertext });
+    const packed = packEnvelope({ salt, iterations, iv, ciphertext });
     const unpacked = unpackEnvelope(packed);
     const key2 = await deriveKey(passphrase, unpacked.salt, unpacked.iterations);
     const result = await decryptJSON(key2, { iv: unpacked.iv, ciphertext: unpacked.ciphertext });
     assert.deepEqual(result, obj);
+  });
+
+  it('rejects iterations below minimum', () => {
+    const salt = randomBytes(16);
+    const iv = randomBytes(12);
+    const ciphertext = randomBytes(48);
+    const packed = packEnvelope({ salt, iterations: 600000, iv, ciphertext });
+    const tampered = packed.replace('"iterations":600000', '"iterations":1000');
+    assert.throws(() => unpackEnvelope(tampered), /Invalid iterations/);
   });
 });

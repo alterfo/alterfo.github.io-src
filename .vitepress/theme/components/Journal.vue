@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { loadEnvelope, saveEnvelope, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
+import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
@@ -100,6 +100,8 @@ async function unlock() {
   } catch {
     error.value = 'Cannot unlock — wrong passphrase or corrupted data.'
     _key = null
+    _salt = null
+    _iterations = 600000
   }
 }
 
@@ -119,7 +121,7 @@ async function createVault() {
     todayText.value = ''
     const { iv, ciphertext } = await encryptJSON(_key, vault)
     const envelope = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
-    saveEnvelope(envelope)
+    await saveEnvelopeQuiet(envelope)
     passphraseInput.value = ''
     hasVault.value = true
     phase.value = 'unlocked'
@@ -229,6 +231,9 @@ onMounted(async () => {
       Object.assign(vault, merged)
       const mergedToday = vault.entries[todayISO.value]
       if (mergedToday) todayText.value = mergedToday.text
+      // Cancel any pending debounced save so it cannot overwrite the merged result.
+      clearTimeout(_saveTimer)
+      cancelPendingSave()
       // Use quiet save (no localStorage event) to avoid triggering sync in other tabs.
       const { iv: newIv, ciphertext: newCt } = await encryptJSON(_key, vault)
       await saveEnvelopeQuiet(packEnvelope({ salt: _salt, iterations: _iterations, iv: newIv, ciphertext: newCt }))
@@ -243,6 +248,8 @@ onUnmounted(() => {
   clearTimeout(_saveTimer)
   clearTimeout(_dayTimer)
   _key = null
+  _salt = null
+  _pendingImportStr = null
 })
 </script>
 

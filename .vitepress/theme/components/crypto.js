@@ -86,7 +86,8 @@ export function unpackEnvelope(str) {
   let parsed;
   try { parsed = JSON.parse(str); } catch { throw new Error('Malformed envelope: not valid JSON'); }
 
-  if (!Number.isInteger(parsed.iterations) || parsed.iterations < 1 || parsed.iterations > MAX_ITERATIONS) {
+  const MIN_ITERATIONS = 100_000;
+  if (!Number.isInteger(parsed.iterations) || parsed.iterations < MIN_ITERATIONS || parsed.iterations > MAX_ITERATIONS) {
     throw new Error('Invalid iterations in envelope');
   }
   if (typeof parsed.salt !== 'string' || typeof parsed.iv !== 'string' || typeof parsed.ciphertext !== 'string') {

@@ -8,7 +8,7 @@ import { emptyVault, upsertEntry, mergeVaults } from './vault.js'
 // Shared passphrase + vault helpers
 async function makeEncryptedEnvelope(passphrase, vault) {
   const salt = randomBytes(16)
-  const iterations = 1000  // low for test speed
+  const iterations = 100000
   const key = await deriveKey(passphrase, salt, iterations)
   const { iv, ciphertext } = await encryptJSON(key, vault)
   return { envelopeStr: packEnvelope({ salt, iterations, iv, ciphertext }), key, salt, iterations }

@@ -64,6 +64,10 @@ function saveEnvelope(envelopeStr) {
   }, 300)
 }
 
+function cancelPendingSave() {
+  clearTimeout(_saveTimer)
+}
+
 async function saveEnvelopeQuiet(envelopeStr) {
   if (typeof indexedDB === 'undefined') return
   try {
@@ -82,4 +86,4 @@ function initCrossTabSync(onReload) {
   return () => window.removeEventListener('storage', handler)
 }
 
-export { loadEnvelope, saveEnvelope, saveEnvelopeQuiet, initCrossTabSync }
+export { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync }
