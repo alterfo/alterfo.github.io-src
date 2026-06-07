@@ -25,6 +25,7 @@
         <svg
           ref="svgRef"
           class="idef0-svg"
+          :style="{ cursor: isDraggingBox ? 'move' : isPanning ? 'grabbing' : 'grab' }"
           :viewBox="`0 0 ${VIEW_W} ${VIEW_H}`"
           xmlns="http://www.w3.org/2000/svg"
           @wheel.prevent="onWheel"
@@ -106,6 +107,7 @@
                 v-for="(rbox) in renderedBoxes"
                 :key="rbox.box.id"
                 class="idef0-box"
+                @mousedown.stop="onBoxMouseDown(rbox.box, $event)"
               >
                 <rect v-bind="rbox.rect" />
                 <text
@@ -165,8 +167,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { project, currentDiagram, addBox, navigateTo } from './IDEF0Editor/model.js'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo } from './IDEF0Editor/model.js'
 import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
   routeBoundaryArrow, renderBoundaryArrow,
@@ -182,6 +184,11 @@ const ICOM_LEGEND = [
   { code: 'M', desc: 'Mechanism — enters bottom' },
   { code: 'R', desc: 'Call — exits bottom' },
 ]
+
+// --- Selection / Drag ---
+const selectedBoxId = ref(null)
+const isDraggingBox = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
 
 // --- Zoom / Pan ---
 const svgRef = ref(null)
@@ -201,6 +208,14 @@ function toSvgCoords(clientX, clientY) {
   }
 }
 
+function toWorldCoords(clientX, clientY) {
+  const { x: svgX, y: svgY } = toSvgCoords(clientX, clientY)
+  return {
+    x: (svgX - panX.value) / zoom.value,
+    y: (svgY - panY.value) / zoom.value,
+  }
+}
+
 function onWheel(e) {
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
   const newZoom = Math.max(0.1, Math.min(3, zoom.value * factor))
@@ -212,11 +227,29 @@ function onWheel(e) {
 
 function onSvgMouseDown(e) {
   if (e.button !== 0) return
+  selectedBoxId.value = null
   isPanning.value = true
   lastMouse.value = { x: e.clientX, y: e.clientY }
 }
 
+function onBoxMouseDown(box, e) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  selectedBoxId.value = box.id
+  isDraggingBox.value = true
+  const world = toWorldCoords(e.clientX, e.clientY)
+  dragOffset.value = { x: world.x - box.x, y: world.y - box.y }
+}
+
 function onMouseMove(e) {
+  if (isDraggingBox.value && selectedBoxId.value) {
+    const world = toWorldCoords(e.clientX, e.clientY)
+    updateBox(selectedBoxId.value, {
+      x: world.x - dragOffset.value.x,
+      y: world.y - dragOffset.value.y,
+    })
+    return
+  }
   if (!isPanning.value) return
   const el = svgRef.value
   if (!el) return
@@ -228,7 +261,20 @@ function onMouseMove(e) {
 
 function onMouseUp() {
   isPanning.value = false
+  isDraggingBox.value = false
 }
+
+function onKeyDown(e) {
+  if (!selectedBoxId.value) return
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault()
+    removeBox(selectedBoxId.value)
+    selectedBoxId.value = null
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onKeyDown))
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown))
 
 function handleResetView() {
   zoom.value = 1
@@ -277,7 +323,7 @@ const breadcrumb = computed(() => {
 const renderedBoxes = computed(() => {
   if (!currentDiagram.value) return []
   return currentDiagram.value.boxes.map((box, idx) =>
-    renderBox(box, false, idx + 1)
+    renderBox(box, box.id === selectedBoxId.value, idx + 1)
   )
 })
 
@@ -405,7 +451,7 @@ const arrowLabels = computed(() => {
 }
 
 .idef0-box {
-  cursor: pointer;
+  cursor: move;
 }
 
 .idef0-legend {
