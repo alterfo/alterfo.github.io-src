@@ -260,7 +260,10 @@ function _frame(timestamp) {
     const _frame_data = getAudioFrame();
 
     // Throttle to ~20 fps when no audio is active to spare GPU/CPU at idle.
-    const idle = !_frame_data || _frame_data.energy < 0.005;
+    // BUT never throttle while recording — a quiet passage must still emit full-rate
+    // record frames, otherwise the encoder starves and the .webm comes out empty/short.
+    const recording = _onRecordFrame !== null;
+    const idle = !recording && (!_frame_data || _frame_data.energy < 0.005);
     if (idle && timestamp - _lastFrameTime < IDLE_FRAME_MS) return;
     _lastFrameTime = timestamp;
 

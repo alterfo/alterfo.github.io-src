@@ -1,6 +1,6 @@
 // Web Audio API → WASM engine bridge.
 // Exports: initAudio, loadFile, connectStream, play, pause, resume,
-//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame.
+//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame, setOnTrackEnded.
 // connectStream() uses getDisplayMedia to capture a browser tab's audio —
 // used for Yandex Music / Spotify / any tab playing music.
 
@@ -26,10 +26,12 @@ let _loop     = false;
 let _startOffset = 0;
 let _startTime = 0;
 let _liveNode = null;   // MediaStreamAudioSourceNode when in tab-capture mode
+let _recordDest = null; // MediaStreamAudioDestinationNode — audio tap for recording
 
 let _currentFrame = _emptyFrame();
 let _beatTimestamps = [];
 let _prevBeatPulse = 0;
+let _onEnded = null;    // fired when a track finishes naturally (not on manual stop)
 
 function _emptyFrame() {
     return {
@@ -101,6 +103,7 @@ export async function connectStream({ preferCurrentTab = false } = {}) {
 
     _liveNode = _audioCtx.createMediaStreamSource(stream);
     _liveNode.connect(_captureNode);
+    if (_recordDest) _liveNode.connect(_recordDest);   // feed the recorder's audio tap
 
     _startOffset = 0;
     _startTime   = _audioCtx.currentTime;
@@ -148,16 +151,24 @@ export function play(offset = 0) {
     _source.buffer = _audioBuffer;
     _source.connect(_audioCtx.destination);
     _source.connect(_captureNode);
+    if (_recordDest) _source.connect(_recordDest);   // feed the recorder's audio tap
 
     _source.start(0, offset);
     _startOffset = offset;
     _startTime   = _audioCtx.currentTime;
     _playing     = true;
-    _source.addEventListener('ended', () => {
-        if (_loop) { play(0); } else { _playing = false; }
-    });
+    // onended (a property, not addEventListener) so _stopSource can null it out and
+    // a manual stop (load/seek/pause) never triggers the natural-end → playlist hook.
+    _source.onended = () => {
+        if (_loop) { play(0); }
+        else { _playing = false; if (_onEnded) _onEnded(); }
+    };
     _raf();
 }
+
+// Register a callback fired when a track finishes on its own (used to auto-advance
+// a playlist). Not fired when playback is stopped by loadFile/seekTo/etc.
+export function setOnTrackEnded(cb) { _onEnded = cb; }
 
 // Suspend playback without discarding position.
 export function pause() {
@@ -192,11 +203,19 @@ async function _ensureContext() {
     _audioCtx = new AudioContext({ sampleRate: 44100 });
     await _audioCtx.audioWorklet.addModule('audio-processor.js');
     _workletReady = true;
+    // Persistent audio tap for the recorder. Every playback/live source connects to
+    // it (in addition to the speakers), so record.js can mux the audio into the .webm.
+    // Lives for the AudioContext's lifetime; its track is never stopped by the recorder.
+    _recordDest = _audioCtx.createMediaStreamDestination();
 }
+
+// MediaStream carrying the currently-playing audio (for muxing into a recording).
+export function getRecordAudioStream() { return _recordDest ? _recordDest.stream : null; }
 
 function _stopSource() {
     if (_captureNode) { _captureNode.port.onmessage = null; _captureNode.disconnect(); _captureNode = null; }
     if (_source) {
+        _source.onended = null;   // prevent the playlist-advance hook on a manual stop
         try { _source.stop(); } catch (_) {}
         _source.disconnect();
         _source = null;

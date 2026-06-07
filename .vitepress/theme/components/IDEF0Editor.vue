@@ -199,15 +199,25 @@ function arrowPoints(arrow) {
       else if (side === 'top')    targetPt = { x: tBox.x + tf * tBox.width, y: tBox.y }
       else                        targetPt = { x: tBox.x + tf * tBox.width, y: tBox.y + tBox.height }
 
-      // Manhattan routing: Z-shape or L-shape
+      // Manhattan routing
+      // - left:   Z-shape (right → vertical → left); arrowhead enters left side →
+      // - top:    route ABOVE the box, approach DOWN ↓ into top
+      // - bottom: route BELOW the box, approach UP ↑ into bottom
       let segs
+      const halfGap = BOUNDARY_GAP / 2
       if (side === 'left') {
         const midX = (boxPt.x + targetPt.x) / 2
         segs = [boxPt, { x: midX, y: boxPt.y }, { x: midX, y: targetPt.y }, targetPt]
       } else if (side === 'top') {
-        segs = [boxPt, { x: targetPt.x, y: boxPt.y }, targetPt]
+        // Go right from source, detour ABOVE tBox, then come DOWN into top
+        const aboveY = tBox.y - halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: aboveY }, { x: targetPt.x, y: aboveY }, targetPt]
       } else {
-        segs = [boxPt, { x: targetPt.x, y: boxPt.y }, targetPt]
+        // bottom — Go right from source, detour BELOW tBox, then come UP into bottom
+        const belowY = tBox.y + tBox.height + halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: belowY }, { x: targetPt.x, y: belowY }, targetPt]
       }
 
       const mid = { x: (boxPt.x + targetPt.x) / 2, y: (boxPt.y + targetPt.y) / 2 }
@@ -436,13 +446,19 @@ const arrowDragPreviewPath = computed(() => {
   const ep = arrowDragEndPt.value
   if (!ep) return ''
   const src = pts.boxPt  // always the box connection point
-  // Route the preview similarly to actual routing
   const side = snapTarget.value?.side
+  const halfGap = BOUNDARY_GAP / 2
   if (side === 'left') {
     const midX = (src.x + ep.x) / 2
     return `M ${src.x} ${src.y} H ${midX} V ${ep.y} H ${ep.x}`
-  } else if (side === 'top' || side === 'bottom') {
-    return `M ${src.x} ${src.y} H ${ep.x} V ${ep.y}`
+  } else if (side === 'top') {
+    const aboveY = ep.y - halfGap
+    const pivotX = src.x + halfGap
+    return `M ${src.x} ${src.y} H ${pivotX} V ${aboveY} H ${ep.x} V ${ep.y}`
+  } else if (side === 'bottom') {
+    const belowY = ep.y + halfGap
+    const pivotX = src.x + halfGap
+    return `M ${src.x} ${src.y} H ${pivotX} V ${belowY} H ${ep.x} V ${ep.y}`
   }
   return `M ${src.x} ${src.y} L ${ep.x} ${ep.y}`
 })
@@ -563,6 +579,285 @@ async function loadFromDb() {
   } catch (e) { console.warn('[idef0] load failed', e) }
 }
 
+// ----- FIPS 183 Document Export -----
+
+function escXml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function getDiagramOrder() {
+  const queue = [project.rootId ?? 'A0']
+  const visited = new Set()
+  const result = []
+  while (queue.length) {
+    const id = queue.shift()
+    if (visited.has(id) || !project.diagrams[id]) continue
+    visited.add(id)
+    result.push(id)
+    for (const childId of (project.childMap[id] ?? [])) queue.push(childId)
+  }
+  return result
+}
+
+function getParentId(diagId) {
+  for (const [pid, children] of Object.entries(project.childMap)) {
+    if (children.includes(diagId)) return pid
+  }
+  return null
+}
+
+function arrowPtsForDiag(arrow, diag) {
+  const isSource = arrow.type === 'output'
+  const boxId = isSource ? arrow.sourceBoxId : arrow.targetBoxId
+  const box = diag.boxes.find(b => b.id === boxId)
+  if (!box) return null
+
+  const siblings = diag.arrows.filter(a => {
+    if (a.type !== arrow.type) return false
+    return isSource ? a.sourceBoxId === boxId : a.targetBoxId === boxId
+  })
+  const i = siblings.findIndex(a => a.id === arrow.id)
+  const n = siblings.length
+  const frac = (i + 1) / (n + 1)
+
+  let boxPt, arrowAtBox
+  switch (arrow.type) {
+    case 'input':    boxPt = { x: box.x,             y: box.y + frac * box.height }; arrowAtBox = true;  break
+    case 'control':  boxPt = { x: box.x + frac * box.width, y: box.y };             arrowAtBox = true;  break
+    case 'output':   boxPt = { x: box.x + box.width, y: box.y + frac * box.height }; arrowAtBox = false; break
+    case 'mechanism':boxPt = { x: box.x + frac * box.width, y: box.y + box.height }; arrowAtBox = true;  break
+    default: return null
+  }
+
+  if (arrow.type === 'output' && arrow.targetBoxId) {
+    const tBox = diag.boxes.find(b => b.id === arrow.targetBoxId)
+    if (tBox) {
+      const side = arrow.targetSide ?? 'left'
+      const sideArrows = diag.arrows.filter(a => a.targetBoxId === tBox.id && a.targetSide === side && a.type === 'output')
+      const ti = sideArrows.findIndex(a => a.id === arrow.id)
+      const tf = (ti + 1) / (sideArrows.length + 1)
+      let targetPt
+      if (side === 'left')        targetPt = { x: tBox.x,                    y: tBox.y + tf * tBox.height }
+      else if (side === 'top')    targetPt = { x: tBox.x + tf * tBox.width,  y: tBox.y }
+      else                        targetPt = { x: tBox.x + tf * tBox.width,  y: tBox.y + tBox.height }
+
+      const halfGap = BOUNDARY_GAP / 2
+      let segs
+      if (side === 'left') {
+        const midX = (boxPt.x + targetPt.x) / 2
+        segs = [boxPt, { x: midX, y: boxPt.y }, { x: midX, y: targetPt.y }, targetPt]
+      } else if (side === 'top') {
+        const aboveY = tBox.y - halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: aboveY }, { x: targetPt.x, y: aboveY }, targetPt]
+      } else {
+        const belowY = tBox.y + tBox.height + halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: belowY }, { x: targetPt.x, y: belowY }, targetPt]
+      }
+      const mid = { x: (boxPt.x + targetPt.x) / 2, y: (boxPt.y + targetPt.y) / 2 }
+      return { start: boxPt, end: targetPt, mid, segments: segs }
+    }
+  }
+
+  let farPt
+  switch (arrow.type) {
+    case 'input':    farPt = { x: boxPt.x - BOUNDARY_GAP, y: boxPt.y }; break
+    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - BOUNDARY_GAP }; break
+    case 'output':   farPt = { x: boxPt.x + BOUNDARY_GAP, y: boxPt.y }; break
+    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + BOUNDARY_GAP }; break
+  }
+  const start = arrowAtBox ? farPt : boxPt
+  const end   = arrowAtBox ? boxPt  : farPt
+  const mid   = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+  return { start, end, mid, segments: null }
+}
+
+function exportHeadPoly(start, end) {
+  const dx = end.x - start.x; const dy = end.y - start.y
+  const len = Math.hypot(dx, dy); if (!len) return ''
+  const nx = dx / len; const ny = dy / len; const S = 7
+  return `${end.x},${end.y} ${end.x - nx*S - ny*(S/2)},${end.y - ny*S + nx*(S/2)} ${end.x - nx*S + ny*(S/2)},${end.y - ny*S - nx*(S/2)}`
+}
+
+function exportSvgArrow(arrow, diag) {
+  const pts = arrowPtsForDiag(arrow, diag)
+  if (!pts) return ''
+  const color = ARROW_META[arrow.type]?.color ?? '#666'
+  const segs = pts.segments ?? [pts.start, pts.end]
+  const d = 'M ' + segs.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L ')
+  const n = segs.length
+  const poly = exportHeadPoly(segs[n - 2], segs[n - 1])
+  const { mid } = pts
+  const isVert = arrow.type === 'control' || arrow.type === 'mechanism'
+  const rot = isVert ? ` transform="rotate(-90,${mid.x.toFixed(1)},${mid.y.toFixed(1)})"` : ''
+  const lx = (mid.x + (isVert ? 9 : 0)).toFixed(1), ly = (mid.y + (isVert ? 0 : -5)).toFixed(1)
+  return [
+    `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.5"/>`,
+    poly ? `<polygon points="${poly}" fill="${color}"/>` : '',
+    `<text x="${lx}" y="${ly}" font-size="11" font-family="Arial,sans-serif" fill="#333" text-anchor="middle"${rot}>${escXml(arrow.label ?? '')}</text>`,
+  ].join('')
+}
+
+function exportSvgBox(box) {
+  const lw = box.width - 16, lh = box.height - 22, fs = 13
+  const words = (box.label ?? '').split(/\s+/)
+  const maxCh = Math.floor(lw / (fs * 0.58))
+  let line = '', lines = []
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    if (test.length <= maxCh) { line = test } else { if (line) lines.push(line); line = w }
+  }
+  if (line) lines.push(line)
+  const totalH = lines.length * (fs * 1.35)
+  const textY = (box.y + 8) + (lh - totalH) / 2 + fs
+  let textEl = `<text x="${(box.x + 8 + lw / 2).toFixed(1)}" y="${textY.toFixed(1)}" font-size="${fs}" font-family="Arial,sans-serif" fill="#111" text-anchor="middle">`
+  for (let i = 0; i < lines.length; i++) {
+    textEl += `<tspan x="${(box.x + 8 + lw / 2).toFixed(1)}" dy="${i === 0 ? 0 : fs * 1.35}">${escXml(lines[i])}</tspan>`
+  }
+  textEl += '</text>'
+  return [
+    `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="3" fill="white" stroke="#4b5563" stroke-width="1.5"/>`,
+    `<text x="${(box.x + box.width - 5).toFixed(1)}" y="${(box.y + box.height - 5).toFixed(1)}" font-size="9" font-family="Arial,sans-serif" fill="#9ca3af" text-anchor="end">${escXml(box.nodeNumber ?? '')}</text>`,
+    textEl,
+  ].join('')
+}
+
+function exportTitleBlock(diagId, diag, pageNum, totalPages) {
+  const W = 1100, Y = 720, H = 130, USED_W = 200
+  const now = new Date().toLocaleDateString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const parentId = getParentId(diagId) ?? '–'
+  const rootDiag = project.diagrams[project.rootId ?? 'A0']
+  const projectName = rootDiag?.title ?? 'Untitled'
+  const rx = USED_W + 2
+
+  let s = ''
+  s += `<rect x="2" y="${Y}" width="${W - 4}" height="${H - 2}" fill="white" stroke="#333" stroke-width="1.5"/>`
+
+  // USED AT (left column)
+  s += `<rect x="2" y="${Y}" width="${USED_W}" height="${H - 2}" fill="none" stroke="#333" stroke-width="0.8"/>`
+  s += `<text x="6" y="${Y + 11}" font-size="8" font-family="Arial,sans-serif" fill="#555" font-weight="600">USED AT:</text>`
+  s += `<text x="6" y="${Y + 30}" font-size="13" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(parentId)}</text>`
+  s += `<line x1="2" y1="${Y + 65}" x2="${USED_W + 2}" y2="${Y + 65}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="6" y="${Y + 76}" font-size="8" font-family="Arial,sans-serif" fill="#555" font-weight="600">CONTEXT:</text>`
+
+  // Right section rows
+  // Row 1: Author / Date / Rev / status checkboxes
+  s += `<line x1="${rx}" y1="${Y + 24}" x2="${W - 2}" y2="${Y + 24}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">AUTHOR:</text>`
+  s += `<text x="${rx + 200}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">DATE:</text>`
+  s += `<text x="${rx + 234}" y="${Y + 13}" font-size="9" font-family="Arial,sans-serif" fill="#111">${now}</text>`
+  s += `<text x="${rx + 370}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">REV:</text>`
+  s += `<text x="${rx + 395}" y="${Y + 13}" font-size="9" font-family="Arial,sans-serif" fill="#111">0</text>`
+
+  // Status checkboxes
+  for (const [j, lbl] of ['Working', 'Draft', 'Recommended', 'Publication'].entries()) {
+    const cx = W - 295 + j * 74
+    s += `<rect x="${cx}" y="${Y + 3}" width="10" height="10" fill="none" stroke="#555" stroke-width="0.8"/>`
+    s += `<text x="${cx + 13}" y="${Y + 12}" font-size="8" font-family="Arial,sans-serif" fill="#333">${lbl}</text>`
+  }
+
+  // Row 2: Project
+  s += `<line x1="${rx}" y1="${Y + 42}" x2="${W - 2}" y2="${Y + 42}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 35}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">PROJECT:</text>`
+  s += `<text x="${rx + 54}" y="${Y + 35}" font-size="9" font-family="Arial,sans-serif" fill="#111">${escXml(projectName)}</text>`
+
+  // Row 3: Notes
+  s += `<line x1="${rx}" y1="${Y + 65}" x2="${W - 2}" y2="${Y + 65}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 55}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NOTES:</text>`
+  const noteNums = Array.from({ length: 10 }, (_, i) => i + 1).join('  ')
+  s += `<text x="${rx + 44}" y="${Y + 55}" font-size="8" font-family="Arial,sans-serif" fill="#aaa">${noteNums}</text>`
+
+  // Row 4: Title (big)
+  s += `<line x1="${rx}" y1="${Y + 92}" x2="${W - 2}" y2="${Y + 92}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 80}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">TITLE:</text>`
+  s += `<text x="${rx + 48}" y="${Y + 82}" font-size="14" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(diag.title ?? diagId)}</text>`
+
+  // Row 5: Node / Number / Page
+  s += `<text x="${rx + 4}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NODE:</text>`
+  s += `<text x="${rx + 42}" y="${Y + 108}" font-size="13" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(diagId)}</text>`
+  s += `<text x="${rx + 140}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NUMBER:</text>`
+  s += `<text x="${W - 130}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">PAGE:</text>`
+  s += `<text x="${W - 95}" y="${Y + 108}" font-size="10" font-family="Arial,sans-serif" fill="#111">${pageNum} of ${totalPages}</text>`
+
+  return s
+}
+
+function buildDiagramSVGString(diagId, pageNum, totalPages) {
+  const diag = project.diagrams[diagId]
+  const boxes = diag.boxes ?? []
+  const arrows = diag.arrows ?? []
+
+  const PAGE_W = 1100, PAGE_H = 850, AREA_H = 720, MARGIN = 30
+  const pad = BOUNDARY_GAP + 20
+
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const b of boxes) {
+    x0 = Math.min(x0, b.x - pad); y0 = Math.min(y0, b.y - pad)
+    x1 = Math.max(x1, b.x + b.width + pad); y1 = Math.max(y1, b.y + b.height + pad)
+  }
+  if (!boxes.length || !isFinite(x0)) { x0 = 0; y0 = 0; x1 = 800; y1 = 600 }
+
+  const cW = x1 - x0, cH = y1 - y0
+  const availW = PAGE_W - 2 * MARGIN, availH = AREA_H - 2 * MARGIN
+  const sc = Math.min(availW / cW, availH / cH, 1.5)
+  const tx = (MARGIN + (availW - cW * sc) / 2 - x0 * sc).toFixed(2)
+  const ty = (MARGIN + (availH - cH * sc) / 2 - y0 * sc).toFixed(2)
+
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${PAGE_W}" height="${PAGE_H}" viewBox="0 0 ${PAGE_W} ${PAGE_H}">`
+  s += `<rect width="${PAGE_W}" height="${PAGE_H}" fill="white"/>`
+  s += `<rect x="2" y="2" width="${PAGE_W - 4}" height="${AREA_H - 2}" fill="#fafafa" stroke="#bbb" stroke-width="0.8"/>`
+
+  // Arrowhead marker defs
+  s += `<defs><marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#888"/></marker></defs>`
+
+  s += `<g transform="translate(${tx},${ty}) scale(${sc.toFixed(4)})">`
+  for (const a of arrows) s += exportSvgArrow(a, diag)
+  for (const b of boxes)  s += exportSvgBox(b)
+  s += `</g>`
+
+  s += exportTitleBlock(diagId, diag, pageNum, totalPages)
+  s += `</svg>`
+  return s
+}
+
+async function downloadAsPNG(svgStr, filename) {
+  return new Promise(resolve => {
+    const W = 1100, H = 850
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = W * 2; canvas.height = H * 2
+      const ctx = canvas.getContext('2d')
+      ctx.scale(2, 2)
+      ctx.fillStyle = 'white'; ctx.fillRect(0, 0, W, H)
+      ctx.drawImage(img, 0, 0, W, H)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(b => {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: filename })
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+        resolve()
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve() }
+    img.src = url
+  })
+}
+
+async function exportDocument() {
+  const order = getDiagramOrder()
+  const total = order.length
+  for (let i = 0; i < order.length; i++) {
+    const diagId = order[i]
+    const svgStr = buildDiagramSVGString(diagId, i + 1, total)
+    await downloadAsPNG(svgStr, `IDEF0-${diagId}.png`)
+    if (i < order.length - 1) await new Promise(r => setTimeout(r, 300))
+  }
+}
+
 // ----- Import / Export -----
 function exportJSON() {
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
@@ -622,6 +917,7 @@ onUnmounted(() => {
       <button class="tb-btn" @click="schedSave">Save</button>
       <button class="tb-btn" @click="importJSON">Load</button>
       <button class="tb-btn" @click="exportJSON">Export JSON</button>
+      <button class="tb-btn tb-btn-doc" @click="exportDocument">Export Document</button>
     </div>
 
     <!-- ═══ THREE PANELS ═══ -->
@@ -842,6 +1138,8 @@ onUnmounted(() => {
 }
 .tb-btn:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
 .tb-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.tb-btn-doc { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.tb-btn-doc:hover:not(:disabled) { background: #dcfce7; border-color: #4ade80; }
 .tb-sep { width: 1px; height: 22px; background: #e5e7eb; margin: 0 2px; }
 .tb-diag { font-weight: 700; color: #1d4ed8; }
 .tb-title { color: #6b7280; font-size: 12px; }

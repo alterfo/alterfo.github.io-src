@@ -32,7 +32,19 @@ struct Uniforms {
     prev_beat    : f32,
     chladni_mode : f32,  // 0 = vortex, 1 = Chladni standing-wave
     nova_mode    : f32,  // 1 = radial spiral bloom
-    _p2          : f32,
+    pupil_drive  : f32,  // Nova: JS-smoothed pupil dilation drive (anti-jerk)
+    // Live Nova tuning (window.nova.set) — 16..23
+    nova_fibers  : f32,  // strand count
+    nova_jitter  : f32,  // per-particle strand spread (line thickness)
+    nova_curl    : f32,  // spiral bend scale (1 = default)
+    nova_amp     : f32,  // meander bend scale (1 = default)
+    nova_iris_r  : f32,  // iris radius / fiber length
+    nova_pupil_r : f32,  // pupil base radius
+    nova_pupil_g : f32,  // pupil dilation gain
+    nova_sclera  : f32,  // sclera-explorer fraction 0..1
+    nova_flow    : f32,  // radial streaming speed multiplier
+    nova_anim    : f32,  // fiber bend-morph speed
+    _np0 : f32, _np1 : f32,
 };
 
 @group(0) @binding(0) var<uniform>             u         : Uniforms;
@@ -170,69 +182,120 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     // =========================================================================
-    // NOVA MODE — orthographic sphere meridian flow (volumetric eyeball).
-    // Particles flow ACROSS the volume of a ball: from the front cap (pupil edge,
-    // toward the observer) over the surface out to the rim (limbus) and around to
-    // the back. Meridian azimuth θ is fixed per fiber bundle; the polar flow angle
+    // NOVA MODE — volumetric eyeball. The eyeball is a sphere (R_eye) LARGER than
+    // the iris (R_iris): the iris is only the front colour ring; the "white" around
+    // it is suggested by particles that flow ON PAST the limbus, slowing (sin
+    // foreshortening: dr/dφ→0 at the rim) and fading (draw) → the eye reads as a
+    // 3-D volume, not a flat disc. Meridian flow: azimuth θ per fiber; polar angle
     // φ = age·π advances with time. Orthographic projection (ASPECT-corrected):
-    //   r_screen = R·sin(φ);  pos = (cx + r·cosθ/ASPECT, cy + r·sinθ);  depth = cos(φ).
-    // dr_screen/dφ → 0 at the rim ⇒ particles bunch at the limbus (natural bright
-    // eye edge, no special case). Pupil = front cap: φ ∈ [φ_pupil, π−φ_pupil],
-    // φ_pupil = asin(R_pupil/R). Beat raises R_pupil ⇒ φ_pupil grows ⇒ mydriasis.
+    //   r_screen = R_eye·sin(φ);  pos = (cx + r·cosθ/ASPECT, cy + r·sinθ).
+    // Fibers CURVE (per-fiber spiral) and WEAVE (per-fiber sinusoid) → not straight.
+    // ~35% are "sclera explorers" (φ_max = π/2+) reaching the eyeball rim; the rest
+    // are iris fibers (φ_max = φ_iris, ending at the limbus).
     // Pure-math mirror + unit tests: web/nova_project.js.
     // =========================================================================
     if u.nova_mode > 0.5 {
         let ASPECT: f32 = 16.0 / 9.0;
         let cx = 0.5; let cy = 0.5;
-        let R_sphere = 0.295;
+        let R_eye  = 0.420;            // full eyeball silhouette (sphere radius)
+        let R_iris = u.nova_iris_r;   // iris ring edge (limbus) — most fibers end here
 
-        // Beat-reactive pupil (mydriasis on kick) + slow organic breathing.
-        let R_pupil   = 0.090 + u.beat_pulse * 0.070 + u.bass * 0.018
-                      + 0.005 * sin(u.time * 0.71);
-        let phi_pupil = asin(clamp(R_pupil / R_sphere, 0.0, 0.92));
+        // Pupil dilation driven by the JS-smoothed pupil_drive (soft attack/release →
+        // gentle mydriasis, not a per-beat twitch) + slow organic breathing.
+        let R_pupil   = u.nova_pupil_r + u.pupil_drive * u.nova_pupil_g
+                      + 0.004 * sin(u.time * 0.6);
+        let phi_pupil = asin(clamp(R_pupil / R_eye, 0.0, 0.92));
+        let phi_iris  = asin(clamp(R_iris  / R_eye, 0.0, 0.999));
         let front_age = phi_pupil / PI;
-        let back_age  = 1.0 - front_age;
 
-        // Meridian azimuth θ: 72 fiber bundles + permanent per-particle jitter
-        // (thickens each meridian into a band that "wraps" the ball, kept below
-        // half the 5° arm spacing so bundles stay separated) + a gentle per-fiber
-        // wave along the meridian so the bands aren't dead-straight.
-        let N_ARMS   = 72u;
-        let arm_id   = p.seed % N_ARMS;
-        let base_ang = f32(arm_id) / f32(N_ARMS) * 2.0 * PI;
-        let jitter   = (uf01(uhash(p.seed + 31u)) - 0.5) * 0.075;  // ±2.1°
-        let wave_ph  = uf01(uhash(p.seed + 35u)) * 6.28318;
+        // ~35% "sclera explorers" flow past the limbus to the eyeball rim (and a
+        // touch behind, φ_max = π/2 + 0.16) → volumetric halo around the iris.
+        // The rest are iris fibers that turn back at the limbus.
+        let is_sclera = (p.seed % 100u) < u32(clamp(u.nova_sclera, 0.0, 1.0) * 100.0);
+        let phi_max   = select(phi_iris, PI * 0.5 + 0.16, is_sclera);
+        let resp_age  = phi_max / PI;
 
-        // Advance the polar flow coordinate: dφ/dt = ω0 + beat·k_beat + energy·k_energy.
-        let dphi = 0.0060 + u.beat_pulse * 0.030 + u.energy * 0.010;
+        // Meridian azimuth θ: each particle belongs to one of N_FIBERS strands. The
+        // wander parameters are derived from the FIBER id (not the particle seed), so
+        // every particle on a strand shares the SAME curve → the strand reads as one
+        // coherent, visibly bending line instead of a fuzzy radial band (the previous
+        // per-particle randomness just blurred each arm into a straight spoke). Each
+        // fiber gets a randomly-handed spiral + a 2-octave meander with its own
+        // frequency/phase/amplitude, so 150 strands curve every which way and weave
+        // through each other like real iris crypts. A per-fiber offset breaks the even
+        // grid; a tiny per-particle jitter only gives the strand visible thickness.
+        // Many fibers + the same particle budget ⇒ fewer particles per strand ⇒ fine,
+        // thin lines (and a denser, prettier iris).
+        let N_FIBERS = u32(clamp(u.nova_fibers, 1.0, 100000.0));
+        let arm_id   = p.seed % N_FIBERS;
+        var fs = uhash(uhash(arm_id + 0x9E3779B9u));  // scramble the small fiber id
+        let g1 = uf01(fs); fs = uhash(fs);
+        let g2 = uf01(fs); fs = uhash(fs);
+        let g3 = uf01(fs); fs = uhash(fs);
+        let g4 = uf01(fs); fs = uhash(fs);
+        let g5 = uf01(fs); fs = uhash(fs);
+        let g6 = uf01(fs); fs = uhash(fs);
+        let g7 = uf01(fs);
+        // Golden-angle (sunflower) distribution: consecutive fiber ids land ~137.5°
+        // apart, so correlated curl/meander between neighbouring ids can't bunch them
+        // into periodic spokes/gaps. fract() keeps the angle in [0,2π) for f32 precision;
+        // a tiny per-fiber nudge breaks any residual structure. (0.3819660 = 1/φ².)
+        let base_ang = fract(f32(arm_id) * 0.38196601) * 6.28318530 + (g1 - 0.5) * 0.05;
+        // Living fibers: each strand's spiral slowly waxes/wanes/reverses on its own
+        // period (per-fiber rate & phase) so the bend visibly morphs over ~15-30 s.
+        // nova_anim scales the morph speed (0 = frozen). The meander phases also drift
+        // with it, so the wiggles travel along the fibers.
+        let morph  = sin(u.time * (0.22 + g3 * 0.24) * u.nova_anim + g4 * 6.28318);
+        let curl   = (g2 - 0.5) * 0.20 * u.nova_curl * (0.4 + 0.7 * morph);  // animated spiral
+        let f1     = 0.8 + g3 * 1.3;                         // 0.8..2.1 slow, smooth single bend
+        let f2     = 2.0 + g4 * 2.0;                         // 2.0..4.0 subtle secondary undulation
+        let ph1    = g5 * 6.28318 + u.time * 0.10 * u.nova_anim;  // drift → travelling wiggles
+        let ph2    = g6 * 6.28318 - u.time * 0.07 * u.nova_anim;
+        let amp    = (0.015 + g7 * 0.045) * u.nova_amp;      // per-fiber meander (scaled)
+        // Per-fiber angular SWAY: the whole strand slowly rocks ±a couple degrees on
+        // its own phase, so the dark gaps between fibers never sit still — they drift
+        // and, with the motion trails, smear shut → the iris shimmers like a live eye.
+        // Amplitude scales with nova_anim (0 = perfectly still).
+        let sway   = sin(u.time * (0.30 + g6 * 0.50) + g5 * 6.28318) * 0.045 * u.nova_anim;
+        let jitter = (uf01(uhash(p.seed + 31u)) - 0.5) * u.nova_jitter;  // strand thickness
+
+        // Advance polar flow φ = age·π; respawn at the front cap when past φ_max.
+        // Calmer than before: lower base rate + much smaller beat surge so particles
+        // drift outward gently instead of rushing on every kick. Scaled by nova_flow.
+        let dphi = (0.0032 + u.beat_pulse * 0.0090 + u.energy * 0.0045) * u.nova_flow;
         p.age += (dphi / PI) * u.speed;
-
-        // Past the back pole → re-enter at the front cap edge with a small random
-        // age offset so fibers don't pulse as synchronized dashes. seed (hence the
-        // θ bundle) is kept stable across respawn so fibers never jump.
-        if p.age >= back_age {
+        if p.age >= resp_age {
             let rs = uhash(p.seed ^ (u32(u.time * 61.0) + i + 7u));
             p.age = front_age + uf01(rs) * 0.05;
         }
 
-        let phi   = clamp(p.age * PI, phi_pupil, PI - phi_pupil);
-        let wave  = sin(phi * 2.0 + wave_ph) * 0.05;   // ±2.9° meridian wobble
-        let theta = base_ang + jitter + wave;
+        let phi = clamp(p.age * PI, phi_pupil, phi_max);
+        // Radial fraction across the iris (0 pupil → 1 limbus → >1 in sclera);
+        // the meander + spiral accumulate along the fiber with this.
+        let t     = (phi - phi_pupil) / max(phi_iris - phi_pupil, 0.001);
+        let tc    = min(t, 1.3);                       // clamp the wander in the sclera (no over-swirl)
+        // Subtle 2-octave meander (amplitude grows with radius) + a gentle randomly-
+        // handed spiral → each strand curves just slightly (~5-8° of azimuth wander at
+        // the limbus), enough to look organic without the chaotic over-bending.
+        let meander = (sin(t * f1 + ph1) * 0.7 + sin(t * f2 + ph2) * 0.3) * amp * tc;
 
         let sinp = sin(phi);
         let cosp = cos(phi);
+        // Normalize the per-particle jitter by screen radius (∝ sinφ) so the strand's
+        // SCREEN-space thickness stays ~constant from pupil to limbus. Without this the
+        // fibers crowd into a razor-thin, dense band near the pupil and alias against the
+        // pixel grid → periodic dark notches in the bright inner ring.
+        let theta   = base_ang + sway + jitter / max(sinp, 0.30) + curl * tc * 0.6 + meander;
         let ct   = cos(theta);
         let st   = sin(theta);
-        let r_screen = R_sphere * sinp;
+        let r_screen = R_eye * sinp;
 
         p.pos = vec2f(cx + r_screen * ct / ASPECT, cy + r_screen * st);
-        // Radial screen-space flow velocity (→ 0 at the rim); drives the draw
-        // shader's speed-brightness and stays small on respawn (no flash).
-        p.vel = vec2f(ct / ASPECT, st) * (R_sphere * cosp * dphi * u.speed);
+        // Radial screen-space flow velocity (→ 0 at the rim ⇒ particles slow there).
+        p.vel = vec2f(ct / ASPECT, st) * (R_eye * cosp * dphi * u.speed);
 
-        // Two-zone iris hue by screen radius: collarette amber (inner) → blue-grey
-        // (outer) + permanent per-fiber tint. Timbre/zone blend applied in draw.
-        let t_r     = clamp((r_screen - R_pupil) / (R_sphere - R_pupil), 0.0, 1.0);
+        // Two-zone iris hue by radius (collarette amber → blue-grey) + per-fiber tint.
+        let t_r     = clamp((r_screen - R_pupil) / (R_iris - R_pupil), 0.0, 1.0);
         let hue_var = (uf01(uhash(p.seed + 34u)) - 0.5) * 0.10;
         p.hue = clamp(mix(0.09, 0.58, smoothstep(0.28, 0.72, t_r)) + hue_var, 0.01, 0.70);
 

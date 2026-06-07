@@ -14,8 +14,47 @@ import { createTimbreSmoother } from './timbre_color.js';
 export let PARTICLE_COUNT = 500_000;
 
 const PARTICLE_STRIDE  = 8 * 4;  // bytes per particle (8 floats)
-const UPDATE_UBO_BYTES = 64;
+const UPDATE_UBO_BYTES = 112;   // 28 floats: 16 base + 10 live Nova params + 2 pad
 const DRAW_UBO_BYTES   = 48;    // 12 floats; added timbre hue/sat/weight (+ padding)
+
+// Live-tunable Nova iris parameters — change from the browser console via
+// window.nova.set({ ... }). Defaults reproduce the built-in look.
+const _nova = {
+    fibers:  1400,    // strand count
+    jitter:  0.012,   // per-particle strand spread → line THICKNESS
+    curl:    0.8,     // spiral bend scale (1.0 = full base bend)
+    amp:     0.9,     // meander bend scale (1.0 = full base meander)
+    irisR:   0.30,    // iris radius (limbus) → line LENGTH / iris size
+    pupilR:  0.105,   // pupil base radius
+    pupilG:  0.045,   // pupil dilation gain (beat reactivity)
+    sclera:  0.18,    // fraction of fibers that flow past the limbus (0..1)
+    bright:  0.55,    // draw alpha multiplier → brightness / TRANSPARENCY
+    flow:    0.7,     // radial streaming speed (lower = calmer outward motion)
+    anim:    1.4,     // how alive the fibers are: bend-morph + sway (0 = frozen)
+};
+
+// Map friendly aliases (length/thickness/count/transparency...) to internal keys.
+const _NOVA_ALIASES = {
+    count: 'fibers', n: 'fibers', fibers: 'fibers',
+    thickness: 'jitter', jitter: 'jitter', width: 'jitter',
+    length: 'irisR', irisR: 'irisR', iris: 'irisR', size: 'irisR',
+    curl: 'curl', bend: 'curl', amp: 'amp', meander: 'amp',
+    pupil: 'pupilR', pupilR: 'pupilR', pupilGain: 'pupilG', pupilG: 'pupilG',
+    sclera: 'sclera', wisps: 'sclera',
+    bright: 'bright', brightness: 'bright', alpha: 'bright', opacity: 'bright',
+    flow: 'flow', speed: 'flow', streaming: 'flow',
+    anim: 'anim', alive: 'anim', living: 'anim', morph: 'anim', life: 'anim',
+};
+
+export function setNovaParams(params = {}) {
+    for (const [k, v] of Object.entries(params)) {
+        const key = _NOVA_ALIASES[k] ?? (k in _nova ? k : null);
+        if (key && typeof v === 'number' && isFinite(v)) _nova[key] = v;
+        else console.warn('[nova] unknown/invalid param:', k, v);
+    }
+    return { ..._nova };
+}
+export function getNovaParams() { return { ..._nova }; }
 
 // Defaults (overridden by advanced.js via setParticleParams)
 let _noiseScale   = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
@@ -171,6 +210,7 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     let _prevBeat = 0;
     let _hueBase  = 0;
     let _prevTime = null;                          // seconds; for frame-rate-correct EMA dt
+    let _pupilSm  = 0;                             // smoothed Nova pupil drive (anti-jerk)
     const _timbreSmoother = createTimbreSmoother({ tau: 0.25 });
 
     function tick(frame, time) {
@@ -190,6 +230,13 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         // Hue drifts continuously; high-frequency content accelerates colour cycling
         _hueBase = (_hueBase + 0.00005 + energy * 0.0002 + high * 0.0007) % 1.0;
 
+        // Smoothed Nova pupil drive: EMA over (beat + bass + energy) so the iris
+        // dilates gently instead of snapping open on every kick. τ≈0.22 s rounds off
+        // the beat_pulse attack into a soft breathing bump. Passed via the _p2 slot.
+        const pupilTarget = Math.min(beat * 0.8 + bass * 0.55 + energy * 0.25, 1.0);
+        const aPupil = 1 - Math.exp(-dt / 0.22);
+        _pupilSm += (pupilTarget - _pupilSm) * aPupil;
+
         // Update UBO — layout matches Uniforms struct in particles_update.wgsl
         _updArr[0]  = time;
         _updArr[1]  = _noiseScale * 0.00005;  // orbit_str: slider 1-10 → 0.00005-0.0005
@@ -206,7 +253,18 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _updArr[12] = _prevBeat;
         _updArr[13] = _chladniMode;
         _updArr[14] = _novaMode;
-        // [15] padding (zeroed by default)
+        _updArr[15] = _pupilSm;                // pupil_drive (smoothed) — Nova iris
+        // Live Nova tuning (16..23) — see window.nova.set()
+        _updArr[16] = _nova.fibers;
+        _updArr[17] = _nova.jitter;
+        _updArr[18] = _nova.curl;
+        _updArr[19] = _nova.amp;
+        _updArr[20] = _nova.irisR;
+        _updArr[21] = _nova.pupilR;
+        _updArr[22] = _nova.pupilG;
+        _updArr[23] = _nova.sclera;
+        _updArr[24] = _nova.flow;
+        _updArr[25] = _nova.anim;
         device.queue.writeBuffer(updateUbo, 0, _updArr);
 
         // Cymatics: compute only ¼ of particles + quarter×4 draw = 4× speedup each.
@@ -225,7 +283,8 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _drawArr[6] = timbre.hue;     // timbre_hue
         _drawArr[7] = timbre.sat;     // timbre_sat
         _drawArr[8] = timbre.weight;  // timbre_weight
-        // [9..11] padding zeros
+        _drawArr[9] = _nova.bright;   // nova_bright (alpha multiplier)
+        // [10..11] padding zeros
         device.queue.writeBuffer(drawUbo, 0, _drawArr);
 
         _prevBeat = beat;

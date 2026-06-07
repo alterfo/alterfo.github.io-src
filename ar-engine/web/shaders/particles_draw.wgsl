@@ -21,7 +21,8 @@ struct DrawUniforms {
     timbre_hue   : f32,   // 0..1 hue suggested by spectral timbre
     timbre_sat   : f32,   // 0..1 saturation suggested by timbre
     timbre_weight: f32,   // 0..1 confidence; scales how strongly timbre tints
-    _p3 : f32, _p4 : f32, _p5 : f32,
+    nova_bright  : f32,   // Nova alpha multiplier (live brightness / transparency)
+    _p4 : f32, _p5 : f32,
 };
 
 @group(0) @binding(0) var<storage, read> particles : array<Particle>;
@@ -132,6 +133,16 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
         let front_shade = smoothstep(-0.25, 0.55, depth);
         nova_fx  = front_shade;
         nova_fx *= 0.65 + uf01_d(uhash_d(p.seed + 77u)) * 0.70;  // per-fiber 0.65..1.35
+        // Sclera halo: beyond the iris edge (R_iris≈0.295) dim the outflowing
+        // particles and fade them to nothing at the eyeball rim (R_eye≈0.42) so
+        // the "white" around the iris reads as 3-D volume, not a hard ring.
+        let dx_ = p.pos.x - 0.5;
+        let dy_ = p.pos.y - 0.5;
+        let sr  = sqrt(dx_ * dx_ * 3.16049 + dy_ * dy_);          // ASPECT-corrected radius
+        let sclera    = smoothstep(0.285, 0.310, sr);            // 0 in iris → 1 past limbus
+        let halo_fade = 1.0 - smoothstep(0.300, 0.420, sr);      // 1 at limbus → 0 at rim
+        nova_fx *= mix(1.0, 0.55 * halo_fade, sclera);
+        nova_fx *= u.nova_bright;                                // live brightness / transparency
     }
 
     let base_alpha = brightness * 0.0022 * energy_boost * beat_boost * k_scale * zone_scale * nova_fx;

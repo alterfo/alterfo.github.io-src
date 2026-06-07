@@ -13,7 +13,10 @@
 // The pupil is the front cap: valid φ ∈ [φ_pupil, π − φ_pupil] with
 // φ_pupil = asin(R_pupil / R_SPHERE) so r_screen(φ_pupil) == R_pupil.
 
-export const R_SPHERE = 0.295;
+// Eyeball sphere radius (the silhouette). The iris ring ends earlier, at R_IRIS;
+// particles past the limbus flow on to this radius, fading → volumetric eyeball.
+export const R_SPHERE = 0.420;
+export const R_IRIS   = 0.295;
 export const ASPECT   = 16 / 9;
 
 // Polar angle of the pupil cap edge. r_screen(phiPupil) === rPupil by construction.
