@@ -111,6 +111,7 @@ let dragArrowEnd = null
 let cleanupExternalChange = null
 const historyStack = []
 let historyIndex = -1
+let dragResize = null
 
 function pushHistory() {
   const snap = JSON.parse(JSON.stringify({ blocks: blocks.value, arrows: arrows.value }))
@@ -573,6 +574,14 @@ function drawSelection() {
       ctx.lineWidth = 2
       ctx.setLineDash([5, 3])
       ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4)
+      ctx.setLineDash([])
+      ctx.fillStyle = COLORS.selection
+      const hs = 7
+      const corners = [
+        { x: b.x, y: b.y }, { x: b.x + b.w, y: b.y },
+        { x: b.x, y: b.y + b.h }, { x: b.x + b.w, y: b.y + b.h },
+      ]
+      for (const c of corners) ctx.fillRect(c.x - hs / 2, c.y - hs / 2, hs, hs)
     }
   }
   if (selectedArrowId.value) {
@@ -841,6 +850,26 @@ function hitTestBlock(sx, sy) {
   return null
 }
 
+function hitTestResizeHandle(sx, sy) {
+  if (!selectedBlockId.value) return null
+  const b = blocks.value.find(x => x.id === selectedBlockId.value)
+  if (!b) return null
+  const th = 8 / scale.value
+  const corners = [
+    { corner: 'nw', x: b.x, y: b.y },
+    { corner: 'ne', x: b.x + b.w, y: b.y },
+    { corner: 'sw', x: b.x, y: b.y + b.h },
+    { corner: 'se', x: b.x + b.w, y: b.y + b.h },
+  ]
+  const p = screenToWorld(sx, sy)
+  for (const c of corners) {
+    if (Math.abs(p.x - c.x) <= th && Math.abs(p.y - c.y) <= th) {
+      return { blockId: b.id, corner: c.corner, origX: b.x, origY: b.y, origW: b.w, origH: b.h }
+    }
+  }
+  return null
+}
+
 function hitTestArrowEnd(sx, sy) {
   const p = screenToWorld(sx, sy)
   const th = 12 / scale.value
@@ -904,6 +933,14 @@ function onMouseDown(e) {
     return
   }
 
+  const rh = hitTestResizeHandle(e.offsetX, e.offsetY)
+  if (rh) {
+    pushHistory()
+    const p = screenToWorld(e.offsetX, e.offsetY)
+    dragResize = { ...rh, startX: p.x, startY: p.y }
+    return
+  }
+
   const b = hitTestBlock(e.offsetX, e.offsetY)
   if (b) {
     selectedBlockId.value = b.id
@@ -936,6 +973,43 @@ function onMouseMove(e) {
     offsetY.value += e.clientY - lastY
     lastX = e.clientX; lastY = e.clientY
     render()
+    return
+  }
+
+  if (dragResize) {
+    const p = screenToWorld(e.offsetX, e.offsetY)
+    const dx = p.x - dragResize.startX
+    const dy = p.y - dragResize.startY
+    const b = blocks.value.find(x => x.id === dragResize.blockId)
+    if (b) {
+      const minW = 60, minH = 40
+      const { corner, origX, origY, origW, origH } = dragResize
+      if (corner === 'se') {
+        b.w = Math.max(minW, origW + dx)
+        b.h = Math.max(minH, origH + dy)
+      } else if (corner === 'sw') {
+        const nw = Math.max(minW, origW - dx)
+        b.x = origX + origW - nw
+        b.w = nw
+        b.h = Math.max(minH, origH + dy)
+      } else if (corner === 'ne') {
+        b.w = Math.max(minW, origW + dx)
+        const nh = Math.max(minH, origH - dy)
+        b.y = origY + origH - nh
+        b.h = nh
+      } else {
+        const nw = Math.max(minW, origW - dx)
+        const nh = Math.max(minH, origH - dy)
+        b.x = origX + origW - nw
+        b.y = origY + origH - nh
+        b.w = nw
+        b.h = nh
+      }
+      for (const a of arrows.value) {
+        if (a.from?.blockId === b.id || a.to?.blockId === b.id) a.segments = []
+      }
+      render()
+    }
     return
   }
 
@@ -976,16 +1050,23 @@ function onMouseMove(e) {
     render()
   }
 
+  const rHit = hitTestResizeHandle(e.offsetX, e.offsetY)
+  if (rHit) {
+    const cursors = { nw: 'nw-resize', ne: 'ne-resize', sw: 'sw-resize', se: 'se-resize' }
+    canvasEl.value.style.cursor = cursors[rHit.corner]
+    return
+  }
   const endHit = hitTestArrowEnd(e.offsetX, e.offsetY)
   canvasEl.value.style.cursor = endHit ? 'move' : (hitTestBlock(e.offsetX, e.offsetY) ? 'move' : 'default')
 }
 
 function onMouseUp() {
-  if (dragArrowEnd || dragBlock) {
+  if (dragArrowEnd || dragBlock || dragResize) {
     saveDiagram()
   }
   dragArrowEnd = null
   dragBlock = null
+  dragResize = null
   isPanning = false
 }
 
