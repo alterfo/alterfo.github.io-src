@@ -236,7 +236,7 @@
 
 <script setup>
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { project, currentDiagram, currentDiagramId, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
+import { project, currentDiagram, currentDiagramId, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow, loadProjectData } from './IDEF0Editor/model.js'
 import { pushSnapshot, undo, redo, resetHistory, canUndo, canRedo } from './IDEF0Editor/history.js'
 import { navigateInto, navigateUp } from './IDEF0Editor/hierarchy.js'
 import {
@@ -244,6 +244,7 @@ import {
   routeBoundaryArrow, renderBoundaryArrow,
 } from './IDEF0Editor/renderer.js'
 import { icomCode } from './IDEF0Editor/icom.js'
+import { loadProject, saveProject, initCrossTabSync } from './IDEF0Editor/db.js'
 
 const VIEW_W = 1200
 const VIEW_H = 800
@@ -260,6 +261,32 @@ const ICOM_LEGEND = [
 
 // Reset history whenever we navigate to a different diagram
 watch(currentDiagramId, () => resetHistory())
+
+// --- Persistence ---
+let _suppressSave = false
+
+watch(project, () => {
+  if (!_suppressSave) saveProject(project)
+}, { deep: true })
+
+async function initPersistence() {
+  _suppressSave = true
+  try {
+    const saved = await loadProject()
+    if (saved) loadProjectData(saved)
+  } finally {
+    _suppressSave = false
+  }
+  initCrossTabSync(async () => {
+    _suppressSave = true
+    try {
+      const saved = await loadProject()
+      if (saved) loadProjectData(saved)
+    } finally {
+      _suppressSave = false
+    }
+  })
+}
 
 // --- Inline editing ---
 const editingBoxId = ref(null)
@@ -499,7 +526,10 @@ function onKeyDown(e) {
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onKeyDown))
+onMounted(() => {
+  document.addEventListener('keydown', onKeyDown)
+  initPersistence()
+})
 onBeforeUnmount(() => document.removeEventListener('keydown', onKeyDown))
 
 function handleResetView() {
