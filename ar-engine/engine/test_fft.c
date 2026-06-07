@@ -19,6 +19,10 @@
 #define FFT_SIZE 2048
 #define CHUNK    512
 
+/* spectral descriptors (non-static in engine.c) — read the current spectrum */
+extern float spectral_centroid_norm(void);
+extern float spectral_tonalness(void);
+
 /* static to avoid large stack allocations */
 static float g_buf[SR];
 static float g_buf2[SR];
@@ -273,6 +277,107 @@ static int test_bpm_tracks_interval(void) {
     return ok;
 }
 
+/* ---- Task 1 tests: spectral descriptors ---- */
+
+static int test_centroid_low_high(void) {
+    /* low sine → low centroid; high sine → high centroid; low < high */
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 200.0f, 0.8f, SR);
+    push_signal(g_buf, SR);
+    float c_low = spectral_centroid_norm();
+
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 5000.0f, 0.8f, SR);
+    push_signal(g_buf, SR);
+    float c_high = spectral_centroid_norm();
+
+    int ok = (c_low  >= 0.0f && c_low  <= 1.0f &&
+              c_high >= 0.0f && c_high <= 1.0f &&
+              c_low < c_high);
+    printf("[%s] centroid low<high: c_low=%.3f c_high=%.3f\n",
+           ok ? "PASS" : "FAIL", c_low, c_high);
+    return ok;
+}
+
+static int test_centroid_silence(void) {
+    /* silence → Σm ≈ 0 → centroid 0 (safe default) */
+    memset(g_buf, 0, sizeof g_buf);
+    push_signal(g_buf, SR);
+    float c = spectral_centroid_norm();
+    int ok = (c == 0.0f);
+    printf("[%s] centroid silence → 0  (got %.4f)\n", ok ? "PASS" : "FAIL", c);
+    return ok;
+}
+
+static int test_tonalness_pure_sine(void) {
+    /* 1 kHz pure sine → near-tonal (flatness → 0) */
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 1000.0f, 0.8f, SR);
+    push_signal(g_buf, SR);
+    float t = spectral_tonalness();
+    int ok = (t > 0.7f && t <= 1.0f);
+    printf("[%s] tonalness pure sine → high (%.3f)\n", ok ? "PASS" : "FAIL", t);
+    return ok;
+}
+
+static int test_tonalness_noise(void) {
+    /* white-ish noise → flat spectrum → low tonalness */
+    srand(1234);
+    for (int i = 0; i < SR; i++)
+        g_buf[i] = (((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f) * 0.5f;
+    push_signal(g_buf, SR);
+    float t_noise = spectral_tonalness();
+
+    /* compare against a pure tone — noise must be clearly less tonal */
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 1000.0f, 0.8f, SR);
+    push_signal(g_buf, SR);
+    float t_sine = spectral_tonalness();
+
+    int ok = (t_noise >= 0.0f && t_noise < 0.6f && t_noise < t_sine);
+    printf("[%s] tonalness noise<sine: noise=%.3f sine=%.3f\n",
+           ok ? "PASS" : "FAIL", t_noise, t_sine);
+    return ok;
+}
+
+static int test_tonalness_silence(void) {
+    /* silent band → safe default (finite, no NaN/Inf) */
+    memset(g_buf, 0, sizeof g_buf);
+    push_signal(g_buf, SR);
+    float t = spectral_tonalness();
+    int ok = (t >= 0.0f && t <= 1.0f); /* NaN comparisons are false → caught */
+    printf("[%s] tonalness silence → safe default (%.4f)\n",
+           ok ? "PASS" : "FAIL", t);
+    return ok;
+}
+
+/* ---- Task 2 tests: descriptors exposed through the AudioFrame ABI ---- */
+
+static int test_frame_descriptors_tone(void) {
+    /* 1 kHz pure tone → frame.centroid and frame.tonal finite, in [0,1];
+       tone is harmonic so tonal should read clearly tonal */
+    memset(g_buf, 0, sizeof g_buf);
+    fill_sine(g_buf, SR, 1000.0f, 0.8f, SR);
+    AudioFrame f = push_signal(g_buf, SR);
+    int ok = (f.centroid >= 0.0f && f.centroid <= 1.0f &&
+              f.tonal    >= 0.0f && f.tonal    <= 1.0f &&
+              f.tonal > 0.3f);
+    printf("[%s] frame descriptors (1kHz tone): centroid=%.3f tonal=%.3f\n",
+           ok ? "PASS" : "FAIL", f.centroid, f.tonal);
+    return ok;
+}
+
+static int test_frame_descriptors_silence(void) {
+    /* silence → centroid/tonal finite, in [0,1] (safe defaults, no NaN/Inf) */
+    memset(g_buf, 0, sizeof g_buf);
+    AudioFrame f = push_signal(g_buf, SR);
+    int ok = (f.centroid >= 0.0f && f.centroid <= 1.0f &&
+              f.tonal    >= 0.0f && f.tonal    <= 1.0f);
+    printf("[%s] frame descriptors (silence): centroid=%.4f tonal=%.4f\n",
+           ok ? "PASS" : "FAIL", f.centroid, f.tonal);
+    return ok;
+}
+
 int main(void) {
     engine_init(SR, FFT_SIZE);
 
@@ -291,6 +396,15 @@ int main(void) {
     RUN(test_onset_fires_on_band_burst);
     RUN(test_onset_cooldown_prevents_double_fire);
     RUN(test_bpm_tracks_interval);
+
+    RUN(test_centroid_low_high);
+    RUN(test_centroid_silence);
+    RUN(test_tonalness_pure_sine);
+    RUN(test_tonalness_noise);
+    RUN(test_tonalness_silence);
+
+    RUN(test_frame_descriptors_tone);
+    RUN(test_frame_descriptors_silence);
 
     printf("\n%d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;

@@ -1,1030 +1,1238 @@
+<script setup>
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { loadProject, saveProject } from './IDEF0Editor/db.js'
+
+// ----- unique instance ID for SVG pattern -----
+let _seq = 0
+const _iid = ++_seq
+
+// ----- Arrow type metadata -----
+const ARROW_META = {
+  input:     { label: 'Input Arrows (Left)',      color: '#3b82f6' },
+  control:   { label: 'Control Arrows (Top)',      color: '#f59e0b' },
+  output:    { label: 'Output Arrows (Right)',     color: '#10b981' },
+  mechanism: { label: 'Mechanism Arrows (Bottom)', color: '#8b5cf6' },
+}
+
+const BOUNDARY_GAP = 100  // world units from box side to boundary endpoint
+const SNAP_DIST = 35      // world units for endpoint snap-to-box-side
+
+// ----- Project -----
+function defaultProject() {
+  return {
+    id: 'default',
+    rootId: 'A0',
+    childMap: {},
+    diagrams: {
+      A0: { id: 'A0', title: 'Main Process', boxes: [], arrows: [] }
+    }
+  }
+}
+
+const project = reactive(defaultProject())
+const currentDiagramId = ref('A0')
+const selectedBoxId = ref(null)
+
+const currentDiagram = computed(() => project.diagrams[currentDiagramId.value] ?? project.diagrams[project.rootId])
+const selectedBox = computed(() => currentDiagram.value.boxes.find(b => b.id === selectedBoxId.value) ?? null)
+const allDiagramIds = computed(() => Object.keys(project.diagrams).sort())
+
+// ----- ID generator -----
+let _n = 0
+function uid() { return `e${++_n}-${Math.random().toString(36).slice(2, 5)}` }
+
+// ----- Box CRUD -----
+function addBox() {
+  const boxes = currentDiagram.value.boxes
+  const col = boxes.length % 3
+  const row = Math.floor(boxes.length / 3)
+  const box = {
+    id: uid(),
+    label: `Function ${boxes.length + 1}`,
+    nodeNumber: `${currentDiagramId.value}${boxes.length + 1}`,
+    description: '',
+    x: 100 + col * 310,
+    y: 120 + row * 220,
+    width: 220,
+    height: 110,
+  }
+  boxes.push(box)
+  selectedBoxId.value = box.id
+  schedSave()
+}
+
+function deleteSelectedBox() {
+  if (!selectedBox.value) return
+  const id = selectedBox.value.id
+  currentDiagram.value.arrows = currentDiagram.value.arrows.filter(
+    a => a.sourceBoxId !== id && a.targetBoxId !== id
+  )
+  const idx = currentDiagram.value.boxes.findIndex(b => b.id === id)
+  if (idx !== -1) currentDiagram.value.boxes.splice(idx, 1)
+  selectedBoxId.value = null
+  schedSave()
+}
+
+// ----- Arrow CRUD -----
+// arrowsForBox: arrows where this box is the "owner" side
+// For output: sourceBoxId === boxId
+// For input/control/mechanism: targetBoxId === boxId AND targetSide is null (boundary arrow into this box)
+function arrowsForBox(boxId, type) {
+  const isSource = type === 'output'
+  return currentDiagram.value.arrows.filter(a => {
+    if (a.type !== type) return false
+    if (isSource) return a.sourceBoxId === boxId
+    // For boundary arrows entering this box: targetBoxId is this box AND no inter-box connection
+    return a.targetBoxId === boxId
+  })
+}
+
+function addArrow(type) {
+  if (!selectedBox.value) return
+  const boxId = selectedBox.value.id
+  const n = arrowsForBox(boxId, type).length
+  const isSource = type === 'output'
+  currentDiagram.value.arrows.push({
+    id: uid(),
+    label: `${type[0].toUpperCase()}${n + 1}`,
+    type,
+    sourceBoxId: isSource ? boxId : null,
+    targetBoxId: isSource ? null : boxId,
+    targetSide: null,  // null = boundary; 'left'|'top'|'bottom' = inter-box connection
+  })
+  schedSave()
+}
+
+function removeArrow(arrowId) {
+  const idx = currentDiagram.value.arrows.findIndex(a => a.id === arrowId)
+  if (idx !== -1) currentDiagram.value.arrows.splice(idx, 1)
+  schedSave()
+}
+
+// ----- Diagram navigation -----
+function navigateTo(id) {
+  if (!project.diagrams[id]) return
+  currentDiagramId.value = id
+  selectedBoxId.value = null
+}
+
+function navigateUp() {
+  for (const [pid, children] of Object.entries(project.childMap)) {
+    if (children.includes(currentDiagramId.value)) { navigateTo(pid); return }
+  }
+}
+
+function decompose() {
+  if (!selectedBox.value) return
+  const box = selectedBox.value
+  const parentId = currentDiagramId.value
+  const idx = currentDiagram.value.boxes.indexOf(box)
+  const childId = parentId === 'A0' ? `A${idx + 1}` : `${parentId}${idx + 1}`
+  if (!project.diagrams[childId]) {
+    project.diagrams[childId] = { id: childId, title: box.label, boxes: [], arrows: [] }
+    if (!project.childMap[parentId]) project.childMap[parentId] = []
+    if (!project.childMap[parentId].includes(childId)) project.childMap[parentId].push(childId)
+  }
+  navigateTo(childId)
+}
+
+const canGoUp = computed(() => {
+  for (const children of Object.values(project.childMap)) {
+    if (children.includes(currentDiagramId.value)) return true
+  }
+  return false
+})
+
+// ----- Arrow geometry -----
+//
+// Arrow data model:
+//   Boundary (current default):
+//     output:    sourceBoxId=box, targetBoxId=null,  targetSide=null
+//     input:     sourceBoxId=null, targetBoxId=box,  targetSide=null
+//     control:   sourceBoxId=null, targetBoxId=box,  targetSide=null
+//     mechanism: sourceBoxId=null, targetBoxId=box,  targetSide=null
+//
+//   Inter-box connection (after drag-to-connect):
+//     output:    sourceBoxId=boxA, targetBoxId=boxB, targetSide='left'|'top'|'bottom'
+//
+// arrowPoints returns:
+//   { boxPt, farPt, start, end, mid, segments?, arrowAtBox }
+//   - start/end: from → to (arrowhead at 'end')
+//   - segments: array of {x,y} for multi-segment path (Manhattan routing)
+//   - arrowAtBox: true if arrowhead is at the box connection point (input/control/mechanism)
+
+function arrowPoints(arrow) {
+  const isSource = arrow.type === 'output'
+  const boxId = isSource ? arrow.sourceBoxId : arrow.targetBoxId
+  const box = currentDiagram.value.boxes.find(b => b.id === boxId)
+  if (!box) return null
+
+  const siblings = arrowsForBox(boxId, arrow.type)
+  const i = siblings.findIndex(a => a.id === arrow.id)
+  const n = siblings.length
+  const frac = (i + 1) / (n + 1)
+
+  let boxPt, arrowAtBox
+
+  switch (arrow.type) {
+    case 'input':    boxPt = { x: box.x,              y: box.y + frac * box.height }; arrowAtBox = true;  break
+    case 'control':  boxPt = { x: box.x + frac * box.width, y: box.y }; arrowAtBox = true;  break
+    case 'output':   boxPt = { x: box.x + box.width,  y: box.y + frac * box.height }; arrowAtBox = false; break
+    case 'mechanism':boxPt = { x: box.x + frac * box.width, y: box.y + box.height }; arrowAtBox = true;  break
+    default: return null
+  }
+
+  // ── Inter-box connection (output → target box) ──
+  if (arrow.type === 'output' && arrow.targetBoxId) {
+    const tBox = currentDiagram.value.boxes.find(b => b.id === arrow.targetBoxId)
+    if (tBox) {
+      const side = arrow.targetSide ?? 'left'
+      const sideArrows = currentDiagram.value.arrows.filter(
+        a => a.targetBoxId === tBox.id && a.targetSide === side && a.type === 'output'
+      )
+      const ti = sideArrows.findIndex(a => a.id === arrow.id)
+      const tn = sideArrows.length
+      const tf = (ti + 1) / (tn + 1)
+
+      let targetPt
+      if (side === 'left')   targetPt = { x: tBox.x,              y: tBox.y + tf * tBox.height }
+      else if (side === 'top')    targetPt = { x: tBox.x + tf * tBox.width, y: tBox.y }
+      else                        targetPt = { x: tBox.x + tf * tBox.width, y: tBox.y + tBox.height }
+
+      // Manhattan routing
+      // - left:   Z-shape (right → vertical → left); arrowhead enters left side →
+      // - top:    route ABOVE the box, approach DOWN ↓ into top
+      // - bottom: route BELOW the box, approach UP ↑ into bottom
+      let segs
+      const halfGap = BOUNDARY_GAP / 2
+      if (side === 'left') {
+        const midX = (boxPt.x + targetPt.x) / 2
+        segs = [boxPt, { x: midX, y: boxPt.y }, { x: midX, y: targetPt.y }, targetPt]
+      } else if (side === 'top') {
+        // Go right from source, detour ABOVE tBox, then come DOWN into top
+        const aboveY = tBox.y - halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: aboveY }, { x: targetPt.x, y: aboveY }, targetPt]
+      } else {
+        // bottom — Go right from source, detour BELOW tBox, then come UP into bottom
+        const belowY = tBox.y + tBox.height + halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: belowY }, { x: targetPt.x, y: belowY }, targetPt]
+      }
+
+      const mid = { x: (boxPt.x + targetPt.x) / 2, y: (boxPt.y + targetPt.y) / 2 }
+      return { boxPt, farPt: targetPt, start: boxPt, end: targetPt, mid, segments: segs, arrowAtBox: false }
+    }
+  }
+
+  // ── Boundary arrow ──
+  let farPt
+  switch (arrow.type) {
+    case 'input':    farPt = { x: boxPt.x - BOUNDARY_GAP, y: boxPt.y }; break
+    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - BOUNDARY_GAP }; break
+    case 'output':   farPt = { x: boxPt.x + BOUNDARY_GAP, y: boxPt.y }; break
+    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + BOUNDARY_GAP }; break
+  }
+
+  const start = arrowAtBox ? farPt : boxPt
+  const end   = arrowAtBox ? boxPt  : farPt
+  const mid   = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+  return { boxPt, farPt, start, end, mid, segments: null, arrowAtBox }
+}
+
+// The moveable far-end of an output arrow (the end user can drag to connect)
+function arrowFarPt(arrow) {
+  const pts = arrowPoints(arrow)
+  if (!pts) return null
+  if (pts.segments) return pts.segments[pts.segments.length - 1]
+  return pts.farPt
+}
+
+function pathD(arrow) {
+  const pts = arrowPoints(arrow)
+  if (!pts) return ''
+  if (pts.segments) {
+    return 'M ' + pts.segments.map(p => `${p.x} ${p.y}`).join(' L ')
+  }
+  return `M ${pts.start.x} ${pts.start.y} L ${pts.end.x} ${pts.end.y}`
+}
+
+function headPoly(arrow) {
+  const pts = arrowPoints(arrow)
+  if (!pts) return ''
+  let start, end
+  if (pts.segments && pts.segments.length >= 2) {
+    start = pts.segments[pts.segments.length - 2]
+    end   = pts.segments[pts.segments.length - 1]
+  } else {
+    start = pts.start; end = pts.end
+  }
+  const dx = end.x - start.x; const dy = end.y - start.y
+  const len = Math.hypot(dx, dy); if (len === 0) return ''
+  const nx = dx / len; const ny = dy / len
+  const px = -ny;    const py = nx
+  const S = 7
+  return [
+    `${end.x},${end.y}`,
+    `${end.x - nx * S + px * (S / 2)},${end.y - ny * S + py * (S / 2)}`,
+    `${end.x - nx * S - px * (S / 2)},${end.y - ny * S - py * (S / 2)}`,
+  ].join(' ')
+}
+
+function labelTransform(arrow) {
+  const pts = arrowPoints(arrow)
+  if (!pts) return ''
+  const { mid } = pts
+  const isVert = arrow.type === 'control' || arrow.type === 'mechanism'
+  return isVert
+    ? `translate(${mid.x + 9},${mid.y}) rotate(-90)`
+    : `translate(${mid.x},${mid.y - 5})`
+}
+
+// ----- Corner resize handles -----
+function boxCorners(box) {
+  return [
+    { id: 'nw', cx: box.x,             cy: box.y },
+    { id: 'ne', cx: box.x + box.width, cy: box.y },
+    { id: 'se', cx: box.x + box.width, cy: box.y + box.height },
+    { id: 'sw', cx: box.x,             cy: box.y + box.height },
+  ]
+}
+
+// ----- Viewport -----
+const canvasWrap = ref(null)
+const panX = ref(50)
+const panY = ref(50)
+const scale = ref(1)
+
+const dotSpc = computed(() => 24 * scale.value)
+const dotOX  = computed(() => ((panX.value % dotSpc.value) + dotSpc.value) % dotSpc.value)
+const dotOY  = computed(() => ((panY.value % dotSpc.value) + dotSpc.value) % dotSpc.value)
+
+function screenToWorld(sx, sy) {
+  const rect = canvasWrap.value.getBoundingClientRect()
+  return {
+    x: (sx - rect.left - panX.value) / scale.value,
+    y: (sy - rect.top  - panY.value) / scale.value,
+  }
+}
+
+function onWheel(e) {
+  e.preventDefault()
+  const rect = canvasWrap.value.getBoundingClientRect()
+  const mx = e.clientX - rect.left; const my = e.clientY - rect.top
+  const f = e.deltaY < 0 ? 1.12 : 0.88
+  const ns = Math.min(4, Math.max(0.08, scale.value * f))
+  panX.value = mx - (mx - panX.value) * (ns / scale.value)
+  panY.value = my - (my - panY.value) * (ns / scale.value)
+  scale.value = ns
+}
+
+function zoomBy(f) {
+  const w = canvasWrap.value?.clientWidth ?? 800; const h = canvasWrap.value?.clientHeight ?? 500
+  const mx = w / 2; const my = h / 2
+  const ns = Math.min(4, Math.max(0.08, scale.value * f))
+  panX.value = mx - (mx - panX.value) * (ns / scale.value)
+  panY.value = my - (my - panY.value) * (ns / scale.value)
+  scale.value = ns
+}
+
+function fitToView() {
+  const boxes = currentDiagram.value.boxes
+  if (!boxes.length) { panX.value = 50; panY.value = 50; scale.value = 1; return }
+  const w = canvasWrap.value?.clientWidth ?? 800; const h = canvasWrap.value?.clientHeight ?? 500
+  const pad = BOUNDARY_GAP + 30
+  const x0 = Math.min(...boxes.map(b => b.x)) - pad
+  const y0 = Math.min(...boxes.map(b => b.y)) - pad
+  const x1 = Math.max(...boxes.map(b => b.x + b.width))  + pad
+  const y1 = Math.max(...boxes.map(b => b.y + b.height)) + pad
+  const ns = Math.min(w / (x1 - x0), h / (y1 - y0), 2) * 0.9
+  scale.value = ns
+  panX.value = (w - (x1 - x0) * ns) / 2 - x0 * ns
+  panY.value = (h - (y1 - y0) * ns) / 2 - y0 * ns
+}
+
+// ----- Box drag / resize -----
+const drag = ref(null)
+
+const cursorStyle = computed(() => {
+  if (drag.value?.type === 'pan' || drag.value?.type === 'box') return 'grabbing'
+  if (arrowDrag.value) return 'crosshair'
+  return 'default'
+})
+
+function onCanvasDown(e) {
+  if (e.button !== 0) return
+  selectedBoxId.value = null
+  drag.value = { type: 'pan', startX: e.clientX, startY: e.clientY, ox: panX.value, oy: panY.value }
+}
+
+function onBoxDown(box, e) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  selectedBoxId.value = box.id
+  drag.value = { type: 'box', boxId: box.id, startX: e.clientX, startY: e.clientY, ox: box.x, oy: box.y }
+}
+
+function onCornerDown(box, corner, e) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  drag.value = {
+    type: 'resize', boxId: box.id, corner: corner.id,
+    startX: e.clientX, startY: e.clientY,
+    ox: box.x, oy: box.y, ow: box.width, oh: box.height,
+  }
+}
+
+// ----- Arrow endpoint drag-to-connect -----
+const arrowDrag = ref(null)
+// { arrowId: string, mouseX: number, mouseY: number }  in world coords
+
+// Only output arrows can be drag-connected to target boxes
+const outputArrows = computed(() =>
+  currentDiagram.value.arrows.filter(a => a.type === 'output')
+)
+
+// Snap target while dragging: nearest box side within SNAP_DIST
+const snapTarget = computed(() => {
+  if (!arrowDrag.value) return null
+  const { arrowId, mouseX, mouseY } = arrowDrag.value
+  const arrow = currentDiagram.value.arrows.find(a => a.id === arrowId)
+  if (!arrow) return null
+
+  let best = null, bestDist = SNAP_DIST
+
+  for (const box of currentDiagram.value.boxes) {
+    if (box.id === arrow.sourceBoxId) continue  // skip own box
+
+    // Left side
+    const dL = Math.abs(mouseX - box.x)
+    if (dL < bestDist && mouseY >= box.y - SNAP_DIST && mouseY <= box.y + box.height + SNAP_DIST) {
+      const snapY = Math.max(box.y + 8, Math.min(box.y + box.height - 8, mouseY))
+      best = { boxId: box.id, side: 'left', pt: { x: box.x, y: snapY } }
+      bestDist = dL
+    }
+    // Top side
+    const dT = Math.abs(mouseY - box.y)
+    if (dT < bestDist && mouseX >= box.x - SNAP_DIST && mouseX <= box.x + box.width + SNAP_DIST) {
+      const snapX = Math.max(box.x + 8, Math.min(box.x + box.width - 8, mouseX))
+      best = { boxId: box.id, side: 'top', pt: { x: snapX, y: box.y } }
+      bestDist = dT
+    }
+    // Bottom side
+    const dB = Math.abs(mouseY - (box.y + box.height))
+    if (dB < bestDist && mouseX >= box.x - SNAP_DIST && mouseX <= box.x + box.width + SNAP_DIST) {
+      const snapX = Math.max(box.x + 8, Math.min(box.x + box.width - 8, mouseX))
+      best = { boxId: box.id, side: 'bottom', pt: { x: snapX, y: box.y + box.height } }
+      bestDist = dB
+    }
+  }
+  return best
+})
+
+// The world-coord endpoint shown during arrow drag (snapped or free)
+const arrowDragEndPt = computed(() => {
+  if (!arrowDrag.value) return null
+  return snapTarget.value?.pt ?? { x: arrowDrag.value.mouseX, y: arrowDrag.value.mouseY }
+})
+
+// Preview path from source boxPt to drag endpoint
+const arrowDragPreviewPath = computed(() => {
+  if (!arrowDrag.value) return ''
+  const arrow = currentDiagram.value.arrows.find(a => a.id === arrowDrag.value.arrowId)
+  if (!arrow) return ''
+  const pts = arrowPoints(arrow)
+  if (!pts) return ''
+  const ep = arrowDragEndPt.value
+  if (!ep) return ''
+  const src = pts.boxPt  // always the box connection point
+  const side = snapTarget.value?.side
+  const halfGap = BOUNDARY_GAP / 2
+  if (side === 'left') {
+    const midX = (src.x + ep.x) / 2
+    return `M ${src.x} ${src.y} H ${midX} V ${ep.y} H ${ep.x}`
+  } else if (side === 'top') {
+    const aboveY = ep.y - halfGap
+    const pivotX = src.x + halfGap
+    return `M ${src.x} ${src.y} H ${pivotX} V ${aboveY} H ${ep.x} V ${ep.y}`
+  } else if (side === 'bottom') {
+    const belowY = ep.y + halfGap
+    const pivotX = src.x + halfGap
+    return `M ${src.x} ${src.y} H ${pivotX} V ${belowY} H ${ep.x} V ${ep.y}`
+  }
+  return `M ${src.x} ${src.y} L ${ep.x} ${ep.y}`
+})
+
+// The snap-target box sides highlight geometry (for visual feedback)
+const snapHighlight = computed(() => {
+  if (!snapTarget.value) return null
+  const box = currentDiagram.value.boxes.find(b => b.id === snapTarget.value.boxId)
+  if (!box) return null
+  const { side } = snapTarget.value
+  if (side === 'left')   return { x1: box.x, y1: box.y, x2: box.x, y2: box.y + box.height }
+  if (side === 'top')    return { x1: box.x, y1: box.y, x2: box.x + box.width, y2: box.y }
+  if (side === 'bottom') return { x1: box.x, y1: box.y + box.height, x2: box.x + box.width, y2: box.y + box.height }
+  return null
+})
+
+function onArrowEndDown(arrow, e) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  drag.value = null  // cancel any box drag
+  const w = screenToWorld(e.clientX, e.clientY)
+  arrowDrag.value = { arrowId: arrow.id, mouseX: w.x, mouseY: w.y }
+}
+
+// ----- Global mouse move / up -----
+function onMouseMove(e) {
+  // Arrow endpoint drag
+  if (arrowDrag.value) {
+    const w = screenToWorld(e.clientX, e.clientY)
+    arrowDrag.value = { ...arrowDrag.value, mouseX: w.x, mouseY: w.y }
+    return
+  }
+
+  if (!drag.value) return
+  const dx = e.clientX - drag.value.startX; const dy = e.clientY - drag.value.startY
+
+  if (drag.value.type === 'pan') {
+    panX.value = drag.value.ox + dx
+    panY.value = drag.value.oy + dy
+    return
+  }
+
+  const box = currentDiagram.value.boxes.find(b => b.id === drag.value.boxId)
+  if (!box) return
+  const wdx = dx / scale.value; const wdy = dy / scale.value
+  const MIN = 80
+
+  if (drag.value.type === 'box') {
+    box.x = drag.value.ox + wdx
+    box.y = drag.value.oy + wdy
+  } else {
+    const { corner: c, ox, oy, ow, oh } = drag.value
+    if (c === 'se') {
+      box.width  = Math.max(MIN, ow + wdx)
+      box.height = Math.max(MIN, oh + wdy)
+    } else if (c === 'sw') {
+      const nw = Math.max(MIN, ow - wdx)
+      box.x = ox + (ow - nw); box.width = nw
+      box.height = Math.max(MIN, oh + wdy)
+    } else if (c === 'ne') {
+      box.width = Math.max(MIN, ow + wdx)
+      const nh = Math.max(MIN, oh - wdy)
+      box.y = oy + (oh - nh); box.height = nh
+    } else if (c === 'nw') {
+      const nw = Math.max(MIN, ow - wdx); const nh = Math.max(MIN, oh - wdy)
+      box.x = ox + (ow - nw); box.width = nw
+      box.y = oy + (oh - nh); box.height = nh
+    }
+  }
+}
+
+function onMouseUp() {
+  // Finalize arrow endpoint drag
+  if (arrowDrag.value) {
+    const arrow = currentDiagram.value.arrows.find(a => a.id === arrowDrag.value.arrowId)
+    if (arrow) {
+      if (snapTarget.value) {
+        arrow.targetBoxId = snapTarget.value.boxId
+        arrow.targetSide  = snapTarget.value.side
+      } else {
+        // Drop on empty space → revert to boundary
+        arrow.targetBoxId = null
+        arrow.targetSide  = null
+      }
+      schedSave()
+    }
+    arrowDrag.value = null
+    return
+  }
+
+  if (drag.value && drag.value.type !== 'pan') schedSave()
+  drag.value = null
+}
+
+// Disconnect inter-box arrow back to boundary (double-click on endpoint handle)
+function disconnectArrow(arrow) {
+  arrow.targetBoxId = null
+  arrow.targetSide  = null
+  schedSave()
+}
+
+// ----- Persistence -----
+let _saveTimer = null
+function schedSave() {
+  clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => saveProject(JSON.parse(JSON.stringify(project))), 400)
+}
+
+async function loadFromDb() {
+  try {
+    const saved = await loadProject()
+    if (saved?.diagrams) {
+      Object.assign(project, saved)
+      if (!project.diagrams[currentDiagramId.value]) {
+        currentDiagramId.value = project.rootId ?? 'A0'
+      }
+    }
+  } catch (e) { console.warn('[idef0] load failed', e) }
+}
+
+// ----- FIPS 183 Document Export -----
+
+function escXml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function getDiagramOrder() {
+  const queue = [project.rootId ?? 'A0']
+  const visited = new Set()
+  const result = []
+  while (queue.length) {
+    const id = queue.shift()
+    if (visited.has(id) || !project.diagrams[id]) continue
+    visited.add(id)
+    result.push(id)
+    for (const childId of (project.childMap[id] ?? [])) queue.push(childId)
+  }
+  return result
+}
+
+function getParentId(diagId) {
+  for (const [pid, children] of Object.entries(project.childMap)) {
+    if (children.includes(diagId)) return pid
+  }
+  return null
+}
+
+function arrowPtsForDiag(arrow, diag) {
+  const isSource = arrow.type === 'output'
+  const boxId = isSource ? arrow.sourceBoxId : arrow.targetBoxId
+  const box = diag.boxes.find(b => b.id === boxId)
+  if (!box) return null
+
+  const siblings = diag.arrows.filter(a => {
+    if (a.type !== arrow.type) return false
+    return isSource ? a.sourceBoxId === boxId : a.targetBoxId === boxId
+  })
+  const i = siblings.findIndex(a => a.id === arrow.id)
+  const n = siblings.length
+  const frac = (i + 1) / (n + 1)
+
+  let boxPt, arrowAtBox
+  switch (arrow.type) {
+    case 'input':    boxPt = { x: box.x,             y: box.y + frac * box.height }; arrowAtBox = true;  break
+    case 'control':  boxPt = { x: box.x + frac * box.width, y: box.y };             arrowAtBox = true;  break
+    case 'output':   boxPt = { x: box.x + box.width, y: box.y + frac * box.height }; arrowAtBox = false; break
+    case 'mechanism':boxPt = { x: box.x + frac * box.width, y: box.y + box.height }; arrowAtBox = true;  break
+    default: return null
+  }
+
+  if (arrow.type === 'output' && arrow.targetBoxId) {
+    const tBox = diag.boxes.find(b => b.id === arrow.targetBoxId)
+    if (tBox) {
+      const side = arrow.targetSide ?? 'left'
+      const sideArrows = diag.arrows.filter(a => a.targetBoxId === tBox.id && a.targetSide === side && a.type === 'output')
+      const ti = sideArrows.findIndex(a => a.id === arrow.id)
+      const tf = (ti + 1) / (sideArrows.length + 1)
+      let targetPt
+      if (side === 'left')        targetPt = { x: tBox.x,                    y: tBox.y + tf * tBox.height }
+      else if (side === 'top')    targetPt = { x: tBox.x + tf * tBox.width,  y: tBox.y }
+      else                        targetPt = { x: tBox.x + tf * tBox.width,  y: tBox.y + tBox.height }
+
+      const halfGap = BOUNDARY_GAP / 2
+      let segs
+      if (side === 'left') {
+        const midX = (boxPt.x + targetPt.x) / 2
+        segs = [boxPt, { x: midX, y: boxPt.y }, { x: midX, y: targetPt.y }, targetPt]
+      } else if (side === 'top') {
+        const aboveY = tBox.y - halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: aboveY }, { x: targetPt.x, y: aboveY }, targetPt]
+      } else {
+        const belowY = tBox.y + tBox.height + halfGap
+        const pivotX = boxPt.x + halfGap
+        segs = [boxPt, { x: pivotX, y: boxPt.y }, { x: pivotX, y: belowY }, { x: targetPt.x, y: belowY }, targetPt]
+      }
+      const mid = { x: (boxPt.x + targetPt.x) / 2, y: (boxPt.y + targetPt.y) / 2 }
+      return { start: boxPt, end: targetPt, mid, segments: segs }
+    }
+  }
+
+  let farPt
+  switch (arrow.type) {
+    case 'input':    farPt = { x: boxPt.x - BOUNDARY_GAP, y: boxPt.y }; break
+    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - BOUNDARY_GAP }; break
+    case 'output':   farPt = { x: boxPt.x + BOUNDARY_GAP, y: boxPt.y }; break
+    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + BOUNDARY_GAP }; break
+  }
+  const start = arrowAtBox ? farPt : boxPt
+  const end   = arrowAtBox ? boxPt  : farPt
+  const mid   = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+  return { start, end, mid, segments: null }
+}
+
+function exportHeadPoly(start, end) {
+  const dx = end.x - start.x; const dy = end.y - start.y
+  const len = Math.hypot(dx, dy); if (!len) return ''
+  const nx = dx / len; const ny = dy / len; const S = 7
+  return `${end.x},${end.y} ${end.x - nx*S - ny*(S/2)},${end.y - ny*S + nx*(S/2)} ${end.x - nx*S + ny*(S/2)},${end.y - ny*S - nx*(S/2)}`
+}
+
+function exportSvgArrow(arrow, diag) {
+  const pts = arrowPtsForDiag(arrow, diag)
+  if (!pts) return ''
+  const color = ARROW_META[arrow.type]?.color ?? '#666'
+  const segs = pts.segments ?? [pts.start, pts.end]
+  const d = 'M ' + segs.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L ')
+  const n = segs.length
+  const poly = exportHeadPoly(segs[n - 2], segs[n - 1])
+  const { mid } = pts
+  const isVert = arrow.type === 'control' || arrow.type === 'mechanism'
+  const rot = isVert ? ` transform="rotate(-90,${mid.x.toFixed(1)},${mid.y.toFixed(1)})"` : ''
+  const lx = (mid.x + (isVert ? 9 : 0)).toFixed(1), ly = (mid.y + (isVert ? 0 : -5)).toFixed(1)
+  return [
+    `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.5"/>`,
+    poly ? `<polygon points="${poly}" fill="${color}"/>` : '',
+    `<text x="${lx}" y="${ly}" font-size="11" font-family="Arial,sans-serif" fill="#333" text-anchor="middle"${rot}>${escXml(arrow.label ?? '')}</text>`,
+  ].join('')
+}
+
+function exportSvgBox(box) {
+  const lw = box.width - 16, lh = box.height - 22, fs = 13
+  const words = (box.label ?? '').split(/\s+/)
+  const maxCh = Math.floor(lw / (fs * 0.58))
+  let line = '', lines = []
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    if (test.length <= maxCh) { line = test } else { if (line) lines.push(line); line = w }
+  }
+  if (line) lines.push(line)
+  const totalH = lines.length * (fs * 1.35)
+  const textY = (box.y + 8) + (lh - totalH) / 2 + fs
+  let textEl = `<text x="${(box.x + 8 + lw / 2).toFixed(1)}" y="${textY.toFixed(1)}" font-size="${fs}" font-family="Arial,sans-serif" fill="#111" text-anchor="middle">`
+  for (let i = 0; i < lines.length; i++) {
+    textEl += `<tspan x="${(box.x + 8 + lw / 2).toFixed(1)}" dy="${i === 0 ? 0 : fs * 1.35}">${escXml(lines[i])}</tspan>`
+  }
+  textEl += '</text>'
+  return [
+    `<rect x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" rx="3" fill="white" stroke="#4b5563" stroke-width="1.5"/>`,
+    `<text x="${(box.x + box.width - 5).toFixed(1)}" y="${(box.y + box.height - 5).toFixed(1)}" font-size="9" font-family="Arial,sans-serif" fill="#9ca3af" text-anchor="end">${escXml(box.nodeNumber ?? '')}</text>`,
+    textEl,
+  ].join('')
+}
+
+function exportTitleBlock(diagId, diag, pageNum, totalPages) {
+  const W = 1100, Y = 720, H = 130, USED_W = 200
+  const now = new Date().toLocaleDateString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const parentId = getParentId(diagId) ?? '–'
+  const rootDiag = project.diagrams[project.rootId ?? 'A0']
+  const projectName = rootDiag?.title ?? 'Untitled'
+  const rx = USED_W + 2
+
+  let s = ''
+  s += `<rect x="2" y="${Y}" width="${W - 4}" height="${H - 2}" fill="white" stroke="#333" stroke-width="1.5"/>`
+
+  // USED AT (left column)
+  s += `<rect x="2" y="${Y}" width="${USED_W}" height="${H - 2}" fill="none" stroke="#333" stroke-width="0.8"/>`
+  s += `<text x="6" y="${Y + 11}" font-size="8" font-family="Arial,sans-serif" fill="#555" font-weight="600">USED AT:</text>`
+  s += `<text x="6" y="${Y + 30}" font-size="13" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(parentId)}</text>`
+  s += `<line x1="2" y1="${Y + 65}" x2="${USED_W + 2}" y2="${Y + 65}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="6" y="${Y + 76}" font-size="8" font-family="Arial,sans-serif" fill="#555" font-weight="600">CONTEXT:</text>`
+
+  // Right section rows
+  // Row 1: Author / Date / Rev / status checkboxes
+  s += `<line x1="${rx}" y1="${Y + 24}" x2="${W - 2}" y2="${Y + 24}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">AUTHOR:</text>`
+  s += `<text x="${rx + 200}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">DATE:</text>`
+  s += `<text x="${rx + 234}" y="${Y + 13}" font-size="9" font-family="Arial,sans-serif" fill="#111">${now}</text>`
+  s += `<text x="${rx + 370}" y="${Y + 13}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">REV:</text>`
+  s += `<text x="${rx + 395}" y="${Y + 13}" font-size="9" font-family="Arial,sans-serif" fill="#111">0</text>`
+
+  // Status checkboxes
+  for (const [j, lbl] of ['Working', 'Draft', 'Recommended', 'Publication'].entries()) {
+    const cx = W - 295 + j * 74
+    s += `<rect x="${cx}" y="${Y + 3}" width="10" height="10" fill="none" stroke="#555" stroke-width="0.8"/>`
+    s += `<text x="${cx + 13}" y="${Y + 12}" font-size="8" font-family="Arial,sans-serif" fill="#333">${lbl}</text>`
+  }
+
+  // Row 2: Project
+  s += `<line x1="${rx}" y1="${Y + 42}" x2="${W - 2}" y2="${Y + 42}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 35}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">PROJECT:</text>`
+  s += `<text x="${rx + 54}" y="${Y + 35}" font-size="9" font-family="Arial,sans-serif" fill="#111">${escXml(projectName)}</text>`
+
+  // Row 3: Notes
+  s += `<line x1="${rx}" y1="${Y + 65}" x2="${W - 2}" y2="${Y + 65}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 55}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NOTES:</text>`
+  const noteNums = Array.from({ length: 10 }, (_, i) => i + 1).join('  ')
+  s += `<text x="${rx + 44}" y="${Y + 55}" font-size="8" font-family="Arial,sans-serif" fill="#aaa">${noteNums}</text>`
+
+  // Row 4: Title (big)
+  s += `<line x1="${rx}" y1="${Y + 92}" x2="${W - 2}" y2="${Y + 92}" stroke="#888" stroke-width="0.5"/>`
+  s += `<text x="${rx + 4}" y="${Y + 80}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">TITLE:</text>`
+  s += `<text x="${rx + 48}" y="${Y + 82}" font-size="14" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(diag.title ?? diagId)}</text>`
+
+  // Row 5: Node / Number / Page
+  s += `<text x="${rx + 4}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NODE:</text>`
+  s += `<text x="${rx + 42}" y="${Y + 108}" font-size="13" font-family="Arial,sans-serif" fill="#111" font-weight="700">${escXml(diagId)}</text>`
+  s += `<text x="${rx + 140}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">NUMBER:</text>`
+  s += `<text x="${W - 130}" y="${Y + 108}" font-size="7.5" font-family="Arial,sans-serif" fill="#555" font-weight="600">PAGE:</text>`
+  s += `<text x="${W - 95}" y="${Y + 108}" font-size="10" font-family="Arial,sans-serif" fill="#111">${pageNum} of ${totalPages}</text>`
+
+  return s
+}
+
+function buildDiagramSVGString(diagId, pageNum, totalPages) {
+  const diag = project.diagrams[diagId]
+  const boxes = diag.boxes ?? []
+  const arrows = diag.arrows ?? []
+
+  const PAGE_W = 1100, PAGE_H = 850, AREA_H = 720, MARGIN = 30
+  const pad = BOUNDARY_GAP + 20
+
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const b of boxes) {
+    x0 = Math.min(x0, b.x - pad); y0 = Math.min(y0, b.y - pad)
+    x1 = Math.max(x1, b.x + b.width + pad); y1 = Math.max(y1, b.y + b.height + pad)
+  }
+  if (!boxes.length || !isFinite(x0)) { x0 = 0; y0 = 0; x1 = 800; y1 = 600 }
+
+  const cW = x1 - x0, cH = y1 - y0
+  const availW = PAGE_W - 2 * MARGIN, availH = AREA_H - 2 * MARGIN
+  const sc = Math.min(availW / cW, availH / cH, 1.5)
+  const tx = (MARGIN + (availW - cW * sc) / 2 - x0 * sc).toFixed(2)
+  const ty = (MARGIN + (availH - cH * sc) / 2 - y0 * sc).toFixed(2)
+
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${PAGE_W}" height="${PAGE_H}" viewBox="0 0 ${PAGE_W} ${PAGE_H}">`
+  s += `<rect width="${PAGE_W}" height="${PAGE_H}" fill="white"/>`
+  s += `<rect x="2" y="2" width="${PAGE_W - 4}" height="${AREA_H - 2}" fill="#fafafa" stroke="#bbb" stroke-width="0.8"/>`
+
+  // Arrowhead marker defs
+  s += `<defs><marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0,0 7,3.5 0,7" fill="#888"/></marker></defs>`
+
+  s += `<g transform="translate(${tx},${ty}) scale(${sc.toFixed(4)})">`
+  for (const a of arrows) s += exportSvgArrow(a, diag)
+  for (const b of boxes)  s += exportSvgBox(b)
+  s += `</g>`
+
+  s += exportTitleBlock(diagId, diag, pageNum, totalPages)
+  s += `</svg>`
+  return s
+}
+
+async function downloadAsPNG(svgStr, filename) {
+  return new Promise(resolve => {
+    const W = 1100, H = 850
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = W * 2; canvas.height = H * 2
+      const ctx = canvas.getContext('2d')
+      ctx.scale(2, 2)
+      ctx.fillStyle = 'white'; ctx.fillRect(0, 0, W, H)
+      ctx.drawImage(img, 0, 0, W, H)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(b => {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: filename })
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+        resolve()
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve() }
+    img.src = url
+  })
+}
+
+async function exportDocument() {
+  const order = getDiagramOrder()
+  const total = order.length
+  for (let i = 0; i < order.length; i++) {
+    const diagId = order[i]
+    const svgStr = buildDiagramSVGString(diagId, i + 1, total)
+    await downloadAsPNG(svgStr, `IDEF0-${diagId}.png`)
+    if (i < order.length - 1) await new Promise(r => setTimeout(r, 300))
+  }
+}
+
+// ----- Import / Export -----
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  Object.assign(document.createElement('a'), { href: url, download: 'idef0-project.json' }).click()
+  URL.revokeObjectURL(url)
+}
+
+function importJSON() {
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json' })
+  input.onchange = e => {
+    const file = e.target.files[0]; if (!file) return
+    const r = new FileReader()
+    r.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result)
+        if (data?.diagrams) {
+          Object.assign(project, data)
+          currentDiagramId.value = data.rootId ?? 'A0'
+          selectedBoxId.value = null
+          schedSave()
+        }
+      } catch { alert('Неверный формат JSON') }
+    }
+    r.readAsText(file)
+  }
+  input.click()
+}
+
+// ----- Lifecycle -----
+onMounted(async () => {
+  await loadFromDb()
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup', onMouseUp)
+  clearTimeout(_saveTimer)
+})
+</script>
+
 <template>
-  <div class="idef0-editor">
-    <canvas
-      ref="canvasEl"
-      class="idef0-canvas"
-      @mousedown="onMouseDown"
-      @mousemove="onMouseMove"
-      @mouseup="onMouseUp"
-      @mouseleave="onMouseUp"
-      @wheel.prevent="onWheel"
-      @dblclick="onDoubleClick"
-    />
+  <div class="idef0-root" :style="{ cursor: cursorStyle }">
 
-    <div v-if="editing" class="idef0-inline-editor" :style="editorStyle">
-      <input
-        ref="editorInput"
-        v-model="editing.text"
-        @blur="finishEdit"
-        @keydown.enter="finishEdit"
-        @keydown.esc="cancelEdit"
-      />
-    </div>
-
+    <!-- ═══ TOOLBAR ═══ -->
     <div class="idef0-toolbar">
-      <button @click="addBlock" title="Добавить блок">+ Блок</button>
-      <span class="idef0-separator" />
-      <button v-if="canGoBack" @click="goBack">← Назад</button>
-      <button v-if="selectedBlock && selectedBlock.diagramId" @click="enterBlock">↳ Войти</button>
-      <button v-if="selectedBlock && !selectedBlock.diagramId" @click="createNestedDiagram">+ Вложить</button>
-      <span class="idef0-separator" />
-      <button @click="exportPNG">PNG</button>
-      <button @click="exportSVG">SVG</button>
-      <button @click="exportJSON">JSON</button>
-      <span class="idef0-separator" />
-      <span class="idef0-breadcrumb">
-        <span
-          v-for="(crumb, idx) in breadcrumb"
-          :key="crumb.id"
-          class="idef0-crumb"
-          :class="{ 'idef0-crumb-active': crumb.id === currentDiagramId }"
-          @click="navigateToDiagram(crumb.id)"
-        >
-          {{ crumb.name }}
-          <span v-if="idx < breadcrumb.length - 1">›</span>
-        </span>
-      </span>
-      <span class="idef0-zoom">{{ Math.round(scale * 100) }}%</span>
+      <button class="tb-btn" @click="addBox">＋ Function</button>
+      <div class="tb-sep"/>
+      <button class="tb-btn" @click="decompose" :disabled="!selectedBox">⊕ Decompose</button>
+      <button class="tb-btn" @click="navigateUp" :disabled="!canGoUp">↑ Parent</button>
+      <div class="tb-sep"/>
+      <span class="tb-diag">{{ currentDiagramId }}</span>
+      <span class="tb-title">{{ currentDiagram.title }}</span>
+      <div class="tb-spacer"/>
+      <button class="tb-btn" @click="schedSave">Save</button>
+      <button class="tb-btn" @click="importJSON">Load</button>
+      <button class="tb-btn" @click="exportJSON">Export JSON</button>
+      <button class="tb-btn tb-btn-doc" @click="exportDocument">Export Document</button>
     </div>
 
-    <div v-if="errors.length" class="idef0-status-bar idef0-status-error">
-      Ошибки: {{ errors.map(e => e.message).join('; ') }}
+    <!-- ═══ THREE PANELS ═══ -->
+    <div class="idef0-main">
+
+      <!-- ── LEFT: Diagram Navigator ── -->
+      <div class="idef0-nav">
+        <div class="panel-title">Diagram Navigator</div>
+        <div
+          v-for="id in allDiagramIds" :key="id"
+          class="nav-item" :class="{ active: id === currentDiagramId }"
+          @click="navigateTo(id)"
+        >
+          <span class="nav-id">{{ id }}</span>
+          <span class="nav-sub">{{ project.diagrams[id]?.title ?? '' }}</span>
+        </div>
+      </div>
+
+      <!-- ── CENTER: Canvas ── -->
+      <div class="idef0-canvas-wrap" ref="canvasWrap" @wheel.prevent="onWheel">
+        <svg class="idef0-svg" @mousedown="onCanvasDown">
+
+          <!-- Dot grid -->
+          <defs>
+            <pattern :id="`dg-${_iid}`" :x="dotOX" :y="dotOY" :width="dotSpc" :height="dotSpc" patternUnits="userSpaceOnUse">
+              <circle cx="0" cy="0" r="1.3" fill="#d1d5db"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" :fill="`url(#dg-${_iid})`"/>
+
+          <!-- World group (pan + zoom) -->
+          <g :transform="`translate(${panX}, ${panY}) scale(${scale})`">
+
+            <!-- Arrows (behind boxes) -->
+            <g v-for="arrow in currentDiagram.arrows" :key="arrow.id">
+              <path
+                :d="pathD(arrow)"
+                fill="none"
+                :stroke="ARROW_META[arrow.type]?.color ?? '#888'"
+                stroke-width="1.5"
+              />
+              <polygon
+                :points="headPoly(arrow)"
+                :fill="ARROW_META[arrow.type]?.color ?? '#888'"
+              />
+              <text
+                :transform="labelTransform(arrow)"
+                font-size="11" font-family="sans-serif"
+                fill="#374151" text-anchor="middle" dominant-baseline="auto"
+                style="pointer-events:none"
+              >{{ arrow.label }}</text>
+            </g>
+
+            <!-- Arrow endpoint drag handles (output arrows only) -->
+            <!-- Small circle at far end; drag to connect to another box -->
+            <g v-for="arrow in outputArrows" :key="`ep-${arrow.id}`">
+              <circle
+                v-if="arrowFarPt(arrow)"
+                :cx="arrowFarPt(arrow).x"
+                :cy="arrowFarPt(arrow).y"
+                r="5"
+                class="arrow-ep"
+                :fill="arrow.targetBoxId ? '#10b981' : 'white'"
+                :stroke="ARROW_META.output.color"
+                stroke-width="1.5"
+                style="cursor:crosshair"
+                @mousedown.stop="onArrowEndDown(arrow, $event)"
+                @dblclick.stop="disconnectArrow(arrow)"
+              />
+            </g>
+
+            <!-- Arrow drag preview (while dragging endpoint) -->
+            <g v-if="arrowDrag && arrowDragEndPt">
+              <path
+                :d="arrowDragPreviewPath"
+                fill="none"
+                stroke="#10b981"
+                stroke-width="1.5"
+                stroke-dasharray="6,4"
+                opacity="0.7"
+              />
+              <circle
+                :cx="arrowDragEndPt.x" :cy="arrowDragEndPt.y"
+                r="5" fill="#10b981" opacity="0.6"
+              />
+              <!-- Snap highlight -->
+              <line
+                v-if="snapHighlight"
+                :x1="snapHighlight.x1" :y1="snapHighlight.y1"
+                :x2="snapHighlight.x2" :y2="snapHighlight.y2"
+                stroke="#3b82f6" stroke-width="3" stroke-linecap="round" opacity="0.7"
+              />
+            </g>
+
+            <!-- Boxes -->
+            <g
+              v-for="box in currentDiagram.boxes" :key="box.id"
+              style="cursor:grab"
+              @mousedown.stop="onBoxDown(box, $event)"
+            >
+              <!-- Shadow -->
+              <rect :x="box.x + 2" :y="box.y + 3" :width="box.width" :height="box.height" rx="3" fill="#00000012"/>
+              <!-- Body -->
+              <rect
+                :x="box.x" :y="box.y" :width="box.width" :height="box.height" rx="3"
+                fill="white"
+                :stroke="selectedBoxId === box.id ? '#3b82f6' : '#4b5563'"
+                :stroke-width="selectedBoxId === box.id ? 2.5 : 1.5"
+              />
+              <!-- Label -->
+              <foreignObject :x="box.x + 8" :y="box.y + 8" :width="box.width - 16" :height="box.height - 22">
+                <div xmlns="http://www.w3.org/1999/xhtml"
+                     style="font-size:13px;font-family:sans-serif;word-wrap:break-word;pointer-events:none;color:#111;line-height:1.4">
+                  {{ box.label }}
+                </div>
+              </foreignObject>
+              <!-- Node number -->
+              <text :x="box.x + box.width - 5" :y="box.y + box.height - 5"
+                    font-size="9" font-family="sans-serif" fill="#9ca3af" text-anchor="end">
+                {{ box.nodeNumber }}
+              </text>
+              <!-- Resize handles (selected only) -->
+              <template v-if="selectedBoxId === box.id">
+                <circle
+                  v-for="c in boxCorners(box)" :key="c.id"
+                  :cx="c.cx" :cy="c.cy" r="5"
+                  fill="white" stroke="#3b82f6" stroke-width="1.5"
+                  style="cursor:se-resize"
+                  @mousedown.stop="onCornerDown(box, c, $event)"
+                />
+              </template>
+            </g>
+
+          </g><!-- /world -->
+        </svg>
+
+        <!-- Zoom controls -->
+        <div class="zoom-bar">
+          <button class="zoom-btn" @click="zoomBy(1.2)" title="Zoom in">+</button>
+          <button class="zoom-btn" @click="zoomBy(0.83)" title="Zoom out">−</button>
+          <button class="zoom-btn" @click="fitToView" title="Fit to view">⊡</button>
+          <span class="zoom-pct">{{ Math.round(scale * 100) }}%</span>
+        </div>
+
+        <!-- Hint when dragging arrow endpoint -->
+        <div v-if="arrowDrag" class="drag-hint">
+          {{ snapTarget ? `Connect to ${snapTarget.side} of box` : 'Drag to a box side to connect · Drop on empty to disconnect' }}
+        </div>
+      </div>
+
+      <!-- ── RIGHT: Properties ── -->
+      <div class="idef0-props">
+        <div class="panel-title">Properties</div>
+
+        <template v-if="selectedBox">
+          <div class="prop-field">
+            <label class="prop-label">Function Name (Verb/Action)</label>
+            <input v-model="selectedBox.label" class="prop-input" @input="schedSave"/>
+          </div>
+          <div class="prop-field">
+            <label class="prop-label">Node Number</label>
+            <input v-model="selectedBox.nodeNumber" class="prop-input" @input="schedSave"/>
+          </div>
+          <div class="prop-field">
+            <label class="prop-label">Description</label>
+            <textarea v-model="selectedBox.description" class="prop-textarea" rows="3" @input="schedSave"/>
+          </div>
+
+          <div v-for="(meta, type) in ARROW_META" :key="type" class="arrow-sec">
+            <div class="arrow-sec-hdr">
+              <span>{{ meta.label }}</span>
+              <button class="arrow-add" @click="addArrow(type)">＋</button>
+            </div>
+            <div
+              v-for="arrow in arrowsForBox(selectedBox.id, type)"
+              :key="arrow.id"
+              class="arrow-row"
+            >
+              <span class="arrow-dot" :style="{ background: meta.color }"/>
+              <input v-model="arrow.label" class="arrow-name" @input="schedSave"/>
+              <!-- Show target box if connected -->
+              <span v-if="arrow.targetBoxId && type === 'output'" class="arrow-connected" :title="`Connected to ${arrow.targetBoxId} (${arrow.targetSide})`">
+                →{{ arrow.targetBoxId }}
+              </span>
+              <button class="arrow-del" @click="removeArrow(arrow.id)">×</button>
+            </div>
+          </div>
+
+          <button class="delete-btn" @click="deleteSelectedBox">Delete Function</button>
+        </template>
+
+        <p v-else class="no-sel">Select a function block to edit its properties.</p>
+      </div>
+
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { COLORS, SIZES, DEFAULT_DIAGRAM } from './IDEF0Editor/constants.js'
-import { loadProject, saveProject, onExternalChange } from './IDEF0Editor/db.js'
-import { validateDiagram } from './IDEF0Editor/validation.js'
-import { exportToPNG, exportToSVG as exportToSVGFn, exportToJSON as exportToJSONFn } from './IDEF0Editor/exporter.js'
-import { getDiagramIdFromQuery, setDiagramIdInQuery } from './IDEF0Editor/router.js'
-import { generateChildDiagramId, getParentDiagramId, deleteDiagramRecursive } from './IDEF0Editor/hierarchy.js'
-
-const props = defineProps({
-  projectId: { type: String, default: 'project-1' }
-})
-
-// Template refs
-const canvasEl = ref(null)
-const editorInput = ref(null)
-
-// Reactive state
-const diagrams = ref({})
-const currentDiagramId = ref('A0')
-const scale = ref(1)
-const offsetX = ref(0)
-const offsetY = ref(0)
-const blocks = ref([])
-const arrows = ref([])
-const selectedBlockId = ref(null)
-const selectedArrowId = ref(null)
-const errors = ref([])
-const editing = ref(null)
-
-// Non-reactive state (methods only)
-let ctx = null
-let isPanning = false
-let lastX = 0
-let lastY = 0
-let dragBlock = null
-let dragOffsetX = 0
-let dragOffsetY = 0
-let dragArrowEnd = null
-let cleanupExternalChange = null
-
-function onWindowResize() { handleResize() }
-function onKeydown(e) {
-  if ((e.key === 'Delete' || e.key === 'Backspace') && !editing.value) {
-    if (selectedBlockId.value) deleteSelectedBlock()
-    if (selectedArrowId.value) deleteSelectedArrow()
-  }
-  if (e.key === ' ' && !editing.value) {
-    e.preventDefault()
-    isPanning = true
-  }
-}
-function onKeyup(e) {
-  if (e.key === ' ') isPanning = false
-}
-
-// Computed
-const currentDiagram = computed(() => diagrams.value[currentDiagramId.value] || null)
-const canGoBack = computed(() => {
-  const parentId = getParentDiagramId(currentDiagramId.value)
-  return !!(parentId && diagrams.value[parentId])
-})
-const selectedBlock = computed(() => blocks.value.find(b => b.id === selectedBlockId.value) || null)
-const breadcrumb = computed(() => {
-  const path = []
-  let current = currentDiagramId.value
-  while (current) {
-    const d = diagrams.value[current]
-    if (!d) break
-    path.unshift({ id: current, name: d.name || current })
-    current = d.parentDiagramId
-  }
-  return path
-})
-const editorStyle = computed(() => {
-  if (!editing.value) return {}
-  return {
-    left: worldToScreen(editing.value.x).x + 'px',
-    top: worldToScreen(editing.value.y).y + 'px',
-    width: (editing.value.w * scale.value) + 'px',
-    height: (editing.value.h * scale.value) + 'px',
-  }
-})
-
-// Lifecycle
-onMounted(async () => {
-  ctx = canvasEl.value.getContext('2d')
-  handleResize()
-
-  const saved = await loadProject(props.projectId)
-  if (saved && saved.diagrams) {
-    diagrams.value = saved.diagrams
-  } else {
-    initDefaultDiagram()
-  }
-
-  const qId = getDiagramIdFromQuery()
-  if (qId && diagrams.value[qId]) {
-    currentDiagramId.value = qId
-  }
-
-  loadDiagram()
-  render()
-
-  cleanupExternalChange = onExternalChange(props.projectId, () => loadDiagram())
-
-  window.addEventListener('resize', onWindowResize)
-  window.addEventListener('keydown', onKeydown)
-  window.addEventListener('keyup', onKeyup)
-})
-
-onBeforeUnmount(() => {
-  if (cleanupExternalChange) cleanupExternalChange()
-  window.removeEventListener('resize', onWindowResize)
-  window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('keyup', onKeyup)
-})
-
-function handleResize() {
-  const rect = canvasEl.value.getBoundingClientRect()
-  const w = Math.max(rect.width, 800)
-  const h = Math.max(rect.height, 600)
-  canvasEl.value.width = w * window.devicePixelRatio
-  canvasEl.value.height = h * window.devicePixelRatio
-  canvasEl.value.style.width = w + 'px'
-  canvasEl.value.style.height = h + 'px'
-  if (ctx) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-  }
-  render()
-}
-
-function initDefaultDiagram() {
-  const block = {
-    id: 'block-1',
-    name: 'Контекстная функция',
-    x: 350, y: 250, w: 180, h: 100,
-    diagramId: null,
-  }
-
-  const ts = Date.now()
-  const arrowsList = [
-    {
-      id: `arrow-${ts}-0`, name: '', type: 'input',
-      from: { blockId: null, edge: 'left', offset: block.y + block.h / 2 },
-      to: { blockId: block.id, edge: 'left', offset: 0 },
-      segments: [],
-    },
-    {
-      id: `arrow-${ts}-1`, name: '', type: 'control',
-      from: { blockId: null, edge: 'top', offset: block.x + block.w / 2 },
-      to: { blockId: block.id, edge: 'top', offset: 0 },
-      segments: [],
-    },
-    {
-      id: `arrow-${ts}-2`, name: '', type: 'output',
-      from: { blockId: block.id, edge: 'right', offset: 0 },
-      to: { blockId: null, edge: 'right', offset: block.y + block.h / 2 },
-      segments: [],
-    },
-    {
-      id: `arrow-${ts}-3`, name: '', type: 'mechanism',
-      from: { blockId: null, edge: 'bottom', offset: block.x + block.w / 2 },
-      to: { blockId: block.id, edge: 'bottom', offset: 0 },
-      segments: [],
-    },
-  ]
-
-  diagrams.value['A0'] = {
-    ...DEFAULT_DIAGRAM,
-    id: 'A0',
-    name: 'Контекстная диаграмма',
-    blocks: [block],
-    arrows: arrowsList,
-    view: { x: 50, y: 50, scale: 1 },
-  }
-}
-
-function loadDiagram() {
-  const d = currentDiagram.value
-  if (!d) return
-  blocks.value = d.blocks || []
-  arrows.value = d.arrows || []
-  if (d.view) {
-    offsetX.value = d.view.x
-    offsetY.value = d.view.y
-    scale.value = d.view.scale
-  }
-  errors.value = validateDiagram(d)
-  render()
-}
-
-function saveDiagram() {
-  const d = currentDiagram.value
-  if (d) {
-    d.blocks = blocks.value
-    d.arrows = arrows.value
-    d.view = { x: offsetX.value, y: offsetY.value, scale: scale.value }
-  }
-  saveProject(props.projectId, { diagrams: diagrams.value })
-}
-
-// --- Rendering ---
-
-function render() {
-  if (!ctx || !canvasEl.value) return
-  const w = canvasEl.value.clientWidth, h = canvasEl.value.clientHeight
-  ctx.clearRect(0, 0, w, h)
-  ctx.save()
-  ctx.translate(offsetX.value, offsetY.value)
-  ctx.scale(scale.value, scale.value)
-
-  drawGrid(w, h)
-  drawArrows()
-  drawBlocks()
-  drawSelection()
-
-  ctx.restore()
-}
-
-function drawGrid(w, h) {
-  const gs = SIZES.gridSize || 20
-  const startX = Math.floor(-offsetX.value / scale.value / gs) * gs
-  const startY = Math.floor(-offsetY.value / scale.value / gs) * gs
-  ctx.strokeStyle = COLORS.grid || '#ddd'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  for (let x = startX; x < startX + w / scale.value + gs; x += gs) {
-    ctx.moveTo(x, startY)
-    ctx.lineTo(x, startY + h / scale.value + gs)
-  }
-  for (let y = startY; y < startY + h / scale.value + gs; y += gs) {
-    ctx.moveTo(startX, y)
-    ctx.lineTo(startX + w / scale.value + gs, y)
-  }
-  ctx.stroke()
-}
-
-function drawBlocks() {
-  blockLoop: for (const b of blocks.value) {
-    ctx.fillStyle = COLORS.blockFill
-    ctx.strokeStyle = COLORS.blockStroke
-    ctx.lineWidth = 2
-    ctx.fillRect(b.x, b.y, b.w, b.h)
-    ctx.strokeRect(b.x, b.y, b.w, b.h)
-
-    ctx.fillStyle = COLORS.text
-    ctx.font = `${SIZES.fontSize}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    const maxW = b.w - 16, maxH = b.h - 16
-    const text = b.name || ''
-    let fs = SIZES.fontSize
-    while (fs >= SIZES.fontSizeMin) {
-      ctx.font = `${fs}px sans-serif`
-      const lines = wrapText(ctx, text, maxW)
-      const lh = fs * 1.2, th = lines.length * lh
-      if (th <= maxH) {
-        const sy = b.y + b.h / 2 - th / 2 + lh / 2
-        lines.forEach((l, i) => ctx.fillText(l, b.x + b.w / 2, sy + i * lh))
-        continue blockLoop
-      }
-      fs--
-    }
-    ctx.font = `${SIZES.fontSizeMin}px sans-serif`
-    ctx.fillText(truncateText(ctx, text, maxW), b.x + b.w / 2, b.y + b.h / 2)
-  }
-}
-
-function wrapText(ctxArg, text, maxW) {
-  const words = text.split(/\s+/), lines = []
-  let cur = ''
-  for (const w of words) {
-    const t = cur ? cur + ' ' + w : w
-    if (ctxArg.measureText(t).width <= maxW) cur = t
-    else { if (cur) lines.push(cur); cur = w }
-  }
-  return cur ? [...lines, cur] : [text]
-}
-
-function truncateText(ctxArg, text, maxW) {
-  if (ctxArg.measureText(text).width <= maxW) return text
-  let result = text
-  while (result.length > 0) {
-    result = result.slice(0, -1)
-    if (ctxArg.measureText(result + '..').width <= maxW) return result + '..'
-  }
-  return ''
-}
-
-function drawArrows() {
-  for (const a of arrows.value) {
-    const pts = getArrowPoints(a)
-    if (pts.length < 2) continue
-    const col = COLORS.arrow[a.type] || COLORS.arrow.input
-    ctx.strokeStyle = col
-    ctx.lineWidth = 2
-    ctx.setLineDash([])
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-    ctx.stroke()
-    const n = pts.length - 1
-    const dx = pts[n].x - pts[n - 1].x, dy = pts[n].y - pts[n - 1].y
-    const ang = Math.atan2(dy, dx)
-    const hl = 10
-    ctx.fillStyle = col
-    ctx.beginPath()
-    ctx.moveTo(pts[n].x, pts[n].y)
-    ctx.lineTo(pts[n].x - hl * Math.cos(ang - Math.PI / 6), pts[n].y - hl * Math.sin(ang - Math.PI / 6))
-    ctx.lineTo(pts[n].x - hl * Math.cos(ang + Math.PI / 6), pts[n].y - hl * Math.sin(ang + Math.PI / 6))
-    ctx.closePath()
-    ctx.fill()
-
-    if (a.name) drawArrowLabel(a, pts, col)
-    drawBoundaryMarker(a, pts[0], col, false)
-    drawBoundaryMarker(a, pts[pts.length - 1], col, true)
-  }
-}
-
-function getArrowPoints(arrow) {
-  const pts = []
-  const fromB = blocks.value.find(b => b.id === arrow.from?.blockId)
-  const toB = blocks.value.find(b => b.id === arrow.to?.blockId)
-
-  const getPoint = (blk, edge, offset, isFloating, coord) => {
-    if (isFloating) return { x: coord?.x ?? 0, y: coord?.y ?? 0 }
-    if (!blk && edge) {
-      const dist = 150
-      if (edge === 'top') return { x: offset, y: -dist }
-      if (edge === 'bottom') return { x: offset, y: 800 + dist }
-      if (edge === 'left') return { x: -dist, y: offset }
-      if (edge === 'right') return { x: 1000 + dist, y: offset }
-    }
-    if (!blk && coord) return coord
-    const o = offset || 0
-    if (!blk) return { x: 0, y: 0 }
-    if (edge === 'top') return { x: blk.x + blk.w / 2 + o, y: blk.y }
-    if (edge === 'right') return { x: blk.x + blk.w, y: blk.y + blk.h / 2 + o }
-    if (edge === 'bottom') return { x: blk.x + blk.w / 2 + o, y: blk.y + blk.h }
-    if (edge === 'left') return { x: blk.x, y: blk.y + blk.h / 2 + o }
-    return { x: blk.x + blk.w / 2, y: blk.y + blk.h / 2 }
-  }
-
-  const fromFloat = arrow.from?.blockId === null && arrow.from?.edge === null
-  const toFloat = arrow.to?.blockId === null && arrow.to?.edge === null
-
-  const fromCoord = fromFloat ? { x: arrow.from?.x, y: arrow.from?.y } : null
-  const toCoord = toFloat ? { x: arrow.to?.x, y: arrow.to?.y } : null
-
-  pts.push(getPoint(fromB, arrow.from?.edge, arrow.from?.offset, fromFloat, fromCoord))
-  if (arrow.segments && arrow.segments.length) pts.push(...arrow.segments)
-  pts.push(getPoint(toB, arrow.to?.edge, arrow.to?.offset, toFloat, toCoord))
-  return pts
-}
-
-function getDiagramBounds() {
-  if (!blocks.value.length) return { minX: -200, minY: -200, maxX: 1200, maxY: 1000 }
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const b of blocks.value) {
-    minX = Math.min(minX, b.x)
-    minY = Math.min(minY, b.y)
-    maxX = Math.max(maxX, b.x + b.w)
-    maxY = Math.max(maxY, b.y + b.h)
-  }
-  const pad = 150
-  return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
-}
-
-function drawArrowLabel(arrow, pts, col) {
-  const fs = SIZES.arrowLabelFontSize || 12
-  ctx.font = `${fs}px sans-serif`
-  const tw = ctx.measureText(arrow.name).width, th = fs
-  let mx, my, ang
-  if (arrow.labelX != null && arrow.labelY != null) {
-    mx = arrow.labelX; my = arrow.labelY
-    ang = (arrow.labelAngle || 0) * Math.PI / 180
-  } else {
-    const midIdx = Math.floor(pts.length / 2)
-    const mid = pts[midIdx]
-    const prevPt = pts[Math.max(0, midIdx - 1)]
-    const nextPt = pts[Math.min(pts.length - 1, midIdx + 1)]
-    const dx = nextPt.x - prevPt.x
-    const dy = nextPt.y - prevPt.y
-    const len = Math.sqrt(dx * dx + dy * dy)
-    if (len > 0) {
-      ang = Math.abs(dx) > Math.abs(dy) ? 0 : -Math.PI / 2
-    } else {
-      ang = 0
-    }
-    mx = mid.x
-    my = mid.y - 5
-  }
-  ctx.save()
-  ctx.translate(mx, my)
-  ctx.rotate(ang)
-  ctx.fillStyle = COLORS.textBg || '#fff'
-  ctx.fillRect(-tw / 2 - 3, -th / 2 - 3, tw + 6, th + 6)
-  ctx.fillStyle = col
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(arrow.name, 0, 0)
-  ctx.restore()
-  if (selectedArrowId.value === arrow.id) {
-    ctx.fillStyle = COLORS.handler || '#0ff'
-    const hs = (SIZES.labelHandleSize || 8) / scale.value
-    ctx.fillRect(mx - hs / 2, my - hs / 2, hs, hs)
-  }
-}
-
-function drawBoundaryMarker(arrow, pt, col, isTarget) {
-  const bounds = getDiagramBounds()
-  const onBd = Math.abs(pt.x - bounds.minX) < 2 || Math.abs(pt.x - bounds.maxX) < 2 ||
-               Math.abs(pt.y - bounds.minY) < 2 || Math.abs(pt.y - bounds.maxY) < 2
-  if (!onBd) return
-  if ((isTarget && arrow.to.blockId) || (!isTarget && arrow.from.blockId)) return
-  const m = isTarget ? getICOMMarker(arrow.type) : ''
-  if (!m) return
-  const fs = 10, pad = 4
-  ctx.font = `bold ${fs}px sans-serif`
-  const tw = ctx.measureText(m).width, bw = tw + pad * 2, bh = fs + pad * 2
-  let bx = pt.x, by = pt.y
-  if (pt.x <= bounds.minX + 1) bx = pt.x + 2
-  else if (pt.x >= bounds.maxX - 1) bx = pt.x - bw - 2
-  else if (pt.y <= bounds.minY + 1) by = pt.y + 2
-  else by = pt.y - bh - 2
-  ctx.fillStyle = col
-  ctx.fillRect(bx, by, bw, bh)
-  ctx.fillStyle = '#fff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(m, bx + bw / 2, by + bh / 2)
-}
-
-function getICOMMarker(type) {
-  switch (type) {
-    case 'input': return 'I'
-    case 'output': return 'O'
-    case 'control': return 'C'
-    case 'mechanism': return 'M'
-    case 'call': return 'C'
-    default: return ''
-  }
-}
-
-function drawSelection() {
-  if (selectedBlockId.value) {
-    const b = blocks.value.find(x => x.id === selectedBlockId.value)
-    if (b) {
-      ctx.strokeStyle = COLORS.selection
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 3])
-      ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4)
-    }
-  }
-  if (selectedArrowId.value) {
-    const a = arrows.value.find(x => x.id === selectedArrowId.value)
-    if (a) {
-      const pts = getArrowPoints(a)
-      ctx.strokeStyle = COLORS.selection
-      ctx.lineWidth = 3
-      ctx.setLineDash([5, 3])
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x, pts[0].y)
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-      ctx.stroke()
-      ctx.fillStyle = COLORS.handler
-      const hs = SIZES.arrowEndHandleSize / scale.value
-      ctx.fillRect(pts[0].x - hs / 2, pts[0].y - hs / 2, hs, hs)
-      const n = pts.length - 1
-      ctx.fillRect(pts[n].x - hs / 2, pts[n].y - hs / 2, hs, hs)
-    }
-  }
-}
-
-// --- Block operations ---
-
-function addBlock() {
-  const rect = canvasEl.value.getBoundingClientRect()
-  const cw = screenToWorld(rect.width / 2, rect.height / 2)
-  const id = `block-${Date.now()}`
-  const b = {
-    id, name: `Блок ${blocks.value.length + 1}`,
-    x: cw.x - SIZES.blockDefaultW / 2, y: cw.y - SIZES.blockDefaultH / 2,
-    w: SIZES.blockDefaultW, h: SIZES.blockDefaultH,
-    diagramId: null,
-  }
-  blocks.value.push(b)
-  createAutoArrows(b)
-  selectedBlockId.value = id
-  selectedArrowId.value = null
-  render()
-  saveDiagram()
-}
-
-function createAutoArrows(block) {
-  const ts = Date.now()
-  arrows.value.push({
-    id: `arrow-${ts}-0`, name: '', type: 'input',
-    from: { blockId: null, edge: 'left', offset: block.y + block.h / 2 },
-    to: { blockId: block.id, edge: 'left', offset: 0 },
-    segments: [],
-  })
-  arrows.value.push({
-    id: `arrow-${ts}-1`, name: '', type: 'control',
-    from: { blockId: null, edge: 'top', offset: block.x + block.w / 2 },
-    to: { blockId: block.id, edge: 'top', offset: 0 },
-    segments: [],
-  })
-  arrows.value.push({
-    id: `arrow-${ts}-2`, name: '', type: 'output',
-    from: { blockId: block.id, edge: 'right', offset: 0 },
-    to: { blockId: null, edge: 'right', offset: block.y + block.h / 2 },
-    segments: [],
-  })
-  arrows.value.push({
-    id: `arrow-${ts}-3`, name: '', type: 'mechanism',
-    from: { blockId: null, edge: 'bottom', offset: block.x + block.w / 2 },
-    to: { blockId: block.id, edge: 'bottom', offset: 0 },
-    segments: [],
-  })
-}
-
-function deleteSelectedBlock() {
-  if (!selectedBlockId.value) return
-  const idx = blocks.value.findIndex(b => b.id === selectedBlockId.value)
-  if (idx === -1) return
-  const b = blocks.value[idx]
-  arrows.value = arrows.value.filter(a => a.from.blockId !== b.id && a.to.blockId !== b.id)
-  blocks.value.splice(idx, 1)
-  if (b.diagramId) {
-    for (const id of deleteDiagramRecursive(b.diagramId, diagrams.value)) {
-      delete diagrams.value[id]
-    }
-  }
-  selectedBlockId.value = null
-  render()
-  saveDiagram()
-}
-
-function deleteSelectedArrow() {
-  if (!selectedArrowId.value) return
-  arrows.value = arrows.value.filter(a => a.id !== selectedArrowId.value)
-  selectedArrowId.value = null
-  render()
-  saveDiagram()
-}
-
-// --- Arrow drag & connect ---
-
-function reconnectArrowToBlock(arrow, end, block) {
-  const ep = end === 'from' ? arrow.from : arrow.to
-  const ex = ep.x ?? 0, ey = ep.y ?? 0
-  const distL = Math.abs(ex - block.x), distR = Math.abs(ex - (block.x + block.w))
-  const distT = Math.abs(ey - block.y), distB = Math.abs(ey - (block.y + block.h))
-  const min = Math.min(distL, distR, distT, distB)
-  if (min > 30) return false
-
-  let edge, off
-  if (min === distL) { edge = 'left'; off = ey - (block.y + block.h / 2) }
-  else if (min === distR) { edge = 'right'; off = ey - (block.y + block.h / 2) }
-  else if (min === distT) { edge = 'top'; off = ex - (block.x + block.w / 2) }
-  else { edge = 'bottom'; off = ex - (block.x + block.w / 2) }
-
-  const maxOff = edge === 'top' || edge === 'bottom' ? block.w / 2 - 8 : block.h / 2 - 8
-  off = Math.max(-maxOff, Math.min(maxOff, off))
-
-  ep.blockId = block.id
-  ep.edge = edge
-  ep.offset = off
-  delete ep.x
-  delete ep.y
-
-  const pts = getArrowPoints(arrow)
-  arrow.segments = pts.length > 2 ? pts.slice(1, -1) : []
-  render()
-  return true
-}
-
-// --- Decomposition ---
-
-function createNestedDiagram() {
-  if (!selectedBlock.value) return
-  enterBlock()
-}
-
-function enterBlock() {
-  const b = selectedBlock.value
-  if (!b.diagramId) {
-    const idx = blocks.value.findIndex(x => x.id === b.id)
-    const childId = generateChildDiagramId(currentDiagramId.value, idx)
-    b.diagramId = childId
-    const child = {
-      id: childId, name: `Декомпозиция ${b.name}`,
-      parentDiagramId: currentDiagramId.value, parentBlockId: b.id,
-      blocks: [], arrows: [],
-      view: { x: 0, y: 0, scale: 1 },
-    }
-    diagrams.value[childId] = child
-  }
-  currentDiagramId.value = b.diagramId
-  setDiagramIdInQuery(b.diagramId)
-  selectedBlockId.value = null
-  selectedArrowId.value = null
-  loadDiagram()
-  saveDiagram()
-}
-
-function goBack() {
-  const parentId = getParentDiagramId(currentDiagramId.value)
-  if (!parentId || !diagrams.value[parentId]) return
-  currentDiagramId.value = parentId
-  setDiagramIdInQuery(parentId)
-  selectedBlockId.value = null
-  selectedArrowId.value = null
-  loadDiagram()
-}
-
-function navigateToDiagram(id) {
-  if (diagrams.value[id]) {
-    currentDiagramId.value = id
-    setDiagramIdInQuery(id)
-    loadDiagram()
-  }
-}
-
-// --- Editing ---
-
-function onDoubleClick(e) {
-  const b = hitTestBlock(e.offsetX, e.offsetY)
-  if (b) {
-    if (b.diagramId) {
-      selectedBlockId.value = b.id
-      enterBlock()
-    } else {
-      startEditBlock(b)
-    }
-    return
-  }
-  const a = hitTestArrow(e.offsetX, e.offsetY)
-  if (a) {
-    startEditArrow(a)
-  }
-}
-
-function startEditBlock(b) {
-  editing.value = { type: 'block', id: b.id, text: b.name, x: b.x, y: b.y, w: b.w, h: b.h }
-  nextTick(() => editorInput.value?.focus())
-}
-
-function startEditArrow(a) {
-  const pts = getArrowPoints(a)
-  if (!pts.length) return
-  const midIdx = Math.floor(pts.length / 2)
-  const mid = pts[midIdx]
-  const prevPt = pts[Math.max(0, midIdx - 1)]
-  const nextPtVal = pts[Math.min(pts.length - 1, midIdx + 1)]
-  const dx = nextPtVal.x - prevPt.x
-  const dy = nextPtVal.y - prevPt.y
-  const len = Math.sqrt(dx * dx + dy * dy)
-  const w = 120, h = 24
-  const x = mid.x - w / 2
-  const y = mid.y - h / 2 - 5
-  editing.value = { type: 'arrow', id: a.id, text: a.name, x, y, w, h }
-  nextTick(() => editorInput.value?.focus())
-}
-
-function finishEdit() {
-  if (!editing.value) return
-  const txt = editing.value.text.trim()
-  if (editing.value.type === 'block') {
-    const b = blocks.value.find(x => x.id === editing.value.id)
-    if (b) b.name = txt
-  } else {
-    const a = arrows.value.find(x => x.id === editing.value.id)
-    if (a) a.name = txt
-  }
-  editing.value = null
-  render()
-  saveDiagram()
-}
-
-function cancelEdit() { editing.value = null }
-
-// --- Mouse events ---
-
-function screenToWorld(sx, sy) {
-  return { x: (sx - offsetX.value) / scale.value, y: (sy - offsetY.value) / scale.value }
-}
-
-function worldToScreen(wx, wy) {
-  return { x: wx * scale.value + offsetX.value, y: wy * scale.value + offsetY.value }
-}
-
-function hitTestBlock(sx, sy) {
-  const p = screenToWorld(sx, sy)
-  for (let i = blocks.value.length - 1; i >= 0; i--) {
-    const b = blocks.value[i]
-    if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return b
-  }
-  return null
-}
-
-function hitTestArrowEnd(sx, sy) {
-  const p = screenToWorld(sx, sy)
-  const th = 12 / scale.value
-  for (let i = arrows.value.length - 1; i >= 0; i--) {
-    const a = arrows.value[i]
-    const pts = getArrowPoints(a)
-    if (pts.length < 1) continue
-    for (const e of [{ end: 'from', pt: pts[0] }, { end: 'to', pt: pts[pts.length - 1] }]) {
-      if (Math.abs(p.x - e.pt.x) <= th && Math.abs(p.y - e.pt.y) <= th) return { arrow: a, end: e.end }
-    }
-  }
-  return null
-}
-
-function hitTestArrow(sx, sy) {
-  const p = screenToWorld(sx, sy)
-  const th = 6 / scale.value
-  for (let i = arrows.value.length - 1; i >= 0; i--) {
-    const a = arrows.value[i]
-    const pts = getArrowPoints(a)
-    for (let j = 0; j < pts.length - 1; j++) {
-      const d = pointSegDist(p, pts[j], pts[j + 1])
-      if (d <= th) return a
-    }
-  }
-  return null
-}
-
-function pointSegDist(p, a, b) {
-  const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy
-  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y)
-  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2
-  t = Math.max(0, Math.min(1, t))
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
-}
-
-function onMouseDown(e) {
-  if (editing.value) { finishEdit(); return }
-  if (e.button === 1 || (e.button === 0 && (e.altKey || isPanning))) {
-    isPanning = true; lastX = e.clientX; lastY = e.clientY; return
-  }
-  if (e.button !== 0) return
-
-  const endHit = hitTestArrowEnd(e.offsetX, e.offsetY)
-  if (endHit) {
-    const ep = endHit.end === 'from' ? endHit.arrow.from : endHit.arrow.to
-    if (e.shiftKey && ep.blockId) {
-      ep.blockId = null; ep.edge = null
-      const pts = getArrowPoints(endHit.arrow)
-      endHit.arrow.segments = pts.length > 2 ? pts.slice(1, -1) : []
-      render()
-      saveDiagram()
-      return
-    }
-    dragArrowEnd = { arrowId: endHit.arrow.id, end: endHit.end }
-    selectedArrowId.value = endHit.arrow.id
-    selectedBlockId.value = null
-    return
-  }
-
-  const b = hitTestBlock(e.offsetX, e.offsetY)
-  if (b) {
-    selectedBlockId.value = b.id
-    selectedArrowId.value = null
-    dragBlock = b
-    const p = screenToWorld(e.offsetX, e.offsetY)
-    dragOffsetX = p.x - b.x
-    dragOffsetY = p.y - b.y
-    render()
-    return
-  }
-
-  const a = hitTestArrow(e.offsetX, e.offsetY)
-  if (a) {
-    selectedArrowId.value = a.id
-    selectedBlockId.value = null
-    render()
-    return
-  }
-
-  selectedBlockId.value = null
-  selectedArrowId.value = null
-  render()
-}
-
-function onMouseMove(e) {
-  if (isPanning) {
-    offsetX.value += e.clientX - lastX
-    offsetY.value += e.clientY - lastY
-    lastX = e.clientX; lastY = e.clientY
-    render()
-    return
-  }
-
-  if (dragArrowEnd) {
-    const a = arrows.value.find(x => x.id === dragArrowEnd.arrowId)
-    if (a) {
-      const ep = dragArrowEnd.end === 'from' ? a.from : a.to
-      const p = screenToWorld(e.offsetX, e.offsetY)
-      let connected = false
-      for (const blk of blocks.value) {
-        if (reconnectArrowToBlock(a, dragArrowEnd.end, blk)) {
-          connected = true
-          break
-        }
-      }
-      if (!connected) {
-        ep.blockId = null
-        ep.edge = null
-        ep.x = p.x
-        ep.y = p.y
-        const pts = getArrowPoints(a)
-        a.segments = pts.length > 2 ? pts.slice(1, -1) : []
-      }
-      render()
-    }
-    return
-  }
-
-  if (dragBlock) {
-    const p = screenToWorld(e.offsetX, e.offsetY)
-    dragBlock.x = p.x - dragOffsetX
-    dragBlock.y = p.y - dragOffsetY
-    render()
-  }
-
-  const endHit = hitTestArrowEnd(e.offsetX, e.offsetY)
-  canvasEl.value.style.cursor = endHit ? 'move' : (hitTestBlock(e.offsetX, e.offsetY) ? 'move' : 'default')
-}
-
-function onMouseUp() {
-  if (dragArrowEnd || dragBlock) {
-    saveDiagram()
-  }
-  dragArrowEnd = null
-  dragBlock = null
-  isPanning = false
-}
-
-function onWheel(e) {
-  const zoom = e.deltaY < 0 ? 1.1 : 0.9
-  const newScale = Math.max(0.2, Math.min(5, scale.value * zoom))
-  if (newScale === scale.value) return
-  const mx = e.offsetX, my = e.offsetY
-  const wx = (mx - offsetX.value) / scale.value, wy = (my - offsetY.value) / scale.value
-  offsetX.value = mx - wx * newScale
-  offsetY.value = my - wy * newScale
-  scale.value = newScale
-  render()
-}
-
-// --- Export ---
-
-function exportPNG() { exportToPNG(canvasEl.value, currentDiagram.value?.name || 'idef0') }
-function exportSVG() { exportToSVGFn(currentDiagram.value, canvasEl.value?.width || 800, canvasEl.value?.height || 600) }
-function exportJSON() { exportToJSONFn({ diagrams: diagrams.value }, props.projectId + '.json') }
-</script>
-
 <style scoped>
-.idef0-editor {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 600px;
-  overflow: auto;
-}
-.idef0-canvas {
-  width: 100%;
-  height: 100%;
-  min-height: 600px;
-  display: block;
-  background: #fafafa;
-  cursor: default;
-}
-.idef0-toolbar {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
+.idef0-root {
   display: flex;
-  gap: 4px;
-  background: rgba(255,255,255,0.95);
-  padding: 6px 10px;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
-  white-space: nowrap;
-  flex-wrap: wrap;
-}
-.idef0-toolbar button {
-  padding: 4px 10px;
-  border: 1px solid #ccc;
-  background: #fff;
-  border-radius: 3px;
-  cursor: pointer;
+  flex-direction: column;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
-}
-.idef0-toolbar button:hover {
-  background: #eef;
-}
-.idef0-toolbar button:active {
-  background: #ddf;
-}
-.idef0-separator {
-  width: 1px;
-  background: #ccc;
-  margin: 0 4px;
-  min-width: 1px;
-}
-.idef0-breadcrumb {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  color: #333;
-  margin-left: 8px;
-}
-.idef0-crumb {
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.idef0-crumb:hover {
-  background: #eef;
-  border-radius: 2px;
-}
-.idef0-crumb-active {
-  font-weight: bold;
-  background: #ddf;
-  border-radius: 2px;
-}
-.idef0-zoom {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #666;
-  min-width: 45px;
-  text-align: right;
-}
-.idef0-status-bar {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 10;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  max-width: calc(100% - 16px);
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+/* Toolbar */
+.idef0-toolbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px; height: 46px;
+  background: #fff; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
+}
+.tb-btn {
+  padding: 4px 12px; background: #fff; border: 1px solid #d1d5db;
+  border-radius: 6px; cursor: pointer; font-size: 13px; color: #374151; white-space: nowrap;
+}
+.tb-btn:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+.tb-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.tb-btn-doc { background: #f0fdf4; border-color: #86efac; color: #166534; }
+.tb-btn-doc:hover:not(:disabled) { background: #dcfce7; border-color: #4ade80; }
+.tb-sep { width: 1px; height: 22px; background: #e5e7eb; margin: 0 2px; }
+.tb-diag { font-weight: 700; color: #1d4ed8; }
+.tb-title { color: #6b7280; font-size: 12px; }
+.tb-spacer { flex: 1; }
+
+/* Panels */
+.idef0-main { display: grid; grid-template-columns: 210px 1fr 280px; flex: 1; min-height: 0; }
+
+/* Left nav */
+.idef0-nav { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; padding-bottom: 12px; }
+.panel-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: #9ca3af; padding: 14px 14px 6px;
+}
+.nav-item {
+  padding: 7px 14px; cursor: pointer; border-radius: 5px;
+  margin: 1px 8px; display: flex; flex-direction: column; gap: 1px;
+}
+.nav-item:hover { background: #f3f4f6; }
+.nav-item.active { background: #eff6ff; }
+.nav-id { font-weight: 600; color: #1d4ed8; font-size: 13px; }
+.nav-sub { font-size: 11px; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Canvas */
+.idef0-canvas-wrap { position: relative; overflow: hidden; background: #f8fafc; }
+.idef0-svg { width: 100%; height: 100%; display: block; }
+
+/* Arrow endpoint handle */
+.arrow-ep { transition: r 0.1s; }
+.arrow-ep:hover { r: 7; }
+
+/* Zoom */
+.zoom-bar {
+  position: absolute; bottom: 16px; left: 16px;
+  display: flex; align-items: center; gap: 2px;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  padding: 3px; box-shadow: 0 1px 4px #0001;
+}
+.zoom-btn {
+  width: 28px; height: 28px; border: none; background: none;
+  cursor: pointer; font-size: 16px; color: #374151; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+}
+.zoom-btn:hover { background: #f3f4f6; }
+.zoom-pct { font-size: 11px; color: #9ca3af; padding: 0 5px; min-width: 36px; text-align: center; }
+
+/* Drag hint */
+.drag-hint {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: #1e293bdd; color: #fff; font-size: 12px;
+  padding: 5px 14px; border-radius: 20px; pointer-events: none;
   white-space: nowrap;
 }
-.idef0-status-error {
-  background: #fee;
-  color: #c00;
-  border: 1px solid #fcc;
+
+/* Properties */
+.idef0-props { background: #fff; border-left: 1px solid #e5e7eb; overflow-y: auto; padding: 0 14px 20px; }
+.idef0-props .panel-title { padding-left: 0; }
+
+.prop-field { margin-bottom: 11px; }
+.prop-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 4px; }
+.prop-input, .prop-textarea {
+  width: 100%; padding: 6px 9px; border: 1px solid #d1d5db; border-radius: 6px;
+  font-size: 13px; color: #111; background: #fff; box-sizing: border-box; font-family: inherit;
 }
-.idef0-inline-editor {
-  position: absolute;
-  z-index: 20;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+.prop-input:focus, .prop-textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe55; }
+.prop-textarea { resize: vertical; line-height: 1.5; }
+
+/* Arrow sections */
+.arrow-sec { margin-bottom: 10px; border: 1px solid #e5e7eb; border-radius: 7px; overflow: hidden; }
+.arrow-sec-hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; background: #f9fafb; font-size: 12px; font-weight: 500; color: #374151;
 }
-.idef0-inline-editor input {
-  width: 100%;
-  padding: 4px 6px;
-  border: 1px solid #9cf;
-  border-radius: 2px;
-  background: #fff;
-  font-size: inherit;
-  outline: none;
+.arrow-add {
+  width: 22px; height: 22px; border: 1px solid #d1d5db; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 14px; color: #374151;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
 }
+.arrow-add:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.arrow-row { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-top: 1px solid #f3f4f6; }
+.arrow-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.arrow-name { flex: 1; border: none; background: transparent; font-size: 13px; color: #111; padding: 1px 0; outline: none; font-family: inherit; }
+.arrow-name:focus { border-bottom: 1px solid #3b82f6; }
+.arrow-connected { font-size: 10px; color: #10b981; font-weight: 600; white-space: nowrap; }
+.arrow-del { background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 17px; line-height: 1; padding: 0 2px; }
+.arrow-del:hover { color: #ef4444; }
+
+.delete-btn {
+  width: 100%; padding: 8px; margin-top: 16px;
+  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
+  border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit;
+}
+.delete-btn:hover { background: #fee2e2; }
+
+.no-sel { color: #9ca3af; text-align: center; margin-top: 40px; line-height: 1.6; font-size: 13px; }
 </style>

@@ -1,13 +1,14 @@
 // Web Audio API → WASM engine bridge.
 // Exports: initAudio, loadFile, connectStream, play, pause, resume,
-//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame.
+//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame, setOnTrackEnded.
 // connectStream() uses getDisplayMedia to capture a browser tab's audio —
 // used for Yandex Music / Spotify / any tab playing music.
 
 // AudioFrame layout (must match engine.h):
 //   [0] energy  [1] sub  [2] bass  [3] mid  [4] high
 //   [5] beat_pulse  [6-9] onset[4]  [10] tempo_bpm
-const FRAME_FLOATS = 11;
+//   [11] centroid (0..1)  [12] tonal (0..1)
+const FRAME_FLOATS = 13;
 
 let _eng = null;       // { init, reset, pushSamples, getFrame, mod }
 let _framePtr = 0;     // pointer into WASM heap for AudioFrame output
@@ -25,15 +26,18 @@ let _loop     = false;
 let _startOffset = 0;
 let _startTime = 0;
 let _liveNode = null;   // MediaStreamAudioSourceNode when in tab-capture mode
+let _recordDest = null; // MediaStreamAudioDestinationNode — audio tap for recording
 
 let _currentFrame = _emptyFrame();
 let _beatTimestamps = [];
 let _prevBeatPulse = 0;
+let _onEnded = null;    // fired when a track finishes naturally (not on manual stop)
 
 function _emptyFrame() {
     return {
         energy: 0, sub: 0, bass: 0, mid: 0, high: 0,
         beat_pulse: 0, onset: [0, 0, 0, 0], tempo_bpm: 0,
+        centroid: 0, tonal: 0,
     };
 }
 
@@ -59,19 +63,23 @@ export async function loadFile(file) {
 }
 
 // Capture audio from a browser tab via getDisplayMedia.
-// The user picks which tab to share (e.g. Yandex Music) in Chrome's dialog.
+// preferCurrentTab: true → Chrome pre-selects the current tab (no tab picker shown),
+// ideal when Yandex Music is embedded via iframe on the same page.
 // Returns { name } where name is the captured stream label.
-export async function connectStream() {
+export async function connectStream({ preferCurrentTab = false } = {}) {
     await _ensureContext();
     _stopSource();
 
     // Chrome requires video:true in the picker; we stop it immediately.
     let stream;
     try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
+        const constraints = {
             video: { width: 1, height: 1, frameRate: 1 },
             audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 },
-        });
+        };
+        // Chrome 112+ hint: pre-selects the current tab in the capture dialog.
+        if (preferCurrentTab) constraints.preferCurrentTab = true;
+        stream = await navigator.mediaDevices.getDisplayMedia(constraints);
     } catch (e) {
         throw new Error('Cancelled or no permission: ' + e.message);
     }
@@ -95,6 +103,7 @@ export async function connectStream() {
 
     _liveNode = _audioCtx.createMediaStreamSource(stream);
     _liveNode.connect(_captureNode);
+    if (_recordDest) _liveNode.connect(_recordDest);   // feed the recorder's audio tap
 
     _startOffset = 0;
     _startTime   = _audioCtx.currentTime;
@@ -142,16 +151,24 @@ export function play(offset = 0) {
     _source.buffer = _audioBuffer;
     _source.connect(_audioCtx.destination);
     _source.connect(_captureNode);
+    if (_recordDest) _source.connect(_recordDest);   // feed the recorder's audio tap
 
     _source.start(0, offset);
     _startOffset = offset;
     _startTime   = _audioCtx.currentTime;
     _playing     = true;
-    _source.addEventListener('ended', () => {
-        if (_loop) { play(0); } else { _playing = false; }
-    });
+    // onended (a property, not addEventListener) so _stopSource can null it out and
+    // a manual stop (load/seek/pause) never triggers the natural-end → playlist hook.
+    _source.onended = () => {
+        if (_loop) { play(0); }
+        else { _playing = false; if (_onEnded) _onEnded(); }
+    };
     _raf();
 }
+
+// Register a callback fired when a track finishes on its own (used to auto-advance
+// a playlist). Not fired when playback is stopped by loadFile/seekTo/etc.
+export function setOnTrackEnded(cb) { _onEnded = cb; }
 
 // Suspend playback without discarding position.
 export function pause() {
@@ -186,11 +203,19 @@ async function _ensureContext() {
     _audioCtx = new AudioContext({ sampleRate: 44100 });
     await _audioCtx.audioWorklet.addModule('audio-processor.js');
     _workletReady = true;
+    // Persistent audio tap for the recorder. Every playback/live source connects to
+    // it (in addition to the speakers), so record.js can mux the audio into the .webm.
+    // Lives for the AudioContext's lifetime; its track is never stopped by the recorder.
+    _recordDest = _audioCtx.createMediaStreamDestination();
 }
+
+// MediaStream carrying the currently-playing audio (for muxing into a recording).
+export function getRecordAudioStream() { return _recordDest ? _recordDest.stream : null; }
 
 function _stopSource() {
     if (_captureNode) { _captureNode.port.onmessage = null; _captureNode.disconnect(); _captureNode = null; }
     if (_source) {
+        _source.onended = null;   // prevent the playlist-advance hook on a manual stop
         try { _source.stop(); } catch (_) {}
         _source.disconnect();
         _source = null;
@@ -233,6 +258,8 @@ function _raf() {
         beat_pulse: beatPulse,
         onset:      [F[fp + 6], F[fp + 7], F[fp + 8], F[fp + 9]],
         tempo_bpm:  F[fp + 10],
+        centroid:   F[fp + 11],
+        tonal:      F[fp + 12],
     };
     requestAnimationFrame(_raf);
 }

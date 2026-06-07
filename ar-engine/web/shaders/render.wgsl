@@ -6,9 +6,9 @@ struct RenderUniforms {
     blend_mode : u32,   // 0=Add(normal), 1=Screen, 2=Difference
     width      : u32,
     height     : u32,
-    _pad0      : u32,
-    _pad1      : u32,
-    _pad2      : u32,
+    exposure   : f32,   // tonemap exposure multiplier (default 2.8)
+    gamma      : f32,   // gamma curve exponent (default 0.8)
+    nova_mode  : f32,   // 1.0 when nova iris mode is active (sclera aura)
     // Colour map stops (vec4 = rgb + padding). Offset 32..95.
     c0         : vec4<f32>,
     c1         : vec4<f32>,
@@ -41,6 +41,15 @@ fn tonemap(c: vec3<f32>) -> vec3<f32> {
     return c / (c + vec3<f32>(1.0));
 }
 
+// Map luminance [0,1] → 4-stop colour gradient from the palette UBO.
+fn palette_lookup(lum: f32) -> vec3<f32> {
+    let t     = clamp(lum, 0.0, 1.0) * 3.0;
+    let i     = u32(t);
+    let f     = fract(t);
+    let stops = array<vec3<f32>, 4>(u.c0.rgb, u.c1.rgb, u.c2.rgb, u.c3.rgb);
+    return mix(stops[min(i, 3u)], stops[min(i + 1u, 3u)], f);
+}
+
 // Rotate hue around the grey axis (1,1,1)/√3 using Rodrigues formula.
 fn hueRotate(col: vec3<f32>, shift: f32) -> vec3<f32> {
     let angle = shift * 6.28318;
@@ -70,10 +79,20 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         vec2<i32>(0, 0),
         vec2<i32>(i32(fb_sz.x) - 1, i32(fb_sz.y) - 1)
     );
-    // Particle trail: accumulated RGB from coloured particles
-    let pix = textureLoad(fb_tex, coord, 0);
-    var col = tonemap(pix.rgb * 2.8);        // boost then Reinhard
-    col = pow(col, vec3<f32>(0.8));           // mild gamma lift
+    // Particle trail: 5-tap cross blur for anti-aliasing (removes staircase on diagonal lines).
+    let mx = vec2<i32>(i32(fb_sz.x) - 1, i32(fb_sz.y) - 1);
+    let pix = textureLoad(fb_tex, coord, 0) * 0.5
+            + textureLoad(fb_tex, clamp(coord + vec2i( 1, 0), vec2i(0), mx), 0) * 0.125
+            + textureLoad(fb_tex, clamp(coord + vec2i(-1, 0), vec2i(0), mx), 0) * 0.125
+            + textureLoad(fb_tex, clamp(coord + vec2i( 0, 1), vec2i(0), mx), 0) * 0.125
+            + textureLoad(fb_tex, clamp(coord + vec2i( 0,-1), vec2i(0), mx), 0) * 0.125;
+    var col = tonemap(pix.rgb * u.exposure);
+    col = pow(col, vec3<f32>(u.gamma));
+
+    // Map tonemapped luminance through palette; blend with original to preserve hue.
+    let lum = dot(col, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let pal = palette_lookup(lum);
+    col = pal * 0.65 + col * 0.35;
 
     if (u.hue_shift > 0.001) {
         col = hueRotate(col, u.hue_shift);
@@ -87,6 +106,19 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         // Difference-style: invert and re-saturate dark zones
         let inv = vec3<f32>(1.0) - col;
         col = col + inv * inv * 0.5;
+    }
+
+    // Nova mode: faint dark limbal tint framing the particle iris edge.
+    // The sphere model's sin(φ) foreshortening density now produces the bright
+    // limbus itself, so this static ring is reduced to a subtle border tint sitting
+    // just outside the sphere rim (R_sphere ≈ 0.295) rather than a hard dark ring.
+    if u.nova_mode > 0.5 {
+        let norm_x = (f32(ix) + 0.5) / f32(u.width) - 0.5;
+        let norm_y = (f32(iy) + 0.5) / f32(u.height) - 0.5;
+        let sr = sqrt(norm_x * norm_x * 3.16049 + norm_y * norm_y);  // (16/9)²
+
+        let limbal = smoothstep(0.290, 0.298, sr) * (1.0 - smoothstep(0.302, 0.330, sr));
+        col = mix(col, col * 0.45, limbal * 0.30);
     }
 
     return vec4<f32>(clamp(col, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);

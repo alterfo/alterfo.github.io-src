@@ -1,83 +1,76 @@
-const DB_NAME = 'IDEF0EditorDB';
-const DB_VERSION = 2;
-const STORE_NAME = 'projects';
+const DB_NAME = 'idef0'
+const DB_VERSION = 1
+const STORE = 'projects'
+const PROJECT_KEY = 'default'
+
+let _db = null
 
 function openDB() {
+  if (_db) return Promise.resolve(_db)
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-  });
-}
-
-export async function loadProject(projectId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.get(projectId);
-    req.onsuccess = () => {
-      const result = req.result;
-      if (result && result.data) {
-        resolve(result.data);
-      } else {
-        resolve(null);
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function saveProject(projectId, data) {
-  const db = await openDB();
-  const payload = {
-    id: projectId,
-    data,
-    updatedAt: Date.now(),
-  };
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(payload);
-    req.onsuccess = () => {
-      // Broadcast change to other tabs
-      try {
-        localStorage.setItem(
-          `idef0-sync-${projectId}`,
-          JSON.stringify({ updatedAt: payload.updatedAt })
-        );
-      } catch (e) {
-        // ignore
-      }
-      resolve();
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-/**
- * Listen for changes from other tabs.
- * @param {string} projectId
- * @param {Function} callback - called when external change detected
- */
-export function onExternalChange(projectId, callback) {
-  const handler = (e) => {
-    if (e.key === `idef0-sync-${projectId}` && e.newValue) {
-      try {
-        const info = JSON.parse(e.newValue);
-        callback(info);
-      } catch (err) {
-        // ignore
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = e => {
+      const db = e.target.result
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: 'id' })
       }
     }
-  };
-  window.addEventListener('storage', handler);
-  return () => window.removeEventListener('storage', handler);
+    req.onsuccess = e => {
+      _db = e.target.result
+      resolve(_db)
+    }
+    req.onerror = e => reject(e.target.error)
+  })
 }
+
+async function loadProject() {
+  if (typeof indexedDB === 'undefined') return null
+  try {
+    const db = await openDB()
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly')
+      const req = tx.objectStore(STORE).get(PROJECT_KEY)
+      req.onsuccess = e => resolve(e.target.result ?? null)
+      req.onerror = e => reject(e.target.error)
+    })
+  } catch (err) {
+    console.warn('[idef0] loadProject failed:', err)
+    return null
+  }
+}
+
+let _saveTimer = null
+
+function saveProject(project) {
+  if (typeof indexedDB === 'undefined') return
+  clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(async () => {
+    try {
+      const db = await openDB()
+      const data = JSON.parse(JSON.stringify(project))
+      data.id = PROJECT_KEY
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite')
+        const req = tx.objectStore(STORE).put(data)
+        req.onsuccess = () => resolve()
+        req.onerror = e => reject(e.target.error)
+      })
+      try { localStorage.setItem('idef0:saved', String(Date.now())) } catch {}
+    } catch (err) {
+      console.warn('[idef0] saveProject failed:', err)
+    }
+  }, 300)
+}
+
+// onReload is called when another tab saves; storage event only fires in OTHER tabs
+// Returns a cleanup function to remove the listener on unmount
+function initCrossTabSync(onReload) {
+  if (typeof window === 'undefined') return () => {}
+  const handler = e => {
+    if (e.key === 'idef0:saved') onReload()
+  }
+  window.addEventListener('storage', handler)
+  return () => window.removeEventListener('storage', handler)
+}
+
+export { loadProject, saveProject, initCrossTabSync }

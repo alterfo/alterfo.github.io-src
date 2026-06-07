@@ -6,30 +6,79 @@
 //   noiseSpeed → pole_speed (Lissajous frequency multiplier, direct)
 //   noiseStr   → shimmer (organic curl-noise perturbation)
 
-import { SIM_WIDTH, SIM_HEIGHT } from './renderer.js';
+import { SIM_WIDTH, SIM_HEIGHT, getRecommendedParticleCount, getGpuTier } from './renderer.js';
+import { createTimbreSmoother } from './timbre_color.js';
 
-export const PARTICLE_COUNT = 500_000;
+// Set at initParticlePipeline() time based on detected GPU tier.
+// Exported as let so callers (record.js etc.) can read the live value.
+export let PARTICLE_COUNT = 500_000;
 
 const PARTICLE_STRIDE  = 8 * 4;  // bytes per particle (8 floats)
-const UPDATE_UBO_BYTES = 64;
-const DRAW_UBO_BYTES   = 16;
+const UPDATE_UBO_BYTES = 112;   // 28 floats: 16 base + 10 live Nova params + 2 pad
+const DRAW_UBO_BYTES   = 48;    // 12 floats; added timbre hue/sat/weight (+ padding)
+
+// Live-tunable Nova iris parameters — change from the browser console via
+// window.nova.set({ ... }). Defaults reproduce the built-in look.
+const _nova = {
+    fibers:  1400,    // strand count
+    jitter:  0.012,   // per-particle strand spread → line THICKNESS
+    curl:    0.8,     // spiral bend scale (1.0 = full base bend)
+    amp:     0.9,     // meander bend scale (1.0 = full base meander)
+    irisR:   0.30,    // iris radius (limbus) → line LENGTH / iris size
+    pupilR:  0.105,   // pupil base radius
+    pupilG:  0.045,   // pupil dilation gain (beat reactivity)
+    sclera:  0.18,    // fraction of fibers that flow past the limbus (0..1)
+    bright:  0.55,    // draw alpha multiplier → brightness / TRANSPARENCY
+    flow:    0.7,     // radial streaming speed (lower = calmer outward motion)
+    anim:    1.4,     // how alive the fibers are: bend-morph + sway (0 = frozen)
+};
+
+// Map friendly aliases (length/thickness/count/transparency...) to internal keys.
+const _NOVA_ALIASES = {
+    count: 'fibers', n: 'fibers', fibers: 'fibers',
+    thickness: 'jitter', jitter: 'jitter', width: 'jitter',
+    length: 'irisR', irisR: 'irisR', iris: 'irisR', size: 'irisR',
+    curl: 'curl', bend: 'curl', amp: 'amp', meander: 'amp',
+    pupil: 'pupilR', pupilR: 'pupilR', pupilGain: 'pupilG', pupilG: 'pupilG',
+    sclera: 'sclera', wisps: 'sclera',
+    bright: 'bright', brightness: 'bright', alpha: 'bright', opacity: 'bright',
+    flow: 'flow', speed: 'flow', streaming: 'flow',
+    anim: 'anim', alive: 'anim', living: 'anim', morph: 'anim', life: 'anim',
+};
+
+export function setNovaParams(params = {}) {
+    for (const [k, v] of Object.entries(params)) {
+        const key = _NOVA_ALIASES[k] ?? (k in _nova ? k : null);
+        if (key && typeof v === 'number' && isFinite(v)) _nova[key] = v;
+        else console.warn('[nova] unknown/invalid param:', k, v);
+    }
+    return { ..._nova };
+}
+export function getNovaParams() { return { ..._nova }; }
 
 // Defaults (overridden by advanced.js via setParticleParams)
-let _noiseScale = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
-let _noiseSpeed = 0.6;     // Drift slider: Lissajous frequency multiplier
-let _noiseStr   = 0.00005; // shimmer: subtle curl-noise perturbation
-let _lifetime   = 240.0;   // frames per particle (4 s at 60 fps)
-let _speed      = 0.7;
+let _noiseScale   = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
+let _noiseSpeed   = 0.6;     // Drift slider: Lissajous frequency multiplier
+let _noiseStr     = 0.00005; // shimmer: subtle curl-noise perturbation
+let _lifetime     = 240.0;   // frames per particle (4 s at 60 fps)
+let _speed        = 0.7;
+let _chladniMode  = 0;       // 0 = vortex, 1 = Chladni standing-wave
+let _novaMode     = 0;       // 1 = radial spiral bloom
 
-export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed } = {}) {
-    if (noiseScale !== undefined) _noiseScale = noiseScale;
-    if (noiseSpeed !== undefined) _noiseSpeed = noiseSpeed;
-    if (noiseStr   !== undefined) _noiseStr   = noiseStr;
-    if (lifetime   !== undefined) _lifetime   = lifetime;
-    if (speed      !== undefined) _speed      = speed;
+export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode, novaMode } = {}) {
+    if (noiseScale   !== undefined) _noiseScale   = noiseScale;
+    if (noiseSpeed   !== undefined) _noiseSpeed   = noiseSpeed;
+    if (noiseStr     !== undefined) _noiseStr     = noiseStr;
+    if (lifetime     !== undefined) _lifetime     = lifetime;
+    if (speed        !== undefined) _speed        = speed;
+    if (chladniMode  !== undefined) _chladniMode  = chladniMode;
+    if (novaMode     !== undefined) _novaMode     = novaMode;
 }
 
 export async function initParticlePipeline(device, texMgr, passMgr) {
+    // Scale particle count to detected GPU tier (prevents hang on integrated GPUs).
+    PARTICLE_COUNT = getRecommendedParticleCount();
+
     // --- particle storage buffer ---
     const particleBuf = device.createBuffer({
         label: 'particles',
@@ -129,24 +178,30 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     // REGISTER PASSES
     // =========================================================================
+    // Dynamic compute dispatch: Cymatics uses only ¼ of particles (4× faster).
+    const _updateDispatch = { type: 'compute', x: Math.ceil(PARTICLE_COUNT / 256) };
     passMgr.add({
         label:     'particles_update',
         pipeline:  updatePipeline,
         bindGroup: updateBG,
-        dispatch:  { type: 'compute', x: Math.ceil(PARTICLE_COUNT / 256) },
+        dispatch:  _updateDispatch,
     });
+
+    // Draw dispatch: always PARTICLE_COUNT vertices.
+    // Kaleidoscope maps first-quarter particles × 4 quadrants inside the shader.
+    const _drawDispatch = {
+        type:       'render',
+        targetView: particleDrawView,
+        loadOp:     'clear',
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
+        drawCount:  PARTICLE_COUNT,
+    };
 
     passMgr.add({
         label:     'particles_draw',
         pipeline:  drawPipeline,
         bindGroup: drawBG,
-        dispatch:  {
-            type:       'render',
-            targetView: particleDrawView,
-            loadOp:     'clear',
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
-            drawCount:  PARTICLE_COUNT,
-        },
+        dispatch:  _drawDispatch,
     });
 
     // =========================================================================
@@ -154,6 +209,9 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     let _prevBeat = 0;
     let _hueBase  = 0;
+    let _prevTime = null;                          // seconds; for frame-rate-correct EMA dt
+    let _pupilSm  = 0;                             // smoothed Nova pupil drive (anti-jerk)
+    const _timbreSmoother = createTimbreSmoother({ tau: 0.25 });
 
     function tick(frame, time) {
         const energy = frame?.energy     ?? 0;
@@ -161,9 +219,23 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         const mid    = frame?.mid        ?? 0;
         const high   = frame?.high       ?? 0;
         const beat   = frame?.beat_pulse ?? 0;
+        const centroid = frame?.centroid ?? 0;
+        const tonal    = frame?.tonal    ?? 0;
+
+        // Frame delta for the timbre EMA. Clamp so idle-throttle gaps don't snap colour.
+        const dt = _prevTime === null ? 1 / 60 : Math.min(Math.max(time - _prevTime, 1 / 240), 0.1);
+        _prevTime = time;
+        const timbre = _timbreSmoother(centroid, tonal, dt);
 
         // Hue drifts continuously; high-frequency content accelerates colour cycling
         _hueBase = (_hueBase + 0.00005 + energy * 0.0002 + high * 0.0007) % 1.0;
+
+        // Smoothed Nova pupil drive: EMA over (beat + bass + energy) so the iris
+        // dilates gently instead of snapping open on every kick. τ≈0.22 s rounds off
+        // the beat_pulse attack into a soft breathing bump. Passed via the _p2 slot.
+        const pupilTarget = Math.min(beat * 0.8 + bass * 0.55 + energy * 0.25, 1.0);
+        const aPupil = 1 - Math.exp(-dt / 0.22);
+        _pupilSm += (pupilTarget - _pupilSm) * aPupil;
 
         // Update UBO — layout matches Uniforms struct in particles_update.wgsl
         _updArr[0]  = time;
@@ -179,19 +251,47 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _updArr[10] = energy;
         _updArr[11] = beat;
         _updArr[12] = _prevBeat;
-        // [13..15] padding (zeroed by default)
+        _updArr[13] = _chladniMode;
+        _updArr[14] = _novaMode;
+        _updArr[15] = _pupilSm;                // pupil_drive (smoothed) — Nova iris
+        // Live Nova tuning (16..23) — see window.nova.set()
+        _updArr[16] = _nova.fibers;
+        _updArr[17] = _nova.jitter;
+        _updArr[18] = _nova.curl;
+        _updArr[19] = _nova.amp;
+        _updArr[20] = _nova.irisR;
+        _updArr[21] = _nova.pupilR;
+        _updArr[22] = _nova.pupilG;
+        _updArr[23] = _nova.sclera;
+        _updArr[24] = _nova.flow;
+        _updArr[25] = _nova.anim;
         device.queue.writeBuffer(updateUbo, 0, _updArr);
+
+        // Cymatics: compute only ¼ of particles + quarter×4 draw = 4× speedup each.
+        const isKaleidoscope = _chladniMode > 0.5 ? 1.0 : 0.0;
+        const chladniWorkgroups = Math.ceil(PARTICLE_COUNT / 4 / 256);
+        _updateDispatch.x = isKaleidoscope ? chladniWorkgroups : Math.ceil(PARTICLE_COUNT / 256);
+        // Draw always PARTICLE_COUNT; shader maps quarter×4 for kaleidoscope.
+        _drawDispatch.drawCount = PARTICLE_COUNT;
 
         _drawArr[0] = energy;
         _drawArr[1] = beat;
         _drawArr[2] = mid;
         _drawArr[3] = high;
+        _drawArr[4] = isKaleidoscope;
+        _drawArr[5] = _novaMode;
+        _drawArr[6] = timbre.hue;     // timbre_hue
+        _drawArr[7] = timbre.sat;     // timbre_sat
+        _drawArr[8] = timbre.weight;  // timbre_weight
+        _drawArr[9] = _nova.bright;   // nova_bright (alpha multiplier)
+        // [10..11] padding zeros
         device.queue.writeBuffer(drawUbo, 0, _drawArr);
 
         _prevBeat = beat;
     }
 
-    console.log('[particles] vortex pipeline ready',
+    console.log('[particles] pipeline ready',
+        '| tier:', getGpuTier(),
         '| count:', PARTICLE_COUNT,
         '| buf:', (PARTICLE_COUNT * PARTICLE_STRIDE / 1024 / 1024).toFixed(1), 'MB',
         '| workgroups:', Math.ceil(PARTICLE_COUNT / 256));

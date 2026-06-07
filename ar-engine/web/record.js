@@ -1,52 +1,43 @@
-// record.js — Dual-path recording: 960×540 preview canvas + 1920×1080 WebCodecs.
+// record.js — Video recording via the browser-native MediaRecorder API.
 //
-// Primary path: VideoEncoder (WebCodecs) → webm-muxer → .webm download.
-// Fallback:     MediaRecorder on the preview canvas if VideoEncoder is unsupported.
+// No external libraries, NO CDN (project rule). We capture the on-screen preview
+// canvas (which is composited every frame) with canvas.captureStream(); MediaRecorder
+// muxes it to .webm in-browser. This replaced the old WebCodecs + webm-muxer (CDN)
+// path, which produced empty 4 KB files (its first chunk carried a non-zero timestamp
+// the muxer rejected, so every chunk was dropped).
 //
-// Exports: initRecord, setRecordParams, startRecording, stopRecording, isRecording
+// Recording resolution = the preview canvas size (960×540). The preview canvas is the
+// only reliably-composited surface; capturing the hidden 1920×1080 offscreen canvas is
+// not dependable across Chrome versions, so reliability wins over resolution here.
+//
+// Exports: initRecord, setRecordParams, startRecording, stopRecording, isRecording,
+//          getRecordError, getRecordedFrameCount
 
-import { getDevice, getOffscreenCanvas, getOffscreenContext,
-         setOnRecordFrame, WIDTH, HEIGHT } from './renderer.js';
-import { runRenderToTarget } from './render.js';
+import { setOnRecordFrame } from './renderer.js';
+import { getRecordAudioStream } from './audio.js';
 
-// webm-muxer: minimal WebM container writer (ESM build from jsDelivr CDN).
-// Pinned to 5.0.3 for stability. The ArrayBufferTarget collects the output in memory.
-const MUXER_URL = 'https://cdn.jsdelivr.net/npm/webm-muxer@5.0.3/build/webm-muxer.mjs';
-let _Muxer = null;
-let _ArrayBufferTarget = null;
-async function _loadMuxer() {
-    if (_Muxer) return;
-    const mod = await import(MUXER_URL);
-    _Muxer = mod.Muxer;
-    _ArrayBufferTarget = mod.ArrayBufferTarget;
-}
-
-let _encoder    = null;
-let _muxer      = null;
-let _target     = null;
-let _frameCount = 0;
-let _startTime  = 0;
+let _recorder    = null;
+let _stream      = null;   // combined video+audio stream handed to MediaRecorder
+let _videoStream = null;   // canvas captureStream — we own & stop these tracks
+let _chunks      = [];
 let _fps        = 60;
-let _useFallback = false;
+let _frameCount = 0;
+let _lastError  = null;
+let _canvas     = null;   // preview canvas (capture source)
 
-// Fallback MediaRecorder state (used only when VideoEncoder is not supported)
-let _recorder   = null;
-let _chunks     = [];
-let _fbCanvas   = null;  // preview canvas reference for captureStream fallback
+const _params = { bitrate: 12_000_000, codec: 'vp9', framerate: 60 };
 
-const _params = { bitrate: 8_000_000, codec: 'vp9', framerate: 60 };
-
-// Codec string mapping: friendly name → VideoEncoder codec string + WebM track codec
-const CODEC_MAP = {
-    vp9:  { encoder: 'vp09.00.10.08', muxer: 'V_VP9' },
-    vp8:  { encoder: 'vp8',           muxer: 'V_VP8' },
-    av1:  { encoder: 'av01.0.08M.08', muxer: 'V_AV1' },
-    h264: { encoder: 'avc1.42002A',   muxer: 'V_MPEG4/ISO/AVC' },
+// codec → candidate MediaRecorder MIME types (first supported one wins). Audio is
+// muxed as Opus; the ",opus" variants are tried first so the .webm has sound.
+const CODEC_MIME = {
+    vp9:  ['video/webm;codecs=vp9,opus',  'video/webm;codecs=vp9'],
+    vp8:  ['video/webm;codecs=vp8,opus',  'video/webm;codecs=vp8'],
+    av1:  ['video/webm;codecs=av01,opus', 'video/webm;codecs=av01'],
+    h264: ['video/webm;codecs=h264,opus', 'video/mp4;codecs=h264,aac', 'video/webm;codecs=h264'],
 };
 
 export function initRecord(canvas) {
-    // canvas = the preview HTMLCanvasElement; kept for MediaRecorder fallback
-    _fbCanvas = canvas;
+    _canvas = canvas;
 }
 
 // Called by advanced.js to configure recording options.
@@ -56,141 +47,116 @@ export function setRecordParams({ bitrate, codec, framerate } = {}) {
     if (framerate !== undefined) _params.framerate = framerate;
 }
 
+function _pickMime(codec) {
+    const wanted    = CODEC_MIME[codec] ?? CODEC_MIME.vp9;
+    const fallbacks = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus',
+                       'video/webm;codecs=vp9', 'video/webm'];
+    for (const m of [...wanted, ...fallbacks]) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return 'video/webm';
+}
+
 export async function startRecording(fps = 60) {
-    if (_encoder || _recorder) return false;
+    if (_recorder) return false;
     _fps = fps;
     _frameCount = 0;
-    _startTime = performance.now();
+    _lastError  = null;
+    _chunks     = [];
 
-    const codecKey  = _params.codec in CODEC_MAP ? _params.codec : 'vp9';
-    const codecInfo = CODEC_MAP[codecKey];
-    const config    = {
-        codec:     codecInfo.encoder,
-        width:     WIDTH,
-        height:    HEIGHT,
-        bitrate:   _params.bitrate,
-        framerate: fps,
-    };
+    if (typeof MediaRecorder === 'undefined') {
+        _lastError = new Error('MediaRecorder unsupported');
+        return false;
+    }
+    if (!_canvas) { _lastError = new Error('no canvas to capture'); return false; }
 
-    let supported = false;
-    if (typeof VideoEncoder !== 'undefined') {
-        try {
-            const result = await VideoEncoder.isConfigSupported(config);
-            supported = result.supported;
-        } catch (_) { /* ignore */ }
+    // Keep the render loop at full frame-rate while recording (renderer.js drops to
+    // ~20 fps when idle; a non-null record-frame callback disables that throttle so
+    // captureStream samples smooth, non-duplicated frames during quiet passages).
+    setOnRecordFrame(_keepAlive);
+
+    try {
+        _videoStream = _canvas.captureStream(fps);
+    } catch (e) {
+        _lastError = e; setOnRecordFrame(null);
+        console.error('[record] captureStream failed:', e);
+        return false;
     }
 
-    if (supported) {
-        await _loadMuxer();
-        _target = new _ArrayBufferTarget();
-        _muxer  = new _Muxer({
-            target: _target,
-            video: {
-                codec:     codecInfo.muxer,
-                width:     WIDTH,
-                height:    HEIGHT,
-                frameRate: fps,
-            },
-        });
+    // Mux the playing audio alongside the video: combine the canvas video track with
+    // the audio tap's track(s) into one stream. The audio track belongs to audio.js'
+    // persistent destination node, so we must NOT stop it on cleanup (only the video).
+    const tracks = [..._videoStream.getVideoTracks()];
+    let hasAudio = false;
+    const audioStream = getRecordAudioStream();
+    if (audioStream) {
+        for (const tr of audioStream.getAudioTracks()) { tracks.push(tr); hasAudio = true; }
+    }
+    _stream = new MediaStream(tracks);
 
-        _encoder = new VideoEncoder({
-            output: (chunk, meta) => _muxer.addVideoChunk(chunk, meta),
-            error:  (e) => console.error('[record] VideoEncoder error:', e),
-        });
-        _encoder.configure(config);
-        _useFallback = false;
-        setOnRecordFrame(_onFrame);
-        console.log('[record] VideoEncoder started —', codecKey,
-            _params.bitrate / 1e6 + 'Mbps', fps + 'fps', WIDTH + '×' + HEIGHT);
-    } else {
-        // MediaRecorder fallback on the preview canvas
-        _useFallback = true;
-        if (!_fbCanvas) { console.error('[record] no canvas for fallback'); return false; }
-        _chunks = [];
-        const mime = _params.codec === 'h264'
-            ? 'video/webm;codecs=avc1' : 'video/webm;codecs=vp9';
-        const mimeType = MediaRecorder.isTypeSupported(mime) ? mime : 'video/webm';
-        const stream = _fbCanvas.captureStream(fps);
-        _recorder = new MediaRecorder(stream, {
+    const mimeType = _pickMime(_params.codec);
+    try {
+        _recorder = new MediaRecorder(_stream, {
             mimeType,
             videoBitsPerSecond: _params.bitrate,
+            audioBitsPerSecond: 192_000,
         });
-        _recorder.ondataavailable = e => { if (e.data.size > 0) _chunks.push(e.data); };
-        _recorder.start(100);
-        console.log('[record] MediaRecorder fallback started —', mimeType);
+    } catch (e) {
+        _lastError = e; setOnRecordFrame(null);
+        _videoStream.getTracks().forEach(t => t.stop());
+        _videoStream = null; _stream = null;
+        console.error('[record] MediaRecorder construct failed:', e);
+        return false;
     }
+    if (!hasAudio) console.warn('[record] no audio source — recording video only');
+
+    _recorder.ondataavailable = e => { if (e.data && e.data.size > 0) _chunks.push(e.data); };
+    _recorder.onerror = e => { if (!_lastError) _lastError = e.error || e;
+                               console.error('[record] MediaRecorder error:', e.error || e); };
+    // timeslice: emit a chunk every 250 ms so data accumulates and is never lost.
+    _recorder.start(250);
+    console.log('[record] MediaRecorder started —', mimeType,
+        _params.bitrate / 1e6 + 'Mbps', fps + 'fps',
+        _canvas.width + '×' + _canvas.height,
+        hasAudio ? '| +audio' : '| video-only');
     return true;
 }
 
-// Returns Promise<Blob|null>. Blob is the .webm, null if not recording.
+// Returns Promise<Blob|null>. Blob is the .webm, null if not recording / no data.
 export function stopRecording() {
-    return new Promise(async resolve => {
-        if (!_encoder && !_recorder) { resolve(null); return; }
-
-        if (_encoder) {
-            setOnRecordFrame(null);
-            try {
-                await _encoder.flush();
-            } catch (e) {
-                console.warn('[record] flush error:', e);
-            }
-            _encoder.close();
-            _encoder = null;
-
-            _muxer.finalize();
-            const { buffer } = _target;
-            _muxer  = null;
-            _target = null;
-            resolve(new Blob([buffer], { type: 'video/webm' }));
-        } else {
-            _recorder.onstop = () => {
-                const blob = new Blob(_chunks, { type: 'video/webm' });
-                _chunks = [];
-                _recorder = null;
-                resolve(blob);
-            };
-            _recorder.stop();
-        }
+    return new Promise(resolve => {
+        if (!_recorder) { resolve(null); return; }
+        setOnRecordFrame(null);
+        const rec = _recorder;
+        rec.onstop = () => {
+            const type = rec.mimeType || 'video/webm';
+            const blob = _chunks.length ? new Blob(_chunks, { type }) : null;
+            console.log('[record] stopped | chunks:', _chunks.length,
+                '| bytes:', blob ? blob.size : 0,
+                '| error:', _lastError ? (_lastError.message || _lastError) : 'none');
+            _chunks   = [];
+            _recorder = null;
+            // Stop only the canvas video tracks. The audio track is shared with
+            // audio.js' persistent tap (used for the next recording) — never stop it.
+            if (_videoStream) { _videoStream.getTracks().forEach(t => t.stop()); _videoStream = null; }
+            _stream = null;
+            resolve(blob);
+        };
+        try { rec.requestData(); } catch (_) { /* flush remaining */ }
+        try { rec.stop(); } catch (e) { if (!_lastError) _lastError = e; rec.onstop(); }
     });
 }
 
+// Last recording error (or null). Lets the UI explain a failed recording.
+export function getRecordError() { return _lastError; }
+
+// Frames seen by the render loop during the last/current recording.
+export function getRecordedFrameCount() { return _frameCount; }
+
 export function isRecording() {
-    if (_encoder)  return _encoder.state === 'configured';
-    if (_recorder) return _recorder.state === 'recording';
-    return false;
+    return _recorder ? _recorder.state === 'recording' : false;
 }
 
-// Called each animation frame by renderer.js when recording is active.
-function _onFrame(offscreenCanvas, timestamp) {
-    if (!_encoder || _encoder.state !== 'configured') return;
-
-    const device = getDevice();
-    const offCtx = getOffscreenContext();
-
-    // Render full-res frame to the offscreen canvas.
-    const recEncoder = device.createCommandEncoder({ label: 'rec-frame' });
-    const offTex     = offCtx.getCurrentTexture();
-    runRenderToTarget(recEncoder, offTex.createView(), WIDTH, HEIGHT);
-    device.queue.submit([recEncoder.finish()]);
-
-    // Capture the rendered HTMLCanvasElement as a VideoFrame.
-    const tsUs = Math.round((timestamp - _startTime) * 1000);
-    let frame;
-    try {
-        frame = new VideoFrame(offscreenCanvas, {
-            timestamp: tsUs,
-            duration:  Math.round(1e6 / _fps),
-        });
-    } catch (e) {
-        console.error('[record] VideoFrame creation failed:', e);
-        return;
-    }
-
-    // Don't let the encoder queue grow unboundedly (>2 frames = skip).
-    if (_encoder.encodeQueueSize <= 2) {
-        const keyFrame = _frameCount % Math.round(_fps * 2) === 0;
-        _encoder.encode(frame, { keyFrame });
-        _frameCount++;
-    }
-    frame.close();
-}
+// Registered as the renderer's record-frame callback: only disables the idle throttle
+// and counts frames. captureStream samples the canvas itself, so nothing to draw here.
+function _keepAlive() { _frameCount++; }
