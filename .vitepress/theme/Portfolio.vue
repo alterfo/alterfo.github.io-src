@@ -25,20 +25,21 @@
       <div class="section-inner bio-inner">
         <div class="bio-text">
           <p>
-            Self-taught musician — two decades on guitar, drums, voice, and keys;
-            currently deep in erhu and classical MIDI repertoire. Studied music
-            theory rigorously: harmony, counterpoint, scale systems. I produce,
-            mix, and master my own releases, and I keep a practice log.
+            Самоучка в музыке — гитара, барабаны, эрху, кларнет, голос, DAW.
+            Изучал теорию музыки: гармония, лады, контрапункт. Пишу и выпускаю
+            треки, снимаю клипы через аудио-реактивные пайплайны на ComfyUI.
+            Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
           </p>
           <p>
-            On the engineering side: 20+ years designing and shipping — frontend
-            systems, audio DSP, AI&nbsp;/&nbsp;RAG pipelines, agentic workflows,
-            and solution architecture. I grow teams, untangle hard architectural
-            contradictions, and make complex things operate simply.
+            В IT 20 лет: 10 лет системный инженер, 13 лет в разработке —
+            последние 10 как Fullstack TypeScript. Сейчас технический лидер
+            в Альфа-Банке. Внедрил CODEOWNERS по всей компании — TTL упал
+            с 9&nbsp;месяцев до 2–3. Монорепо ускорило платформенные релизы
+            с полугода до квартала. Нанял 10 разработчиков — ни один не ушёл.
           </p>
           <p class="bio-accent">
-            The two things aren't separate. Both are about finding the right
-            structure in a complex system.
+            Оба мира устроены одинаково: сложные системы требуют правильной
+            структуры — и там, и там.
           </p>
         </div>
 
@@ -218,7 +219,7 @@ const SvgGithub = defineComponent({
 
 // ── Data ────────────────────────────────────────────────────────
 
-const instruments = ['Guitar', 'Drums', 'Erhu', 'Clarinet', 'Voice', 'DAW']
+const instruments = ['Гитара', 'Барабаны', 'Эрху', 'Кларнет', 'Голос', 'DAW']
 
 const staffNotes = [
   { x: 110, y: 27, sym: '♩' }, { x: 175, y: 37, sym: '♩' },
@@ -232,7 +233,7 @@ const projects = [
     desc: 'Audio-reactive WebGPU визуализатор — частицы и поля реагируют на микрофонный вход в реальном времени.',
     tag: 'WebGPU', color: '#b34dff', external: false },
   { id: 'blog',   title: 'Блог', href: '/blog/',
-    desc: 'Заметки о разработке, музыке и инструментах. Длинные тексты и короткие заметки.',
+    desc: 'Заметки на русском: разработка, архитектура, музыка, инструменты. Пишу про реальный опыт.',
     tag: 'Blog', color: '#1accff', external: false },
   { id: 'idef0',  title: 'IDEF0 Editor', href: '/idef0',
     desc: 'Браузерный редактор функциональных диаграмм. FIPS 183, иерархия, экспорт SVG/PNG.',
@@ -243,19 +244,19 @@ const projects = [
 ]
 
 const musicSkills = [
-  'Guitar · Drums · Erhu · Clarinet · Voice',
-  'DAW production, mixing, mastering',
-  'Music theory, harmony, counterpoint',
-  'Original releases & compositions',
-  'Classical repertoire study (MIDI)',
+  'Гитара · Барабаны · Эрху · Кларнет · Голос',
+  'DAW — продакшн, сведение, мастеринг',
+  'Теория музыки, гармония, лады',
+  'Собственные релизы и композиции',
+  'Классический репертуар на MIDI (в процессе)',
 ]
 
 const codeSkills = [
-  'Frontend · Vue 3 · Browser APIs',
-  'Audio DSP · Web Audio · MIDI',
-  'AI · RAG · Agentic workflows',
-  'Solution architecture & design',
-  'Team building · Conflict resolution',
+  'Fullstack TypeScript · 10+ лет',
+  'Vue · React · Angular · Node.js · Nest.js',
+  'AI · RAG · Агентные флоу · OpenAI API',
+  'Kubernetes · Docker · Kafka · Монорепо',
+  'Тимлид: найм, рост сеньоров, техдолг → 0',
 ]
 
 // ── Particles ───────────────────────────────────────────────────
