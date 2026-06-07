@@ -49,13 +49,17 @@ static int   g_beat_fired  = 0; /* set after first beat so startup time isn't co
 /* latest output frame */
 static AudioFrame g_frame;
 
+/* smoothed spectral descriptors (timbre → color) */
+static float g_centroid = 0.0f; /* normalized brightness 0..1 (EMA-smoothed) */
+static float g_tonal    = 0.0f; /* tonalness / harmonicity 0..1 (EMA-smoothed) */
+
 /* ---- spectral flux beat detector ---- */
 #define FLUX_HIST_LEN       43    /* ~1 s at hop=512, sr=44100 */
 #define BAND_HIST_LEN       20
 #define BEAT_MIN_INTERVAL   0.22f /* max ~272 BPM */
 #define ONSET_MIN_INTERVAL  0.08f /* max ~12 onsets/s per band */
-#define FLUX_THRESH_MULT    1.5f  /* threshold = rolling_mean * this + epsilon */
-#define TEMPO_HIST_LEN      8
+#define FLUX_THRESH_MULT    1.65f /* threshold = rolling_mean * this + epsilon */
+#define TEMPO_HIST_LEN      16
 
 static float g_prev_magnitude[MAX_FFT_SIZE/2];
 
@@ -162,6 +166,65 @@ static void band_bins(float f_lo, float f_hi, int *b0, int *b1) {
     if (*b1 > half) *b1 = half;
 }
 
+/* ---- spectral descriptors (timbre) ----
+ *
+ * Pure functions of the current magnitude spectrum g_magnitude[1..half).
+ * Non-static so the native test harness can extern-declare and call them
+ * directly (the WASM surface is fixed by the Makefile EXPORTED_FUNCTIONS list,
+ * so this does not widen the exported API).
+ */
+
+/* Spectral centroid (brightness), log-normalized to 0..1.
+ * C = Σ(f_i·m_i)/Σ(m_i) in Hz; c = clamp(log2(C/150)/log2(6000/150), 0, 1).
+ * Σm ≈ 0 (silence) → 0. */
+float spectral_centroid_norm(void) {
+    int   half   = g_fft_size >> 1;
+    float bin_hz = (float)g_sample_rate / (float)g_fft_size;
+    float num = 0.0f, den = 0.0f;
+    for (int i = 1; i < half; i++) {
+        float m = g_magnitude[i];
+        num += (float)i * bin_hz * m;
+        den += m;
+    }
+    if (den < 1e-9f) return 0.0f;
+    float C = num / den; /* Hz */
+    if (C < 1e-6f) return 0.0f;
+    float c = log2f(C / 150.0f) / log2f(6000.0f / 150.0f);
+    if (c < 0.0f) c = 0.0f;
+    if (c > 1.0f) c = 1.0f;
+    return c;
+}
+
+/* Spectral tonalness (harmonicity) over the 150–6000 Hz band.
+ * flatness = geo_mean/arith_mean (geo via expf(mean(logf(m+eps))));
+ * tonalness = clamp(1 - flatness, 0, 1).  1 = pure/harmonic, 0 = noisy.
+ * Empty/silent band → 0 (safe default, no NaN/Inf). */
+float spectral_tonalness(void) {
+    int   half   = g_fft_size >> 1;
+    float bin_hz = (float)g_sample_rate / (float)g_fft_size;
+    int   b0 = (int)(150.0f  / bin_hz);
+    int   b1 = (int)(6000.0f / bin_hz) + 1;
+    if (b0 < 1)    b0 = 1;
+    if (b1 > half) b1 = half;
+    if (b1 <= b0)  return 0.0f;
+    const float eps = 1e-9f;
+    float log_sum = 0.0f, arith_sum = 0.0f;
+    int   n = b1 - b0;
+    for (int i = b0; i < b1; i++) {
+        float m = g_magnitude[i];
+        log_sum   += logf(m + eps);
+        arith_sum += m;
+    }
+    float arith = arith_sum / (float)n;
+    if (arith < eps) return 0.0f; /* empty / silent band → not tonal */
+    float geo      = expf(log_sum / (float)n);
+    float flatness = geo / arith;
+    float tonal    = 1.0f - flatness;
+    if (tonal < 0.0f) tonal = 0.0f;
+    if (tonal > 1.0f) tonal = 1.0f;
+    return tonal;
+}
+
 /* ---- per-band envelope follower ---- */
 static float envelope_follow(Envelope *e, float input, float dt) {
     float tc = (input > e->value) ? e->attack : e->release;
@@ -196,6 +259,8 @@ void engine_init(int sample_rate, int fft_size) {
     g_tempo_bpm    = 120.0f;
     g_last_beat_t  = 0.0f;
     g_beat_fired   = 0;
+    g_centroid     = 0.0f;
+    g_tonal        = 0.0f;
 
     memset(g_prev_magnitude, 0, sizeof g_prev_magnitude);
     memset(g_flux_hist,      0, sizeof g_flux_hist);
@@ -293,12 +358,37 @@ void engine_push_samples(const float *buf, int n) {
             /* record inter-beat interval for BPM estimate */
             float candidate_bpm = 60.0f / time_since_beat;
             if (candidate_bpm >= 60.0f && candidate_bpm <= 240.0f) {
-                g_beat_intervals[g_beat_int_head] = time_since_beat;
-                g_beat_int_head = (g_beat_int_head + 1) % TEMPO_HIST_LEN;
-                if (g_beat_int_count < TEMPO_HIST_LEN) g_beat_int_count++;
-                float sum_int = 0.0f;
-                for (int i = 0; i < g_beat_int_count; i++) sum_int += g_beat_intervals[i];
-                g_tempo_bpm = 60.0f / (sum_int / (float)g_beat_int_count);
+                /* Outlier filter: reject intervals that deviate >40% from current BPM.
+                   Skips false-positive beats and double/half-tempo glitches.
+                   Allow all intervals during warm-up (< 4 beats seen). */
+                int accept = 1;
+                if (g_beat_int_count >= 4) {
+                    float cur_interval = 60.0f / g_tempo_bpm;
+                    float ratio = time_since_beat / cur_interval;
+                    /* also accept half-time (ratio~2) and double-time (ratio~0.5) with snap */
+                    if (ratio > 1.8f && ratio < 2.2f) time_since_beat *= 0.5f;
+                    else if (ratio > 0.45f && ratio < 0.55f) time_since_beat *= 2.0f;
+                    else if (ratio < 0.65f || ratio > 1.45f) accept = 0;
+                }
+                if (accept) {
+                    g_beat_intervals[g_beat_int_head] = time_since_beat;
+                    g_beat_int_head = (g_beat_int_head + 1) % TEMPO_HIST_LEN;
+                    if (g_beat_int_count < TEMPO_HIST_LEN) g_beat_int_count++;
+                    /* Median of stored intervals — robust against remaining outliers. */
+                    float tmp[TEMPO_HIST_LEN];
+                    int   cnt = g_beat_int_count;
+                    for (int i = 0; i < cnt; i++) tmp[i] = g_beat_intervals[i];
+                    /* simple insertion sort (cnt <= 16, negligible cost) */
+                    for (int i = 1; i < cnt; i++) {
+                        float v = tmp[i]; int j = i - 1;
+                        while (j >= 0 && tmp[j] > v) { tmp[j+1] = tmp[j]; j--; }
+                        tmp[j+1] = v;
+                    }
+                    float median = (cnt % 2 == 0)
+                        ? (tmp[cnt/2-1] + tmp[cnt/2]) * 0.5f
+                        : tmp[cnt/2];
+                    g_tempo_bpm = 60.0f / median;
+                }
             }
         }
         g_beat_pulse  = 1.0f;
@@ -325,6 +415,13 @@ void engine_push_samples(const float *buf, int n) {
             g_frame.onset[b] = 0.0f;
         }
     }
+
+    /* ---- spectral descriptors (timbre) with light EMA smoothing (τ≈0.15 s) ---- */
+    float centroid_raw = spectral_centroid_norm();
+    float tonal_raw    = spectral_tonalness();
+    float k_ts = 1.0f - expf(-dt / 0.15f);
+    g_centroid += k_ts * (centroid_raw - g_centroid);
+    g_tonal    += k_ts * (tonal_raw    - g_tonal);
 
     /* save magnitudes for next frame's flux computation */
     memcpy(g_prev_magnitude, g_magnitude, half_bins * sizeof(float));
