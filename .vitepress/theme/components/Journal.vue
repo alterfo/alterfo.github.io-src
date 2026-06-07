@@ -19,7 +19,11 @@ const focusMode = ref(false)
 
 const vault = reactive({ version: 1, entries: {}, createdAt: '' })
 
-const todayISO = ref(new Date().toISOString().slice(0, 10))
+function localDateISO() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const todayISO = ref(localDateISO())
 const todayText = ref('')
 
 // ---- Derived values ----
@@ -38,13 +42,16 @@ const pastEntries = computed(() =>
 // ---- Autosave (debounced via db.saveEnvelope's own 300 ms debounce; we add 100 ms here) ----
 let _saveTimer = null
 
+async function buildEnvelope() {
+  upsertEntry(vault, todayISO.value, todayText.value)
+  const { iv, ciphertext } = await encryptJSON(_key, vault)
+  return packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
+}
+
 async function persistVault() {
   if (!_key) return
   try {
-    upsertEntry(vault, todayISO.value, todayText.value)
-    const { iv, ciphertext } = await encryptJSON(_key, vault)
-    const envelope = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
-    saveEnvelope(envelope)
+    saveEnvelope(await buildEnvelope())
   } catch (e) {
     console.warn('[journal] save failed:', e)
   }
@@ -53,6 +60,22 @@ async function persistVault() {
 function onTextInput() {
   clearTimeout(_saveTimer)
   _saveTimer = setTimeout(persistVault, 100)
+}
+
+// ---- Day rollover at midnight ----
+let _dayTimer = null
+
+function scheduleDayRollover() {
+  const now = new Date()
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  _dayTimer = setTimeout(() => {
+    const newDay = localDateISO()
+    if (newDay !== todayISO.value) {
+      todayISO.value = newDay
+      todayText.value = vault.entries[newDay]?.text ?? ''
+    }
+    scheduleDayRollover()
+  }, tomorrow - now + 500)
 }
 
 // ---- Unlock existing vault ----
@@ -109,10 +132,7 @@ function onPassphraseKeydown(e) {
 async function doExport() {
   if (!_key) return
   try {
-    upsertEntry(vault, todayISO.value, todayText.value)
-    const { iv, ciphertext } = await encryptJSON(_key, vault)
-    const envelopeStr = packEnvelope({ salt: _salt, iterations: _iterations, iv, ciphertext })
-    exportEnvelope(envelopeStr)
+    exportEnvelope(await buildEnvelope())
   } catch (e) {
     console.warn('[journal] export failed:', e)
   }
@@ -145,13 +165,17 @@ async function onImportFileChange(e) {
     importError.value = ''
     importPhase.value = 'awaiting-passphrase'
   } catch {
-    importError.value = 'Failed to read file.'
-    importPhase.value = 'error'
+    importError.value = 'Failed to read the selected file.'
+    importPhase.value = 'awaiting-passphrase'
   }
 }
 
 async function doImport() {
-  if (!_pendingImportStr || !_key) return
+  if (!_pendingImportStr || !_key || importPhase.value === 'merging') return
+  if (!importPassphrase.value.trim()) {
+    importError.value = 'Enter the passphrase for the imported file.'
+    return
+  }
   importPhase.value = 'merging'
   importError.value = ''
   try {
@@ -186,6 +210,8 @@ onMounted(async () => {
   hasVault.value = envelopeStr != null
   phase.value = 'locked'
 
+  scheduleDayRollover()
+
   _cleanupSync = initCrossTabSync(async () => {
     if (!_key) return
     const str = await loadEnvelope()
@@ -193,11 +219,12 @@ onMounted(async () => {
     try {
       const { salt, iterations, iv, ciphertext } = unpackEnvelope(str)
       const data = await decryptJSON(_key, { iv, ciphertext })
-      Object.assign(vault, data)
-      // Preserve in-progress edits for today if they're newer than what just synced
-      const synced = vault.entries[todayISO.value]
-      if (!synced || countWords(todayText.value) >= countWords(synced.text)) return
-      todayText.value = synced.text
+      // Include in-progress text before merging so it participates in LWW
+      upsertEntry(vault, todayISO.value, todayText.value)
+      const merged = mergeVaults(vault, data)
+      Object.assign(vault, merged)
+      const mergedToday = vault.entries[todayISO.value]
+      if (mergedToday) todayText.value = mergedToday.text
     } catch {}
   })
 })
@@ -205,6 +232,7 @@ onMounted(async () => {
 onUnmounted(() => {
   _cleanupSync()
   clearTimeout(_saveTimer)
+  clearTimeout(_dayTimer)
   _key = null
 })
 </script>

@@ -18,10 +18,5 @@ export function exportEnvelope(envelopeStr, name = 'journal') {
 
 // Reads a File and resolves with the envelope string.
 export function readEnvelopeFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = e => resolve(e.target.result)
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsText(file)
-  })
+  return file.text()
 }

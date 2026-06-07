@@ -73,7 +73,7 @@ test('tampered ciphertext rejects on decrypt', async () => {
   const key = await deriveKey('pass', env.salt, env.iterations)
   await assert.rejects(
     () => decryptJSON(key, env),
-    'tampered ciphertext should reject'
+    err => err instanceof DOMException
   )
 })
 
@@ -84,6 +84,6 @@ test('wrong passphrase rejects on import', async () => {
   const wrongKey = await deriveKey('wrong-pass', salt, iterations)
   await assert.rejects(
     () => decryptJSON(wrongKey, { iv, ciphertext }),
-    'wrong passphrase should reject'
+    err => err instanceof DOMException
   )
 })

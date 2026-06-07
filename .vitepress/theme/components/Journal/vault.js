@@ -36,21 +36,12 @@ export function upsertEntry(vault, dateISO, text, now = new Date().toISOString()
 // Today that has not yet met the goal does NOT break a prior streak (streak is preserved
 // until the day actually rolls over with insufficient words).
 export function computeStreak(vault, todayISO, goal = 500) {
-  const today = new Date(todayISO);
   let streak = 0;
   let d = new Date(todayISO);
 
-  // If today's entry already meets goal, count it and walk backward.
-  // If today's entry does not meet goal, skip today but still walk backward
-  // (prior days' streak is preserved for the current day).
   const todayEntry = vault.entries[todayISO];
-  if (todayEntry && goalMet(todayEntry, goal)) {
-    streak++;
-    d.setDate(d.getDate() - 1);
-  } else {
-    // Today doesn't count yet — start checking from yesterday.
-    d.setDate(d.getDate() - 1);
-  }
+  if (todayEntry && goalMet(todayEntry, goal)) streak++;
+  d.setDate(d.getDate() - 1);
 
   // Walk backward until a day without a qualifying entry.
   while (true) {
