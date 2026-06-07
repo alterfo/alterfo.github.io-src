@@ -54,16 +54,21 @@ function makeDiagram(partial = {}) {
 }
 
 function makeDefaultProject() {
-  const box1 = makeBox({ id: 'box-1', label: 'Process', x: 200, y: 150, w: 160, h: 80 })
+  const box1 = makeBox({ id: 'box-1', label: 'Prepare', x: 150, y: 200, w: 160, h: 80 })
+  const box2 = makeBox({ id: 'box-2', label: 'Execute', x: 480, y: 320, w: 160, h: 80 })
   const a0 = makeDiagram({
     id: 'A0',
     title: 'Context Diagram',
-    boxes: [box1],
+    boxes: [box1, box2],
+    arrows: [
+      makeArrow({ id: 'arrow-1', label: 'Data', type: 'output', sourceBoxId: 'box-1', targetBoxId: 'box-2' }),
+      makeArrow({ id: 'arrow-2', label: 'Config', type: 'control', sourceBoxId: 'box-1', targetBoxId: 'box-2' }),
+    ],
     boundaryArrows: [
       makeBoundaryArrow({ id: 'barrow-1', label: 'Input', type: 'input', icomCode: 'I1', boxId: 'box-1' }),
       makeBoundaryArrow({ id: 'barrow-2', label: 'Control', type: 'control', icomCode: 'C1', boxId: 'box-1' }),
-      makeBoundaryArrow({ id: 'barrow-3', label: 'Output', type: 'output', icomCode: 'O1', boxId: 'box-1' }),
-      makeBoundaryArrow({ id: 'barrow-4', label: 'Mechanism', type: 'mechanism', icomCode: 'M1', boxId: 'box-1' }),
+      makeBoundaryArrow({ id: 'barrow-3', label: 'Result', type: 'output', icomCode: 'O1', boxId: 'box-2' }),
+      makeBoundaryArrow({ id: 'barrow-4', label: 'Resource', type: 'mechanism', icomCode: 'M1', boxId: 'box-2' }),
     ],
   })
   return {

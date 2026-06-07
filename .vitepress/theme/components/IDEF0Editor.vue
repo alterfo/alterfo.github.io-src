@@ -28,6 +28,39 @@
           font-size="18"
         >No diagram loaded</text>
 
+        <!-- Arrows (rendered below boxes so boxes appear on top) -->
+        <g v-if="currentDiagram">
+          <g
+            v-for="ra in renderedArrows"
+            :key="ra.arrow.id"
+            class="idef0-arrow"
+          >
+            <path
+              :d="ra.d"
+              stroke="black"
+              stroke-width="1"
+              :stroke-dasharray="ra.strokeDasharray || ''"
+              fill="none"
+            />
+            <polygon
+              :points="ra.arrowheadPoints"
+              fill="black"
+              stroke="none"
+            />
+          </g>
+          <!-- Arrow labels -->
+          <text
+            v-for="al in arrowLabels"
+            :key="al.arrow.id + '-lbl'"
+            :x="al.x"
+            :y="al.y"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="10"
+            fill="#555"
+          >{{ al.text }}</text>
+        </g>
+
         <!-- Boxes -->
         <g v-if="currentDiagram">
           <g
@@ -80,7 +113,7 @@
 <script setup>
 import { computed } from 'vue'
 import { currentDiagram } from './IDEF0Editor/model.js'
-import { renderBox } from './IDEF0Editor/renderer.js'
+import { renderBox, routeArrow, renderArrow, renderArrowLabel } from './IDEF0Editor/renderer.js'
 
 const VIEW_W = 1200
 const VIEW_H = 800
@@ -90,6 +123,26 @@ const renderedBoxes = computed(() => {
   return currentDiagram.value.boxes.map((box, idx) =>
     renderBox(box, false, idx + 1)
   )
+})
+
+const renderedArrows = computed(() => {
+  if (!currentDiagram.value) return []
+  return currentDiagram.value.arrows
+    .map(arrow => {
+      const route = routeArrow(arrow, currentDiagram.value.boxes)
+      return route.length >= 2 ? renderArrow(arrow, route, false) : null
+    })
+    .filter(Boolean)
+})
+
+const arrowLabels = computed(() => {
+  if (!currentDiagram.value) return []
+  return currentDiagram.value.arrows
+    .map(arrow => {
+      const route = routeArrow(arrow, currentDiagram.value.boxes)
+      return route.length >= 2 ? renderArrowLabel(arrow, route) : null
+    })
+    .filter(Boolean)
 })
 </script>
 
