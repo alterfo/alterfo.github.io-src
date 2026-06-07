@@ -30,7 +30,10 @@
             title="Go up to parent diagram"
           >↑ Выйти</button>
           <button class="idef0-btn" @click="handleResetView">Reset View</button>
-          <button class="idef0-btn" @click="handleExportSVG">Export SVG</button>
+          <button class="idef0-btn" @click="handleExportSVG" title="Download current diagram as SVG">SVG</button>
+          <button class="idef0-btn" @click="handleExportPNG" title="Download current diagram as PNG (2x)">PNG</button>
+          <button class="idef0-btn" @click="handleExportJSON" title="Download entire project as JSON">JSON ↓</button>
+          <button class="idef0-btn" @click="handleImportJSON" title="Import project from JSON file">JSON ↑</button>
         </div>
       </div>
 
@@ -245,6 +248,7 @@ import {
 } from './IDEF0Editor/renderer.js'
 import { icomCode } from './IDEF0Editor/icom.js'
 import { loadProject, saveProject, initCrossTabSync } from './IDEF0Editor/db.js'
+import { exportToSVG, exportToPNG, exportToJSON, importFromJSON } from './IDEF0Editor/exporter.js'
 
 const VIEW_W = 1200
 const VIEW_H = 800
@@ -623,21 +627,31 @@ function handleNavigateUp() {
 }
 
 function handleExportSVG() {
-  const svgEl = svgRef.value
-  if (!svgEl) return
-  const clone = svgEl.cloneNode(true)
-  const g = clone.querySelector('g[transform]')
-  if (g) g.removeAttribute('transform')
-  const svgStr = new XMLSerializer().serializeToString(clone)
-  const blob = new Blob([svgStr], { type: 'image/svg+xml' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `idef0-${currentDiagram.value?.id ?? 'diagram'}.svg`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  exportToSVG(svgRef.value, currentDiagram.value?.id ?? 'diagram')
+}
+
+function handleExportPNG() {
+  exportToPNG(svgRef.value, currentDiagram.value?.id ?? 'diagram')
+}
+
+function handleExportJSON() {
+  exportToJSON(project)
+}
+
+async function handleImportJSON() {
+  try {
+    const data = await importFromJSON()
+    _suppressSave = true
+    try {
+      loadProjectData(data)
+    } finally {
+      _suppressSave = false
+    }
+  } catch (err) {
+    if (err.message !== 'No file selected') {
+      alert('Import failed: ' + err.message)
+    }
+  }
 }
 
 // --- Breadcrumb ---
