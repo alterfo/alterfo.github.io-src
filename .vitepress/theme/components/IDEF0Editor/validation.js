@@ -53,45 +53,48 @@ export function validateDiagram(diagram) {
  */
 function validateICOMEdge(arrow) {
   const { type, from, to } = arrow;
-  
-  // Only validate if both endpoints connect to blocks
-  if (!from.blockId || !to.blockId) return null;
-  
-  // Check target edge (where arrow enters/connects)
-  const targetEdge = to.edge;
-  
+
+  // Skip completely floating arrows (no block or edge on either end)
+  if (!from.blockId && !from.edge && !to.blockId && !to.edge) return null;
+
+  const fromEdge = from.edge;
+  const toEdge = to.edge;
+
   switch (type) {
     case 'input':
-      if (targetEdge !== 'left') {
-        return `INPUT arrow must connect to left side, found ${targetEdge}`;
+      // INPUT enters the block from the left
+      if (to.blockId && toEdge !== 'left') {
+        return `INPUT arrow must connect to left side, found ${toEdge}`;
       }
       break;
     case 'output':
-      // OUTPUT typically exits from right, but can connect elsewhere in complex diagrams
-      // For strict IDEF0 compliance, output should exit from right side of source
-      if (from.edge !== 'right') {
-        return `OUTPUT arrow must exit from right side, found ${from.edge}`;
+      // OUTPUT exits the block from the right
+      if (from.blockId && fromEdge !== 'right') {
+        return `OUTPUT arrow must exit from right side, found ${fromEdge}`;
       }
       break;
     case 'control':
-      if (targetEdge !== 'top') {
-        return `CONTROL arrow must connect to top side, found ${targetEdge}`;
+      // CONTROL enters the block from the top
+      if (to.blockId && toEdge !== 'top') {
+        return `CONTROL arrow must connect to top side, found ${toEdge}`;
       }
       break;
     case 'mechanism':
-      if (targetEdge !== 'bottom') {
-        return `MECHANISM arrow must connect to bottom side, found ${targetEdge}`;
+      // MECHANISM enters the block from the bottom
+      if (to.blockId && toEdge !== 'bottom') {
+        return `MECHANISM arrow must connect to bottom side, found ${toEdge}`;
       }
       break;
     case 'call':
-      if (targetEdge !== 'bottom') {
-        return `CALL arrow must connect to bottom side, found ${targetEdge}`;
+      // CALL exits the block from the bottom (references another model)
+      if (from.blockId && fromEdge !== 'bottom') {
+        return `CALL arrow must exit from bottom side, found ${fromEdge}`;
       }
       break;
     default:
       return null;
   }
-  
+
   return null;
 }
 

@@ -473,7 +473,7 @@ function drawBoundaryMarker(arrow, pt, col, isTarget) {
                Math.abs(pt.y - bounds.minY) < 2 || Math.abs(pt.y - bounds.maxY) < 2
   if (!onBd) return
   if ((isTarget && arrow.to.blockId) || (!isTarget && arrow.from.blockId)) return
-  const m = isTarget ? getICOMMarker(arrow.type) : ''
+  const m = getICOMMarker(arrow.type)
   if (!m) return
   const fs = 10, pad = 4
   ctx.font = `bold ${fs}px sans-serif`
@@ -497,7 +497,7 @@ function getICOMMarker(type) {
     case 'output': return 'O'
     case 'control': return 'C'
     case 'mechanism': return 'M'
-    case 'call': return 'C'
+    case 'call': return 'R'
     default: return ''
   }
 }
