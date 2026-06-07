@@ -129,9 +129,10 @@ const breadcrumb = computed(() => {
 })
 const editorStyle = computed(() => {
   if (!editing.value) return {}
+  const { x, y } = worldToScreen(editing.value.x, editing.value.y)
   return {
-    left: worldToScreen(editing.value.x).x + 'px',
-    top: worldToScreen(editing.value.y).y + 'px',
+    left: x + 'px',
+    top: y + 'px',
     width: (editing.value.w * scale.value) + 'px',
     height: (editing.value.h * scale.value) + 'px',
   }
@@ -687,12 +688,7 @@ function navigateToDiagram(id) {
 function onDoubleClick(e) {
   const b = hitTestBlock(e.offsetX, e.offsetY)
   if (b) {
-    if (b.diagramId) {
-      selectedBlockId.value = b.id
-      enterBlock()
-    } else {
-      startEditBlock(b)
-    }
+    startEditBlock(b)
     return
   }
   const a = hitTestArrow(e.offsetX, e.offsetY)
@@ -858,6 +854,8 @@ function onMouseMove(e) {
     if (a) {
       const ep = dragArrowEnd.end === 'from' ? a.from : a.to
       const p = screenToWorld(e.offsetX, e.offsetY)
+      ep.x = p.x
+      ep.y = p.y
       let connected = false
       for (const blk of blocks.value) {
         if (reconnectArrowToBlock(a, dragArrowEnd.end, blk)) {
@@ -868,8 +866,6 @@ function onMouseMove(e) {
       if (!connected) {
         ep.blockId = null
         ep.edge = null
-        ep.x = p.x
-        ep.y = p.y
         const pts = getArrowPoints(a)
         a.segments = pts.length > 2 ? pts.slice(1, -1) : []
       }
@@ -882,6 +878,11 @@ function onMouseMove(e) {
     const p = screenToWorld(e.offsetX, e.offsetY)
     dragBlock.x = p.x - dragOffsetX
     dragBlock.y = p.y - dragOffsetY
+    for (const a of arrows.value) {
+      if (a.from?.blockId === dragBlock.id || a.to?.blockId === dragBlock.id) {
+        a.segments = []
+      }
+    }
     render()
   }
 
