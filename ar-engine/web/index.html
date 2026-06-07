@@ -55,7 +55,45 @@
     #drop-overlay .drop-icon { font-size: 3.5rem; line-height: 1; }
     #drop-overlay .drop-text { font-size: 1.1rem; color: #ccc; }
     #drop-overlay .drop-hint { font-size: 0.8rem; color: #666; }
-    #file-input { display: none; }
+    #file-input, #dir-input { display: none; }
+
+    /* ---- mode buttons (bottom-left) ---- */
+    #mode-bar {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    #mode-bar.visible { opacity: 1; pointer-events: auto; }
+    .mode-btn {
+      background: rgba(10, 0, 30, 0.75);
+      border: 1px solid #333;
+      border-radius: 20px;
+      padding: 6px 16px;
+      color: #666;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .mode-btn:hover { border-color: #8b00ff; color: #c080ff; }
+    .mode-btn.active {
+      border-color: #00ffcc;
+      color: #00ffcc;
+      background: rgba(0, 255, 204, 0.07);
+    }
+    .mode-btn[data-mode="auto"].active {
+      border-color: #ff8800;
+      color: #ff8800;
+      background: rgba(255, 136, 0, 0.07);
+      animation: rec-blink 2s ease-in-out infinite;
+    }
 
     /* ---- controls bar (hidden until file loaded) ---- */
     #controls {
@@ -89,9 +127,7 @@
     .ctrl-btn:hover { background: rgba(139, 0, 255, 0.35); border-color: #00ffff; }
     .ctrl-btn:active { transform: scale(0.94); }
 
-    #btn-rec {
-      border-color: #ff2244;
-    }
+    #btn-rec { border-color: #ff2244; }
     #btn-rec.recording {
       background: rgba(255, 34, 68, 0.4);
       border-color: #ff2244;
@@ -118,17 +154,6 @@
 
     /* ---- loop active state ---- */
     #btn-loop.active { border-color: #00ffcc; color: #00ffcc; }
-
-    /* ---- live button ---- */
-    #btn-live {
-      border-color: #ff8800;
-    }
-    #btn-live.active {
-      background: rgba(255, 136, 0, 0.3);
-      border-color: #ff8800;
-      color: #ff8800;
-      animation: rec-blink 1.4s ease-in-out infinite;
-    }
 
     /* ---- icon buttons bar (bottom-right cluster) ---- */
     #icon-bar {
@@ -170,6 +195,70 @@
       transition: opacity 0.3s;
     }
     #track-label.visible { opacity: 1; }
+
+    /* ---- Yandex Music panel ---- */
+    #ym-panel {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 360px;
+      background: rgba(5, 0, 15, 0.96);
+      border-left: 1px solid #330066;
+      z-index: 90;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      border-radius: 0 0 8px 0;
+    }
+    #ym-panel.open { transform: translateX(0); }
+    #ym-panel iframe {
+      flex: 1;
+      border: none;
+      width: 100%;
+      background: #000;
+      border-radius: 0 0 8px 0;
+    }
+    #ym-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-bottom: 1px solid #220044;
+      font-size: 0.75rem;
+      color: #c080ff;
+      flex-shrink: 0;
+    }
+    #ym-header button {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    #ym-header button:hover { color: #fff; }
+    #ym-blocked {
+      display: none;
+      padding: 16px;
+      font-size: 0.75rem;
+      color: #888;
+      text-align: center;
+      line-height: 1.6;
+    }
+    #btn-ym.active { border-color: #ff2270; color: #ff2270; }
+
+    /* ---- fullscreen auto-hide ---- */
+    #controls, #bpm-badge, #track-label, #icon-bar, #mode-bar {
+      transition: opacity 0.6s ease;
+    }
+    .fs-hidden #controls    { opacity: 0 !important; pointer-events: none !important; }
+    .fs-hidden #bpm-badge   { opacity: 0 !important; }
+    .fs-hidden #track-label { opacity: 0 !important; }
+    .fs-hidden #icon-bar    { opacity: 0 !important; pointer-events: none !important; }
+    .fs-hidden #mode-bar    { opacity: 0 !important; pointer-events: none !important; }
+    .fs-hidden #ym-panel    { transform: translateX(100%) !important; pointer-events: none !important; }
+    .fs-hidden { cursor: none !important; }
   </style>
 </head>
 <body>
@@ -177,31 +266,62 @@
     <canvas id="canvas" width="960" height="540"></canvas>
 
     <!-- drag-drop overlay -->
-    <div id="drop-overlay" role="button" aria-label="Drop audio file or click to browse">
+    <div id="drop-overlay" role="button" aria-label="Drop audio files or a folder, or click to browse">
       <div class="drop-icon">🎵</div>
-      <div class="drop-text">Drop audio file here</div>
-      <div class="drop-hint">mp3 · flac · wav · ogg</div>
-      <input id="file-input" type="file" accept="audio/*">
+      <div class="drop-text">Drop audio files or a folder here</div>
+      <div class="drop-hint">mp3 · flac · wav · ogg — multi-select &amp; folders supported</div>
     </div>
+    <!-- File inputs live OUTSIDE the overlay: as children, input.click() would bubble
+         back to the overlay's click handler and open a second picker. -->
+    <input id="file-input" type="file" accept="audio/*" multiple>
+    <input id="dir-input"  type="file" accept="audio/*" webkitdirectory directory multiple>
 
-    <!-- BPM display -->
-    <div id="bpm-badge">— BPM</div>
+    <!-- BPM display — hidden: tempo estimate is not reliable enough to show -->
+    <div id="bpm-badge" style="display:none">— BPM</div>
 
     <!-- track name -->
     <div id="track-label"></div>
 
+    <!-- mode selection buttons (bottom-left, visible after audio loads) -->
+    <div id="mode-bar">
+      <button class="mode-btn"        data-mode="fluid">Fluid</button>
+      <button class="mode-btn"        data-mode="cymatics">Cymatics</button>
+      <button class="mode-btn"        data-mode="nova">Nova</button>
+      <button class="mode-btn active" data-mode="auto">Auto</button>
+    </div>
+
     <!-- playback + record controls (hidden until audio source loaded) -->
     <div id="controls">
+      <button class="ctrl-btn" id="btn-prev" title="Previous track" style="display:none">⏮</button>
       <button class="ctrl-btn" id="btn-play" title="Play / Pause">▶</button>
+      <button class="ctrl-btn" id="btn-next" title="Next track" style="display:none">⏭</button>
       <button class="ctrl-btn" id="btn-loop" title="Loop track">🔁</button>
       <button class="ctrl-btn" id="btn-rec"  title="Record">⏺</button>
     </div>
 
     <!-- bottom-right icon bar: always visible -->
     <div id="icon-bar">
-      <button class="icon-btn" id="btn-live"     title="Capture tab audio — Yandex Music, Spotify…">🎙</button>
-      <button class="icon-btn" id="btn-load"     title="Load audio file">📁</button>
-      <button class="icon-btn" id="btn-settings" title="Advanced settings">⚙️</button>
+      <button class="icon-btn" id="btn-ym"      title="Яндекс Музыка">🟣</button>
+      <button class="icon-btn" id="btn-load"    title="Load audio file(s)">📁</button>
+      <button class="icon-btn" id="btn-load-dir" title="Load a music folder">📂</button>
+      <button class="icon-btn" id="btn-fs"      title="Fullscreen (F)">⛶</button>
+    </div>
+
+    <!-- Yandex Music iframe panel -->
+    <div id="ym-panel">
+      <div id="ym-header">
+        <span>Яндекс Музыка</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="btn-ym-capture" title="Захватить аудио вкладки">🎙 Захват</button>
+          <button id="btn-ym-close">✕</button>
+        </div>
+      </div>
+      <div id="ym-blocked">
+        Яндекс Музыка не разрешает встраивание через iframe.<br><br>
+        Откройте <a href="https://music.yandex.ru" target="_blank" style="color:#8b00ff">music.yandex.ru</a>
+        в отдельной вкладке браузера, запустите трек, вернитесь и нажмите 🎙 Захват — выберите вкладку с музыкой.
+      </div>
+      <iframe id="ym-frame" src="about:blank" allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
     </div>
   </div>
 
@@ -222,29 +342,250 @@
     import {
       initAudio, loadFile as audioLoadFile, connectStream,
       play, pause, resume, isPlaying, getAudioFrame,
-      setLoop, isLoop,
+      setLoop, isLoop, setOnTrackEnded,
     } from './audio.js';
     import { initRenderer, startLoop, addFrameTick } from './renderer.js';
-    import { initParticlePipeline } from './particles.js';
-    import { initFeedbackPipeline } from './feedback.js';
-    import { initRenderPipeline } from './render.js';
-    import { initRecord, startRecording, stopRecording, isRecording } from './record.js';
-    import { initAdvanced } from './advanced.js';
+    import { initParticlePipeline, setParticleParams,
+             setNovaParams, getNovaParams } from './particles.js';
+    import { initFeedbackPipeline, setFeedbackParams } from './feedback.js';
+    import { initRenderPipeline, setRenderParams, PALETTES } from './render.js';
+    import { initRecord, startRecording, stopRecording,
+             getRecordError, getRecordedFrameCount } from './record.js';
+
+    /* ---- Live Nova tuning from the DevTools console ----
+       nova.set({ count: 600, thickness: 0.01, bright: 0.7, length: 0.31 })
+       nova.get()                       → current values
+       nova.reset()                     → restore defaults
+       Keys (aliases): count|fibers, thickness|jitter, length|irisR|size,
+       curl|bend, amp|meander, pupil|pupilR, pupilGain, sclera|wisps,
+       bright|brightness|alpha|opacity, flow|speed (streaming speed),
+       anim|alive|morph (bend-morph speed).  Changes apply on the next frame. */
+    const _NOVA_DEFAULTS = getNovaParams();
+    window.nova = {
+      set:   p => { const v = setNovaParams(p); console.table(v); return v; },
+      get:   () => getNovaParams(),
+      reset: () => { const v = setNovaParams(_NOVA_DEFAULTS); console.table(v); return v; },
+    };
+    console.log('%c[nova] live tuning ready — try nova.set({ count: 600, bright: 0.7 }); nova.get()',
+                'color:#5cf');
+
+    /* ---- Mode presets ---- */
+    const MODES = {
+      fluid: {
+        // Aurora/plasma cloud — breathes with music
+        noiseScale: 3.0, noiseSpeed: 0.35, decay: 0.970, lifetime: 380,
+        hueScale: 0.8, chladniMode: 0, novaMode: 0,
+        paletteIdx: 0, exposure: 2.5, gamma: 0.85,
+      },
+      cymatics: {
+        // Chladni free-edge plate (cosine) — deep navy bg, white nodal lines
+        // Ocean palette: dark navy → blue → sky → pale cyan → white
+        noiseScale: 1.0, noiseSpeed: 0.05, decay: 0.988, lifetime: 500,
+        hueScale: 0.02, chladniMode: 1, novaMode: 0,
+        paletteIdx: 2, exposure: 2.0, gamma: 0.80,
+      },
+      nova: {
+        // Iris fountain: collarette amber inner, blue-grey outer; beat = mydriasis
+        noiseScale: 2.0, noiseSpeed: 0.10, decay: 0.985, lifetime: 600,
+        hueScale: 0.02, chladniMode: 0, novaMode: 1,
+        paletteIdx: 5, exposure: 4.5, gamma: 0.62,
+      },
+    };
+
+    let _pipelinesReady = false;
+    let _autoActive     = false;
+    let _autoCurMode    = 'fluid';
+    // Sustained spectral character (slow EMA), used to pick WHICH mode to switch to.
+    let _autoSmEnergy   = 0;
+    let _autoSmBass     = 0;
+    let _autoSmHigh     = 0;
+    let _autoSmMid      = 0;
+    // Beat-grid scheduler: the mode changes on a musical grid — every N beats, with
+    // N picked from {4, 8, 16} (energetic passages change faster, calm ones hold
+    // longer). Beats are counted from beat_pulse rising edges; a wall-clock fallback
+    // (derived from BPM) keeps ambient / sparse-beat tracks rotating too. The change
+    // is guaranteed (always to a *different* mode) so auto never feels frozen.
+    let _autoBeatCount    = 0;     // running count of detected beats
+    let _autoNextSwitch   = 8;     // beat index at which the next switch fires
+    let _autoPeriodBeats  = 8;     // current period (4 | 8 | 16)
+    let _autoPrevBeat     = 0;
+    let _autoLastSwitchMs = 0;     // wall-clock of last switch (for the time fallback)
+    const AUTO_PERIODS = [4, 8, 16];   // beats-per-switch ladder (user spec: 4 / 8 / 16)
+
+    function setMode(name) {
+      if (name === 'auto') {
+        _autoActive = true;
+        // (Re)arm the beat-grid scheduler so the first switch lands ~one phrase out.
+        _autoBeatCount    = 0;
+        _autoPeriodBeats  = 8;
+        _autoNextSwitch   = 8;
+        _autoPrevBeat     = 0;
+        _autoLastSwitchMs = performance.now();
+        // Apply current auto target immediately so mode is not blank
+        if (_pipelinesReady) {
+          const m = MODES[_autoCurMode];
+          if (m) {
+            setParticleParams({ noiseScale: m.noiseScale, noiseSpeed: m.noiseSpeed,
+              lifetime: m.lifetime, chladniMode: m.chladniMode, novaMode: m.novaMode });
+            setFeedbackParams({ decayNormal: m.decay });
+            setRenderParams({ palette: PALETTES[m.paletteIdx].flat(),
+              hueScale: m.hueScale, exposure: m.exposure, gamma: m.gamma, novaMode: m.novaMode });
+          }
+        }
+        document.querySelectorAll('.mode-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.mode === 'auto')
+        );
+        return;
+      }
+      _autoActive = false;
+      const m = MODES[name];
+      if (!m || !_pipelinesReady) return;
+      setParticleParams({
+        noiseScale:  m.noiseScale,
+        noiseSpeed:  m.noiseSpeed,
+        lifetime:    m.lifetime,
+        chladniMode: m.chladniMode,
+        novaMode:    m.novaMode,
+      });
+      setFeedbackParams({ decayNormal: m.decay });
+      setRenderParams({
+        palette:  PALETTES[m.paletteIdx].flat(),
+        hueScale: m.hueScale,
+        exposure: m.exposure,
+        gamma:    m.gamma,
+        novaMode: m.novaMode,
+      });
+      document.querySelectorAll('.mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === name)
+      );
+    }
+
+    // Maintain a slow EMA of the spectral character (α=0.02 → τ≈0.8 s). Used only to
+    // choose WHICH mode the next scheduled switch goes to — not whether to switch.
+    function _autoTick(frame, now) {
+      if (!frame || !_pipelinesReady) return;
+      const a = 0.02;
+      _autoSmEnergy = _autoSmEnergy * (1 - a) + frame.energy * a;
+      _autoSmBass   = _autoSmBass   * (1 - a) + frame.bass   * a;
+      _autoSmMid    = _autoSmMid    * (1 - a) + frame.mid    * a;
+      _autoSmHigh   = _autoSmHigh   * (1 - a) + frame.high   * a;
+    }
+
+    // Musical fit per mode from the sustained spectral profile. Higher = better match.
+    function _autoScoreModes() {
+      const total = Math.max(_autoSmBass + _autoSmMid + _autoSmHigh, 0.001);
+      return {
+        nova:     (_autoSmBass / total) * 1.4 + (_autoSmEnergy > 0.06 ? 0.20 : 0.0), // bass/punch → iris
+        cymatics: (_autoSmHigh / total) * 1.3 + (_autoSmEnergy < 0.05 ? 0.60 : 0.0), // treble/quiet → chladni
+        fluid:    (_autoSmMid  / total) * 1.1 + 0.25,                                // balanced → aurora
+      };
+    }
+
+    // Pick the best-fitting mode that is NOT the current one, so every scheduled
+    // switch is a real, music-informed change (a light "predict the next look").
+    function _autoNextMode() {
+      const s = _autoScoreModes();
+      let best = 'fluid', bestScore = -1;
+      for (const name of ['fluid', 'cymatics', 'nova']) {
+        if (name === _autoCurMode) continue;
+        if (s[name] > bestScore) { bestScore = s[name]; best = name; }
+      }
+      return best;
+    }
+
+    // Choose the next switch period (in beats) from the 4/8/16 ladder: energetic
+    // passages change faster, calm ones hold longer, ±1 random rung so it's not
+    // metronomic.
+    function _autoPickPeriod() {
+      let base = _autoSmEnergy > 0.12 ? 4 : (_autoSmEnergy > 0.05 ? 8 : 16);
+      let idx  = AUTO_PERIODS.indexOf(base);
+      const r  = Math.random();
+      if (r < 0.30)      idx -= 1;
+      else if (r > 0.70) idx += 1;
+      idx = Math.min(AUTO_PERIODS.length - 1, Math.max(0, idx));
+      return AUTO_PERIODS[idx];
+    }
+
+    // Commit a scheduled switch: pick the next mode + next period, then transition.
+    function _commitAutoSwitch(now) {
+      const target = _autoNextMode();
+      _autoPeriodBeats  = _autoPickPeriod();
+      _autoNextSwitch   = _autoBeatCount + _autoPeriodBeats;
+      _autoLastSwitchMs = now;
+      _applyAutoSwitch(target, now);
+    }
+
+    // Perform the actual mode change with a scatter-dissolve transition. Called only
+    // from _commitAutoSwitch (a beat-grid boundary or its time fallback).
+    function _applyAutoSwitch(target, now) {
+      const m = MODES[target];
+      if (!m) return;
+      _autoCurMode = target;
+      // Scatter-dissolve: fast trail fade → particles "rattle apart" and reform.
+      setFeedbackParams({ decayNormal: 0.88 });
+      const _m = m;
+      setTimeout(() => {
+        if (!_autoActive) return;  // aborted by manual click
+        setParticleParams({ noiseScale: _m.noiseScale, noiseSpeed: _m.noiseSpeed,
+          lifetime: Math.min(_m.lifetime * 0.2, 60),  // short → fast reborn in new shape
+          chladniMode: _m.chladniMode, novaMode: _m.novaMode });
+        setRenderParams({ palette: PALETTES[_m.paletteIdx].flat(),
+          hueScale: _m.hueScale, exposure: _m.exposure, gamma: _m.gamma, novaMode: _m.novaMode });
+      }, 200);
+      setTimeout(() => {
+        if (!_autoActive) return;
+        setFeedbackParams({ decayNormal: _m.decay });
+        setParticleParams({ lifetime: _m.lifetime });
+      }, 1400);
+      console.log('[auto] → switch', target, '@ beat', _autoBeatCount,
+        '| next in', _autoPeriodBeats, 'beats');
+    }
+
+    // Beat-grid scheduler: count beat_pulse rising edges and fire a switch every
+    // _autoPeriodBeats beats. A wall-clock fallback (one phrase-length derived from
+    // BPM, min 3.5 s) keeps ambient / sparse-beat tracks rotating when few beats are
+    // detected. Either path always switches to a different mode → auto never freezes.
+    function _autoBeatTrack(frame, now) {
+      if (!_autoActive || !frame) return;
+
+      const beat = frame.beat_pulse || 0;
+      if (beat > 0.7 && _autoPrevBeat <= 0.7) {
+        _autoBeatCount++;
+        if (_autoBeatCount >= _autoNextSwitch) _commitAutoSwitch(now);
+      }
+      _autoPrevBeat = beat;
+
+      // Time fallback: convert the beat period to ms via BPM (default 110 if unknown).
+      const bpm      = (frame.tempo_bpm > 30 && frame.tempo_bpm < 220) ? frame.tempo_bpm : 110;
+      const phraseMs = Math.max((60000 / bpm) * _autoPeriodBeats, 3500);
+      if (now - _autoLastSwitchMs > phraseMs) _commitAutoSwitch(now);
+    }
 
     (async () => {
       /* ---- DOM refs ---- */
       const dropOverlay = document.getElementById('drop-overlay');
       const fileInput   = document.getElementById('file-input');
+      const dirInput    = document.getElementById('dir-input');
       const controls    = document.getElementById('controls');
+      const modeBar     = document.getElementById('mode-bar');
       const bpmBadge    = document.getElementById('bpm-badge');
       const trackLabel  = document.getElementById('track-label');
+      const btnPrev     = document.getElementById('btn-prev');
       const btnPlay     = document.getElementById('btn-play');
+      const btnNext     = document.getElementById('btn-next');
       const btnLoop     = document.getElementById('btn-loop');
-      const btnLive     = document.getElementById('btn-live');
       const btnRec      = document.getElementById('btn-rec');
       const btnLoad     = document.getElementById('btn-load');
-      const btnSettings = document.getElementById('btn-settings');
+      const btnLoadDir  = document.getElementById('btn-load-dir');
+      const btnFs       = document.getElementById('btn-fs');
+      const btnYm       = document.getElementById('btn-ym');
+      const ymPanel     = document.getElementById('ym-panel');
+      const ymFrame     = document.getElementById('ym-frame');
+      const ymBlocked   = document.getElementById('ym-blocked');
+      const btnYmClose  = document.getElementById('btn-ym-close');
+      const btnYmCapt   = document.getElementById('btn-ym-capture');
       const canvas      = document.getElementById('canvas');
+      const canvasWrap  = document.getElementById('canvas-wrap');
 
       /* ---- load WASM engine ---- */
       let engineReady = false;
@@ -265,8 +606,7 @@
         console.error('[engine] WASM load failed:', e);
       }
 
-      /* ---- WebGPU renderer + particle pipeline ---- */
-      let advPanel = null;
+      /* ---- WebGPU renderer + pipelines ---- */
       try {
         const { device, textures, passes } = await initRenderer(canvas);
         const { tick: particleTick } = await initParticlePipeline(device, textures, passes);
@@ -277,25 +617,30 @@
         addFrameTick(renderTick);
         startLoop();
         initRecord(canvas);
-        // Advanced panel wired up after pipelines are ready
-        advPanel = initAdvanced({
-          canvasWrap: document.getElementById('canvas-wrap'),
-          onClose: () => { btnSettings.title = 'Advanced settings'; },
-        });
+        _pipelinesReady = true;
+        setMode('auto');
         console.log('[renderer] render loop started');
       } catch (e) {
         console.error('[renderer] WebGPU init failed:', e.message);
-        // Fallback: dark background already set by CSS (#0a0020)
       }
 
-      /* ---- BPM badge updater (rAF loop, separate from render loop) ---- */
+      /* ---- BPM badge updater (rAF loop) ---- */
       let logCounter = 0;
-      function tick() {
+      let _smoothBpm = 0;
+      let _lastShownBpm = 0;
+      function bpmTick() {
+        const now   = performance.now();
         const frame = getAudioFrame();
+        if (_autoActive) { _autoTick(frame, now); _autoBeatTrack(frame, now); }
         if (frame && frame.tempo_bpm > 0) {
-          bpmBadge.textContent = `${frame.tempo_bpm.toFixed(0)} BPM`;
-
-          /* DevTools log every ~60 frames (≈1s) */
+          _smoothBpm = _smoothBpm === 0
+            ? frame.tempo_bpm
+            : _smoothBpm * 0.92 + frame.tempo_bpm * 0.08;
+          const rounded = Math.round(_smoothBpm);
+          if (Math.abs(rounded - _lastShownBpm) >= 2) {
+            _lastShownBpm = rounded;
+            bpmBadge.textContent = `${rounded} BPM`;
+          }
           if (++logCounter % 60 === 0) {
             console.log('[AudioFrame]',
               'energy', frame.energy.toFixed(3),
@@ -308,43 +653,139 @@
               'onset',  frame.onset.map(v => v.toFixed(0)).join('/'));
           }
         }
-        requestAnimationFrame(tick);
+        requestAnimationFrame(bpmTick);
       }
-      requestAnimationFrame(tick);
+      requestAnimationFrame(bpmTick);
 
-      /* ---- drag-drop ---- */
+      /* ---- mode buttons ---- */
+      document.querySelectorAll('.mode-btn').forEach(btn =>
+        btn.addEventListener('click', () => setMode(btn.dataset.mode))
+      );
+
+      /* ---- file / folder loading + playlist ---- */
+      const AUDIO_RE = /\.(mp3|flac|wav|ogg|oga|aac|m4a|opus|weba|webm)$/i;
+      const _isAudioFile = f => !!f && (f.type.startsWith('audio/') || AUDIO_RE.test(f.name));
+
+      let _playlist  = [];   // File[] queued for sequential playback
+      let _playIndex = 0;
+
+      // Recursively collect File objects from a dropped FileSystemEntry (handles folders).
+      function _walkEntry(entry, out) {
+        return new Promise(resolve => {
+          if (entry.isFile) {
+            entry.file(f => { out.push(f); resolve(); }, () => resolve());
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const readBatch = () => reader.readEntries(async batch => {
+              if (!batch.length) { resolve(); return; }   // readEntries yields in batches
+              for (const e of batch) await _walkEntry(e, out);
+              readBatch();
+            }, () => resolve());
+            readBatch();
+          } else { resolve(); }
+        });
+      }
+
+      // Build a playlist from a set of files (audio-only, natural-sorted) and play track 0.
+      async function _loadPlaylist(files) {
+        const audio = [...files].filter(_isAudioFile).sort((a, b) =>
+          (a.webkitRelativePath || a.name).localeCompare(
+            (b.webkitRelativePath || b.name), undefined, { numeric: true, sensitivity: 'base' }));
+        if (audio.length === 0) { alert('No audio files found (mp3, flac, wav, ogg…).'); return; }
+        _playlist  = audio;
+        _playIndex = 0;
+        _updatePlaylistUI();
+        await _playCurrent();
+      }
+
+      async function _playCurrent() {
+        const file = _playlist[_playIndex];
+        if (file) await _loadAndPlay(file);
+      }
+
+      // wrap: at the end of the list, loop back to the first track (continuous folder play).
+      function _playAt(index, { wrap = false } = {}) {
+        const n = _playlist.length;
+        if (n === 0) return;
+        if (index < 0)  index = wrap ? n - 1 : 0;
+        if (index >= n) { if (!wrap) { btnPlay.textContent = '▶'; return; } index = 0; }
+        _playIndex = index;
+        _updatePlaylistUI();
+        _playCurrent();
+      }
+
+      function _updatePlaylistUI() {
+        const multi = _playlist.length > 1;
+        btnPrev.style.display = multi ? '' : 'none';
+        btnNext.style.display = multi ? '' : 'none';
+      }
+
       dropOverlay.addEventListener('dragover', e => {
         e.preventDefault();
         dropOverlay.classList.add('drag-over');
       });
       dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.remove('drag-over'));
-      dropOverlay.addEventListener('drop', e => {
+      dropOverlay.addEventListener('drop', async e => {
         e.preventDefault();
         dropOverlay.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file) _loadAndPlay(file);
+        const dt = e.dataTransfer;
+        // webkitGetAsEntry must be read synchronously (the item list is cleared after the event).
+        const entries = dt.items
+          ? [...dt.items].map(it => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean)
+          : [];
+        if (entries.some(en => en.isDirectory)) {
+          const files = [];
+          for (const en of entries) await _walkEntry(en, files);
+          _loadPlaylist(files);
+        } else if (dt.files.length) {
+          _loadPlaylist(dt.files);
+        }
       });
       dropOverlay.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', () => {
-        if (fileInput.files[0]) _loadAndPlay(fileInput.files[0]);
+        if (fileInput.files.length) _loadPlaylist(fileInput.files);
+        fileInput.value = '';   // allow re-selecting the same files
+      });
+      dirInput.addEventListener('change', () => {
+        if (dirInput.files.length) _loadPlaylist(dirInput.files);
+        dirInput.value = '';
+      });
+      btnLoad.addEventListener('click', () => fileInput.click());
+      btnLoadDir.addEventListener('click', () => dirInput.click());
+      btnPrev.addEventListener('click', () => _playAt(_playIndex - 1, { wrap: true }));
+      btnNext.addEventListener('click', () => _playAt(_playIndex + 1, { wrap: true }));
+
+      // Auto-advance to the next track when one finishes (multi-track playlists only;
+      // a single track / loop-on case keeps the previous behaviour). Loop button still
+      // repeats the current track via audio.js (its onended replays before this fires).
+      setOnTrackEnded(() => {
+        btnPlay.textContent = '▶';
+        if (_playlist.length > 1) _playAt(_playIndex + 1, { wrap: true });
       });
 
       let _trackName = 'recording';
 
+      function _showControls(label) {
+        dropOverlay.style.display = 'none';
+        controls.classList.add('visible');
+        modeBar.classList.add('visible');
+        bpmBadge.classList.add('visible');
+        trackLabel.textContent = label;
+        trackLabel.classList.add('visible');
+      }
+
       async function _loadAndPlay(file) {
-        if (!file.type.startsWith('audio/') && !/\.(mp3|flac|wav|ogg|aac|m4a)$/i.test(file.name)) {
-          alert('Please drop an audio file (mp3, flac, wav, ogg).');
+        if (!_isAudioFile(file)) {
+          alert('Please choose an audio file (mp3, flac, wav, ogg…).');
           return;
         }
         if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
         try {
           const { name, duration } = await audioLoadFile(file);
           _trackName = name;
-          dropOverlay.style.display = 'none';
-          controls.classList.add('visible');
-          bpmBadge.classList.add('visible');
-          trackLabel.textContent = name;
-          trackLabel.classList.add('visible');
+          const pos = _playlist.length > 1 ? `  (${_playIndex + 1}/${_playlist.length})` : '';
+          _showControls(name + pos);
+          btnLoop.style.display = '';  // local file → looping is meaningful again
           console.log('[audio] loaded:', name, duration.toFixed(1), 's');
           play();
           btnPlay.textContent = '⏸';
@@ -373,63 +814,149 @@
         btnLoop.title = next ? 'Loop ON — click to disable' : 'Loop track';
       });
 
-      /* ---- live input button (tab audio capture for Yandex Music etc.) ---- */
-      btnLive.addEventListener('click', async () => {
-        if (btnLive.classList.contains('active')) {
-          // Stop live capture — user clicks again to disconnect
-          btnLive.classList.remove('active');
-          btnLive.title = 'Capture tab audio (Yandex Music etc.)';
-          return;
-        }
-        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
-        try {
-          // Opens Chrome's "Share screen" dialog — user picks the music tab
-          // and must tick "Share tab audio" for the stream to have audio.
-          const { name } = await connectStream();
-          btnLive.classList.add('active');
-          btnLive.title = 'Live: ' + name + ' (click to stop)';
-          trackLabel.textContent = '🎙 ' + name;
-          trackLabel.classList.add('visible');
-          bpmBadge.classList.add('visible');
-          controls.classList.add('visible');
-          dropOverlay.style.display = 'none';
-          btnPlay.textContent = '⏸';
-          console.log('[live] capturing:', name);
-        } catch (e) {
-          console.warn('[live] connect failed:', e.message);
-          alert('Could not capture audio:\n' + e.message +
-            '\n\nTip: in Chrome\'s dialog, select the tab playing music and tick "Share tab audio".');
-        }
-      });
-
-      /* ---- load new track button ---- */
-      btnLoad.addEventListener('click', () => fileInput.click());
-
       /* ---- record button ---- */
       btnRec.addEventListener('click', async () => {
         if (!btnRec.classList.contains('recording')) {
-          startRecording(60);
           btnRec.classList.add('recording');
-          console.log('[record] started');
+          let ok = false;
+          try { ok = await startRecording(60); }
+          catch (e) { console.error('[record] start failed:', e); }
+          if (ok) {
+            console.log('[record] started');
+          } else {
+            btnRec.classList.remove('recording');
+            alert('Не удалось начать запись — кодировщик или muxer недоступен.\n'
+                + 'Открой консоль (F12) и пришли ошибку.');
+          }
         } else {
           btnRec.classList.remove('recording');
-          const blob = await stopRecording();
-          if (blob) {
+          let blob = null;
+          try {
+            blob = await stopRecording();
+          } catch (e) {
+            console.error('[record] stop failed:', e);
+          }
+          const frames = getRecordedFrameCount();
+          if (blob && blob.size > 1024) {
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
             a.download = _trackName.replace(/\.[^.]+$/, '') + '.webm';
+            document.body.appendChild(a);  // some Chrome configs ignore .click() on a detached anchor
             a.click();
-            URL.revokeObjectURL(url);
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);  // revoke late so the download isn't aborted
             console.log('[record] saved', blob.size, 'bytes →', a.download);
+          } else {
+            const err = getRecordError();
+            const sz  = blob ? blob.size : 0;
+            console.error('[record] empty recording — bytes:', sz, '| frames:', frames, '| error:', err);
+            alert('Видео не записалось (' + sz + ' байт, кадров: ' + frames + ').\n'
+                + (err ? ('Ошибка: ' + (err.message || err) + '\n') : '')
+                + 'Проверь: во время записи должен играть звук, и вкладка должна быть активной.');
           }
         }
       });
 
-      /* ---- settings button — toggle advanced panel ---- */
-      btnSettings.addEventListener('click', () => {
-        if (!advPanel) { console.warn('[advanced] panel not available (WebGPU failed?)'); return; }
-        if (advPanel.isOpen()) { advPanel.close(); } else { advPanel.open(); }
+      /* ---- Yandex Music panel ---- */
+      const YM_URL = 'https://music.yandex.ru';
+
+      function _openYmPanel() {
+        ymPanel.classList.add('open');
+        btnYm.classList.add('active');
+        if (ymFrame.src === 'about:blank') {
+          ymFrame.src = YM_URL;
+          ymFrame.addEventListener('load', () => {
+            try {
+              const ok = ymFrame.contentDocument !== null;
+              ymBlocked.style.display = ok ? 'none' : 'block';
+              ymFrame.style.display   = ok ? 'block' : 'none';
+            } catch (_) {
+              // Cross-origin access denied = iframe IS loading (no block)
+              ymBlocked.style.display = 'none';
+              ymFrame.style.display   = 'block';
+            }
+          }, { once: true });
+        }
+      }
+
+      function _closeYmPanel() {
+        ymPanel.classList.remove('open');
+        btnYm.classList.remove('active');
+      }
+
+      btnYm.addEventListener('click', () =>
+        ymPanel.classList.contains('open') ? _closeYmPanel() : _openYmPanel()
+      );
+      btnYmClose.addEventListener('click', _closeYmPanel);
+
+      btnYmCapt.addEventListener('click', async () => {
+        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        try {
+          // No preferCurrentTab — user picks any tab (Yandex Music, Spotify, etc.)
+          const { name } = await connectStream();
+          _showControls('🎙 ' + name);
+          // Loop applies only to a locally-loaded buffer; a YM tab-capture stream
+          // can't be looped from here, so hide the control while capturing.
+          setLoop(false);
+          btnLoop.classList.remove('active');
+          btnLoop.style.display = 'none';
+          btnPlay.textContent = '⏸';
+          btnYmCapt.textContent = '🎙 Идёт захват';
+          btnYmCapt.style.color = '#ff2270';
+          console.log('[ym] capturing:', name);
+        } catch (e) {
+          console.warn('[ym] connect failed:', e.message);
+          alert('Не удалось захватить аудио:\n' + e.message);
+        }
+      });
+
+      /* ---- fullscreen + auto-hide UI ---- */
+      let _fsHideTimer = null;
+
+      function _showUI() {
+        canvasWrap.classList.remove('fs-hidden');
+        if (_fsHideTimer) { clearTimeout(_fsHideTimer); _fsHideTimer = null; }
+        if (document.fullscreenElement) {
+          _fsHideTimer = setTimeout(() => canvasWrap.classList.add('fs-hidden'), 2500);
+        }
+      }
+
+      document.addEventListener('mousemove', _showUI, { passive: true });
+      document.addEventListener('keydown',   _showUI, { passive: true });
+
+      btnFs.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(e => console.warn('[fs]', e));
+        } else {
+          document.exitFullscreen();
+        }
+      });
+
+      document.addEventListener('fullscreenchange', () => {
+        const isFull = !!document.fullscreenElement;
+        btnFs.title       = isFull ? 'Exit fullscreen (Esc)' : 'Fullscreen (F)';
+        btnFs.textContent = isFull ? '⊠' : '⛶';
+        if (!isFull) {
+          clearTimeout(_fsHideTimer); _fsHideTimer = null;
+          canvasWrap.classList.remove('fs-hidden');
+        } else {
+          _closeYmPanel();
+          _fsHideTimer = setTimeout(() => canvasWrap.classList.add('fs-hidden'), 2500);
+        }
+      });
+
+      document.addEventListener('keydown', e => {
+        if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const active = document.activeElement;
+          if (!active || active === document.body || active === canvas || active === canvasWrap) {
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+              document.exitFullscreen();
+            }
+          }
+        }
       });
     })();
   </script>

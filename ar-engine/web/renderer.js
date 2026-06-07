@@ -29,6 +29,45 @@ let _running    = false;
 let _rafId      = null;
 let _frameTicks = [];        // fn(frame, timestamp) called each frame before passes
 let _onRecordFrame = null;   // fn(offscreenCanvas, timestamp) set by record.js
+let _lastFrameTime = 0;
+
+// GPU tier: 'low' | 'mid' | 'high' — set during initRenderer
+let _gpuTier = 'mid';
+
+function _detectGpuTier(adapter, info) {
+    const desc   = (info?.description ?? info?.renderer ?? '').toLowerCase();
+    const vendor = (info?.vendor      ?? '').toLowerCase();
+
+    // Apple Silicon unified memory — treat as high (excellent GPU)
+    if (vendor === 'apple' || desc.includes('apple m')) return 'high';
+
+    // Known discrete: NVIDIA / AMD / Intel Arc
+    if (vendor === 'nvidia' || desc.includes('nvidia') || desc.includes('geforce') ||
+        desc.includes('rtx')  || desc.includes('gtx')) return 'high';
+    if (vendor === 'amd' || desc.includes('radeon') || desc.includes('rx ')   ||
+        desc.includes('vega') || desc.includes('navi')) return 'high';
+
+    // Known integrated: Intel HD/UHD/Iris
+    if (vendor === 'intel' || desc.includes('intel') || desc.includes('uhd') ||
+        desc.includes('iris') || desc.includes('hd graphics')) return 'low';
+
+    // Fallback: use maxStorageBufferBindingSize as GPU tier proxy.
+    // Discrete GPUs typically expose ≥ 1 GB; integrated cap at 256 MB.
+    const maxBuf = adapter.limits.maxStorageBufferBindingSize ?? 0;
+    if (maxBuf >= 1_073_741_824) return 'high';   // ≥ 1 GB → discrete
+    if (maxBuf <= 268_435_456)   return 'low';    // ≤ 256 MB → integrated
+
+    return 'mid';
+}
+
+export function getGpuTier() { return _gpuTier; }
+
+// Particle counts scaled to GPU tier (safe defaults — avoids system hangs on integrated GPUs)
+const PARTICLE_COUNTS = { low: 150_000, mid: 300_000, high: 500_000 };
+export function getRecommendedParticleCount() { return PARTICLE_COUNTS[_gpuTier]; }
+
+// Idle frame interval: ~20 fps when no audio, full 60 fps when playing
+const IDLE_FRAME_MS = 50;
 
 // ---- TextureManager -------------------------------------------------------
 // Creates and tracks named GPUTextures; supports ping-pong swap by name.
@@ -176,10 +215,12 @@ export async function initRenderer(canvas) {
     _passMgr = new PassManager();
 
     const desc = await (_adapter.requestAdapterInfo?.() ?? Promise.resolve(null));
+    _gpuTier = _detectGpuTier(_adapter, desc);
     console.log('[renderer] WebGPU ready',
         '| adapter:', desc?.description ?? 'unknown',
         '| format:', _presentFormat,
-        '| sim:', WIDTH + '×' + HEIGHT, '| record:', RECORD_WIDTH + '×' + RECORD_HEIGHT);
+        '| sim:', WIDTH + '×' + HEIGHT, '| record:', RECORD_WIDTH + '×' + RECORD_HEIGHT,
+        '| gpu tier:', _gpuTier, '| particles:', getRecommendedParticleCount());
 
     return { device: _device, textures: _texMgr, passes: _passMgr };
 }
@@ -217,6 +258,15 @@ function _frame(timestamp) {
     _rafId = requestAnimationFrame(_frame);
 
     const _frame_data = getAudioFrame();
+
+    // Throttle to ~20 fps when no audio is active to spare GPU/CPU at idle.
+    // BUT never throttle while recording — a quiet passage must still emit full-rate
+    // record frames, otherwise the encoder starves and the .webm comes out empty/short.
+    const recording = _onRecordFrame !== null;
+    const idle = !recording && (!_frame_data || _frame_data.energy < 0.005);
+    if (idle && timestamp - _lastFrameTime < IDLE_FRAME_MS) return;
+    _lastFrameTime = timestamp;
+
     const _time = timestamp / 1000;      // seconds
 
     for (const tick of _frameTicks) tick(_frame_data, _time);

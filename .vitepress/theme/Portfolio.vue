@@ -76,7 +76,7 @@ const projects = [
     href: '/idef0',
     desc: 'Редактор функциональных диаграмм',
     tag: 'Tool',
-    icon: '📐',
+    icon: '🗺️',
     color: '#33ff4d',
     external: false,
   },

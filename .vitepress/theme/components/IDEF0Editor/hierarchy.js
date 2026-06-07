@@ -1,122 +1,121 @@
-/**
- * Hierarchy helpers for nested IDEF0 diagrams.
- * ID scheme: A0 -> A1, A2... -> A11, A12... -> A111, A112...
- */
+import { project, currentDiagram, navigateTo, createDiagram } from './model.js'
+import { icomCode } from './icom.js'
 
 /**
- * Generate next child diagram ID based on parent diagram ID and block index.
- * A0 + block 0 -> A1
- * A1 + block 2 -> A13
- * A11 + block 0 -> A111
+ * Returns the child diagram ID for a box at a given index (0-based) in the parent diagram.
+ * A0 box[0] → A1, A0 box[1] → A2, A1 box[2] → A13, etc.
  */
-export function generateChildDiagramId(parentDiagramId, blockIndex) {
-  if (parentDiagramId === 'A0') {
-    return `A${blockIndex + 1}`;
+function childDiagramId(parentId, boxIndex) {
+  // A0's children are A1, A2... (not A01, A02...)
+  const base = parentId === 'A0' ? 'A' : parentId
+  return `${base}${boxIndex + 1}`
+}
+
+/**
+ * Creates (or retrieves) the child diagram for a box via FIPS 183 decomposition.
+ * Derives boundary arrows from all parent arrows passing through this box.
+ * Sets box.childDiagramId on the parent box.
+ *
+ * @param {object} box - Box to decompose
+ * @param {object} diagram - Parent diagram containing the box
+ * @returns {object} Child diagram
+ */
+function decomposeBox(box, diagram) {
+  const idx = diagram.boxes.indexOf(box)
+  if (idx === -1) return null
+
+  const newId = childDiagramId(diagram.id, idx)
+
+  // Already decomposed — just ensure the link is set
+  if (project.diagrams[newId]) {
+    box.childDiagramId = newId
+    return project.diagrams[newId]
   }
-  // Extract numeric part after A
-  const num = parentDiagramId.slice(1);
-  return `A${num}${blockIndex + 1}`;
-}
 
-/**
- * Get parent diagram ID from child ID.
- * A11 -> A1
- * A111 -> A11
- * A1 -> A0
- */
-export function getParentDiagramId(diagramId) {
-  if (diagramId === 'A0') return null;
-  const num = diagramId.slice(1);
-  if (num.length <= 1) return 'A0';
-  return 'A' + num.slice(0, -1);
-}
-
-/**
- * Get breadcrumb path from root to given diagram.
- * @param {string} diagramId
- * @param {Record<string, Diagram>} diagrams
- * @returns {Array<{id: string, name: string}>}
- */
-export function getBreadcrumbPath(diagramId, diagrams) {
-  const path = [];
-  let current = diagramId;
-  while (current) {
-    const d = diagrams[current];
-    if (!d) break;
-    path.unshift({ id: current, name: d.name || current });
-    current = d.parentDiagramId;
-  }
-  return path;
-}
-
-/**
- * Find diagram that contains a given block.
- * @param {string} blockId
- * @param {Record<string, Diagram>} diagrams
- * @returns {string|null} diagramId
- */
-export function findDiagramContainingBlock(blockId, diagrams) {
-  for (const [id, d] of Object.entries(diagrams)) {
-    if (d.blocks && d.blocks.some((b) => b.id === blockId)) {
-      return id;
+  // Compute a local ID counter for new boundary arrows so all IDs are unique
+  // within this single decomposeBox call (uid() would rescan each time and collide)
+  const hbaPattern = /^hba-(\d+)$/
+  let hbaMax = 0
+  for (const d of Object.values(project.diagrams)) {
+    for (const ba of d.boundaryArrows) {
+      const m = hbaPattern.exec(ba.id)
+      if (m) hbaMax = Math.max(hbaMax, +m[1])
     }
   }
-  return null;
-}
+  function nextHbaId() { return `hba-${++hbaMax}` }
 
-/**
- * Recursively delete a diagram and all its descendants.
- * @param {string} diagramId
- * @param {Record<string, Diagram>} diagrams
- * @returns {string[]} deleted diagram IDs
- */
-export function deleteDiagramRecursive(diagramId, diagrams) {
-  const deleted = [];
-  const toDelete = [diagramId];
+  const boundaryArrows = []
+  const counts = { input: 0, control: 0, output: 0, mechanism: 0, call: 0 }
 
-  while (toDelete.length) {
-    const id = toDelete.pop();
-    const d = diagrams[id];
-    if (!d) continue;
-
-    // Queue child diagrams
-    for (const block of d.blocks || []) {
-      if (block.diagramId && diagrams[block.diagramId]) {
-        toDelete.push(block.diagramId);
-      }
-    }
-
-    deleted.push(id);
+  function nextCode(type) {
+    counts[type] = (counts[type] ?? 0) + 1
+    return icomCode(type, counts[type])
   }
 
-  return deleted;
-}
+  // Parent boundary arrows connected to this box become child boundary arrows
+  for (const ba of diagram.boundaryArrows) {
+    if (ba.boxId !== box.id) continue
+    boundaryArrows.push({
+      id: nextHbaId(),
+      label: ba.label,
+      type: ba.type,
+      icomCode: nextCode(ba.type),
+      boxId: null,
+      parentArrowId: ba.id,
+    })
+  }
 
-/**
- * Get all descendant diagram IDs (excluding the root).
- */
-export function getDescendantIds(diagramId, diagrams) {
-  const descendants = [];
-  const d = diagrams[diagramId];
-  if (!d) return descendants;
-
-  for (const block of d.blocks || []) {
-    if (block.diagramId && diagrams[block.diagramId]) {
-      descendants.push(block.diagramId);
-      descendants.push(...getDescendantIds(block.diagramId, diagrams));
+  // Internal parent arrows entering this box
+  for (const arrow of diagram.arrows) {
+    if (arrow.targetBoxId === box.id) {
+      boundaryArrows.push({
+        id: nextHbaId(),
+        label: arrow.label,
+        type: arrow.type,
+        icomCode: nextCode(arrow.type),
+        boxId: null,
+        parentArrowId: arrow.id,
+      })
     }
   }
 
-  return descendants;
+  // Internal parent arrows exiting this box
+  for (const arrow of diagram.arrows) {
+    if (arrow.sourceBoxId === box.id) {
+      boundaryArrows.push({
+        id: nextHbaId(),
+        label: arrow.label,
+        type: arrow.type,
+        icomCode: nextCode(arrow.type),
+        boxId: null,
+        parentArrowId: arrow.id,
+      })
+    }
+  }
+
+  const child = createDiagram(newId, box.label, diagram.id, [], boundaryArrows)
+  box.childDiagramId = newId
+  return child
 }
 
 /**
- * Check if assigning targetDiagramId to block's diagramId would create a cycle.
+ * Decomposes the given box and navigates into the child diagram.
  */
-export function wouldCreateCycle(targetDiagramId, blockDiagramId, diagrams) {
-  if (!blockDiagramId) return false;
-  if (targetDiagramId === blockDiagramId) return true;
-  // Check if target is a descendant of block's current diagram
-  const descendants = getDescendantIds(blockDiagramId, diagrams);
-  return descendants.includes(targetDiagramId);
+function navigateInto(box, diagram) {
+  const d = diagram ?? currentDiagram.value
+  if (!d) return
+  const child = decomposeBox(box, d)
+  if (child) navigateTo(child.id)
 }
+
+/**
+ * Navigates to the parent diagram if one exists.
+ */
+function navigateUp() {
+  const d = currentDiagram.value
+  if (d && d.parentId) {
+    navigateTo(d.parentId)
+  }
+}
+
+export { decomposeBox, navigateInto, navigateUp, childDiagramId }

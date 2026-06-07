@@ -24,11 +24,20 @@ export const PALETTES = [
     [[0.000, 0.039, 0.063], [0.000, 0.200, 0.353], [0.000, 0.533, 1.000], [0.667, 0.957, 1.000]],
     // Matrix: black green → mid green → bright green → pale green
     [[0.000, 0.063, 0.000], [0.000, 0.220, 0.000], [0.000, 0.800, 0.000], [0.667, 1.000, 0.667]],
+    // Chladni: near-black warm → deep amber → gold → pale warm white
+    // Evokes sand grains illuminated on a vibrating metal plate.
+    [[0.040, 0.020, 0.000], [0.550, 0.300, 0.020], [0.920, 0.680, 0.100], [1.000, 0.960, 0.800]],
+    // Nova (iris): near-black → deep slate-blue → cool blue-grey → warm amber-gold
+    // Bright collarette particles map to amber; dimmer outer fibers map to slate-blue.
+    [[0.000, 0.000, 0.008], [0.020, 0.120, 0.400], [0.050, 0.250, 0.650], [0.850, 0.600, 0.150]],
 ];
 
 // Module-level state updated by setRenderParams()
 let _blendMode  = 0;
-let _hueScale   = 1.0;   // multiplier on the auto-drift amplitude
+let _hueScale   = 1.0;
+let _exposure   = 2.8;   // tonemap exposure multiplier
+let _gamma      = 0.8;   // gamma curve exponent
+let _novaMode_r = 0;     // 1.0 when nova iris mode → enables sclera aura in shader
 let _palette    = PALETTES[0].map(c => [...c]).flat(); // 12 floats
 
 let _uboBuf     = null;
@@ -52,11 +61,14 @@ function _writePaletteFloats(flat12) {
     _uf[20] = flat12[9]; _uf[21] = flat12[10]; _uf[22] = flat12[11]; _uf[23] = 0;
 }
 
-// Called by advanced.js to update palette / blend mode / hue scale.
-export function setRenderParams({ palette, blendMode, hueScale } = {}) {
+// Called by advanced.js to update palette / blend mode / hue scale / tonemap.
+export function setRenderParams({ palette, blendMode, hueScale, exposure, gamma, novaMode } = {}) {
     if (palette    !== undefined) { _palette = palette;   _writePaletteFloats(palette); }
-    if (blendMode  !== undefined) _blendMode = blendMode;
-    if (hueScale   !== undefined) _hueScale  = hueScale;
+    if (blendMode  !== undefined) _blendMode  = blendMode;
+    if (hueScale   !== undefined) _hueScale   = hueScale;
+    if (exposure   !== undefined) _exposure   = exposure;
+    if (gamma      !== undefined) _gamma      = gamma;
+    if (novaMode   !== undefined) _novaMode_r = novaMode;
     if (_uboBuf && _device) {
         _device.queue.writeBuffer(_uboBuf, 0, _uData);
     }
@@ -70,6 +82,9 @@ function _writeUniforms(beatPulse, hueShift, blendMode) {
     // runRenderToTarget() overrides these for the offscreen record pass.
     _uu[3] = PREVIEW_WIDTH;
     _uu[4] = PREVIEW_HEIGHT;
+    _uf[5] = _exposure;
+    _uf[6] = _gamma;
+    _uf[7] = _novaMode_r;
     _device.queue.writeBuffer(_uboBuf, 0, _uData);
 }
 
