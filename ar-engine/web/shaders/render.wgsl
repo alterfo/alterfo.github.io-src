@@ -108,15 +108,17 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         col = col + inv * inv * 0.5;
     }
 
-    // Nova mode: scleral aura — cream-white halo around iris, dark limbal ring
+    // Nova mode: faint dark limbal tint framing the particle iris edge.
+    // The sphere model's sin(φ) foreshortening density now produces the bright
+    // limbus itself, so this static ring is reduced to a subtle border tint sitting
+    // just outside the sphere rim (R_sphere ≈ 0.295) rather than a hard dark ring.
     if u.nova_mode > 0.5 {
         let norm_x = (f32(ix) + 0.5) / f32(u.width) - 0.5;
         let norm_y = (f32(iy) + 0.5) / f32(u.height) - 0.5;
         let sr = sqrt(norm_x * norm_x * 3.16049 + norm_y * norm_y);  // (16/9)²
 
-        // Dark limbal ring at iris–sclera border (natural eye anatomy)
-        let limbal = smoothstep(0.279, 0.292, sr) * (1.0 - smoothstep(0.295, 0.318, sr));
-        col = mix(col, col * 0.22, limbal * 0.50);
+        let limbal = smoothstep(0.290, 0.298, sr) * (1.0 - smoothstep(0.302, 0.330, sr));
+        col = mix(col, col * 0.45, limbal * 0.30);
     }
 
     return vec4<f32>(clamp(col, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);

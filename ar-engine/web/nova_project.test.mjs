@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { novaProject, phiPupil, R_SPHERE, ASPECT } from './nova_project.js';
+import { novaProject, phiPupil, frontShade, R_SPHERE, ASPECT } from './nova_project.js';
 
 const PI = Math.PI;
 
@@ -68,6 +68,35 @@ test('φ_pupil is monotonic in R_pupil and clamps the asin domain', () => {
     const big = phiPupil(R_SPHERE * 2);
     assert.ok(Number.isFinite(big), 'φ_pupil must stay finite for oversized R_pupil');
     assert.ok(big <= Math.asin(0.92) + 1e-9, 'φ_pupil must respect the 0.92 clamp');
+});
+
+test('frontShade: bright at front pole, dim at back pole', () => {
+    assert.ok(Math.abs(frontShade(0) - 1) < 1e-9, 'front pole (age=0) must be fully lit');
+    assert.ok(frontShade(1) < 1e-9, 'back pole (age=1) must be fully occluded');
+});
+
+test('frontShade is monotonically decreasing front→back', () => {
+    let prev = Infinity;
+    for (let age = 0; age <= 1.0001; age += 0.05) {
+        const s = frontShade(age);
+        assert.ok(s <= prev + 1e-12, `front_shade not decreasing at age=${age}`);
+        assert.ok(s >= 0 && s <= 1, `front_shade out of [0,1] at age=${age}`);
+        prev = s;
+    }
+});
+
+test('frontShade: rim is partially lit (between back and front)', () => {
+    const rim = frontShade(0.5);                 // depth = cos(π/2) = 0
+    assert.ok(rim > frontShade(1) && rim < frontShade(0),
+        `rim shade ${rim} must sit between back and front`);
+    // depth=0 → smoothstep(-0.25, 0.55, 0) = ((0.25/0.8)²·(3−2·0.25/0.8))
+    const t = 0.25 / 0.8;
+    assert.ok(Math.abs(rim - t * t * (3 - 2 * t)) < 1e-9, `rim shade ${rim} mismatched`);
+});
+
+test('frontShade clamps age outside [0,1] (no NaN past the poles)', () => {
+    assert.ok(Math.abs(frontShade(-0.3) - frontShade(0)) < 1e-9, 'age<0 must clamp to front');
+    assert.ok(Math.abs(frontShade(1.4) - frontShade(1)) < 1e-9, 'age>1 must clamp to back');
 });
 
 test('all outputs finite across the full valid φ sweep', () => {

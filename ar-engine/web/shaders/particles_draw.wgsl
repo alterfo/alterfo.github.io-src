@@ -117,14 +117,19 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
         mix(2.0, 0.7, smoothstep(0.05, 0.62, fract(p.hue))),
         u.nova_mode > 0.5);
 
-    // Nova: soft pupil edge fade + organic per-fiber brightness texture
+    // Nova volumetric shading + organic per-fiber brightness texture.
+    // The sphere model leaves a clean pupil hole on its own (φ clamped ≥ φ_pupil
+    // ⇒ r_screen ≥ R_pupil), so the old screen-radius pupil fade is gone. Instead
+    // we fade by depth so the back hemisphere flows dimly "behind" the ball:
+    //   depth = cos(φ) = cos(age·π)   → +1 front (toward viewer) … −1 back.
+    //   front_shade = smoothstep(-0.25, 0.55, depth) dims the occluded back half →
+    //   3-D ball illusion (bright domed front, dim back). Limbus stays bright from
+    //   the sin(φ) foreshortening density built up in the compute pass.
     var nova_fx = 1.0;
     if u.nova_mode > 0.5 {
-        let dx_ = p.pos.x - 0.5;
-        let dy_ = p.pos.y - 0.5;
-        let sr_ = sqrt(dx_ * dx_ * 3.16049 + dy_ * dy_);   // screen-space radius
-        let R_pu = 0.090 + u.beat_pulse * 0.055;             // approx beat-reactive R_pupil
-        nova_fx  = smoothstep(0.0, 0.022, sr_ - R_pu);      // fade near pupil edge
+        let depth       = cos(clamp(p.age, 0.0, 1.0) * 3.14159);
+        let front_shade = smoothstep(-0.25, 0.55, depth);
+        nova_fx  = front_shade;
         nova_fx *= 0.65 + uf01_d(uhash_d(p.seed + 77u)) * 0.70;  // per-fiber 0.65..1.35
     }
 

@@ -36,3 +36,16 @@ export function novaProject(theta, phi, {
         depth: Math.cos(phi),
     };
 }
+
+// Volumetric occlusion shading mirror of particles_draw.wgsl (nova_mode).
+// `age` is the normalized polar flow coordinate (φ = age·π), so depth = cos(age·π):
+// +1 at the front pole, 0 at the rim, −1 at the back pole. front_shade dims the
+// occluded back hemisphere → 3-D ball illusion. Keep in sync with the draw shader.
+function smoothstep(edge0, edge1, x) {
+    const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
+    return t * t * (3 - 2 * t);
+}
+export function frontShade(age) {
+    const depth = Math.cos(Math.min(Math.max(age, 0), 1) * Math.PI);
+    return smoothstep(-0.25, 0.55, depth);
+}
