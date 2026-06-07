@@ -15,18 +15,20 @@ const UPDATE_UBO_BYTES = 64;
 const DRAW_UBO_BYTES   = 16;
 
 // Defaults (overridden by advanced.js via setParticleParams)
-let _noiseScale = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
-let _noiseSpeed = 0.6;     // Drift slider: Lissajous frequency multiplier
-let _noiseStr   = 0.00005; // shimmer: subtle curl-noise perturbation
-let _lifetime   = 240.0;   // frames per particle (4 s at 60 fps)
-let _speed      = 0.7;
+let _noiseScale   = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
+let _noiseSpeed   = 0.6;     // Drift slider: Lissajous frequency multiplier
+let _noiseStr     = 0.00005; // shimmer: subtle curl-noise perturbation
+let _lifetime     = 240.0;   // frames per particle (4 s at 60 fps)
+let _speed        = 0.7;
+let _chladniMode  = 0;       // 0 = vortex, 1 = Chladni standing-wave
 
-export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed } = {}) {
-    if (noiseScale !== undefined) _noiseScale = noiseScale;
-    if (noiseSpeed !== undefined) _noiseSpeed = noiseSpeed;
-    if (noiseStr   !== undefined) _noiseStr   = noiseStr;
-    if (lifetime   !== undefined) _lifetime   = lifetime;
-    if (speed      !== undefined) _speed      = speed;
+export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode } = {}) {
+    if (noiseScale   !== undefined) _noiseScale   = noiseScale;
+    if (noiseSpeed   !== undefined) _noiseSpeed   = noiseSpeed;
+    if (noiseStr     !== undefined) _noiseStr     = noiseStr;
+    if (lifetime     !== undefined) _lifetime     = lifetime;
+    if (speed        !== undefined) _speed        = speed;
+    if (chladniMode  !== undefined) _chladniMode  = chladniMode;
 }
 
 export async function initParticlePipeline(device, texMgr, passMgr) {
@@ -179,7 +181,8 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _updArr[10] = energy;
         _updArr[11] = beat;
         _updArr[12] = _prevBeat;
-        // [13..15] padding (zeroed by default)
+        _updArr[13] = _chladniMode;
+        // [14..15] padding (zeroed by default)
         device.queue.writeBuffer(updateUbo, 0, _updArr);
 
         _drawArr[0] = energy;

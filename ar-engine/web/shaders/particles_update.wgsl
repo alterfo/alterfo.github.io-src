@@ -1,8 +1,11 @@
-// Concert-screen abstract: 500k particles in a 4-pole vortex field.
-// Poles travel on non-repeating Lissajous paths (golden-ratio frequencies)
-// with alternating CW/CCW rotation — creating aurora-like streaming patterns
-// that continuously evolve and never exactly repeat.
-// Beat displaces all poles simultaneously → dramatic mid-song reorganisation.
+// Particle system: 500k GPU particles.
+// Mode 0 (default): 4-pole vortex — aurora/plasma/storm aesthetics.
+// Mode 1 (chladni):  Chladni standing-wave attractor — particles migrate to
+//   nodal lines of W(x,y) = sin(n·π·x+φ)·sin(m·π·y) + sin(m·π·x)·sin(n·π·y-φ).
+//   Force = -W·∇W pushes toward W=0. Mode numbers n,m driven by bass/treble.
+//   Beat pulse shifts phase → "mode jump" then crystallises back.
+
+const PI : f32 = 3.14159265;
 
 struct Particle {
     pos  : vec2<f32>,
@@ -14,22 +17,22 @@ struct Particle {
 };
 
 struct Uniforms {
-    time       : f32,
-    orbit_str  : f32,  // vortex tangential force (pre-scaled from slider)
-    pole_speed : f32,  // Lissajous frequency multiplier
-    noise_str  : f32,  // organic curl-noise shimmer
-    speed      : f32,
-    lifetime   : f32,
-    hue_base   : f32,
-    bass       : f32,
-    mid        : f32,
-    high       : f32,
-    energy     : f32,
-    beat_pulse : f32,
-    prev_beat  : f32,
-    _p0        : f32,
-    _p1        : f32,
-    _p2        : f32,
+    time         : f32,
+    orbit_str    : f32,  // vortex tangential force (pre-scaled from slider)
+    pole_speed   : f32,  // Lissajous frequency multiplier
+    noise_str    : f32,  // organic curl-noise shimmer
+    speed        : f32,
+    lifetime     : f32,
+    hue_base     : f32,
+    bass         : f32,
+    mid          : f32,
+    high         : f32,
+    energy       : f32,
+    beat_pulse   : f32,
+    prev_beat    : f32,
+    chladni_mode : f32,  // 0 = vortex, 1 = Chladni standing-wave
+    _p1          : f32,
+    _p2          : f32,
 };
 
 @group(0) @binding(0) var<uniform>             u         : Uniforms;
@@ -78,8 +81,6 @@ fn pole_pos(idx: u32) -> vec2f {
         default: { fx = PHI;   fy = 1.618; px = 4.71; py = 1.57; }
     }
 
-    // Beat displaces adjacent poles in opposite directions — creates a
-    // "pull-apart" visual on every kick that snaps back as beat decays.
     let beat_sign = select(-1.0, 1.0, idx % 2u == 0u);
     return vec2f(
         0.5 + 0.35 * sin(u.time * fx * sp + px) + beat_sign * u.beat_pulse * 0.13,
@@ -94,15 +95,91 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     var p = particles[i];
 
+    // =========================================================================
+    // CHLADNI / CYMATICS MODE
+    // Particles are attracted to nodal lines of a 2D standing-wave field.
+    // W = sin(n·π·x + φ)·sin(m·π·y) + sin(m·π·x)·sin(n·π·y − φ)
+    // Force = −W·∇W  (analytically derived, pushes toward W = 0).
+    // Mode numbers n, m are driven by audio bands so the pattern responds
+    // to frequency content. Beat_pulse shifts the phase → visible mode jump.
+    // =========================================================================
+    if u.chladni_mode > 0.5 {
+        // Mode numbers: bass → low-order wide pattern, treble → dense pattern.
+        // Clamp so modes stay in 2..6 for visually distinct Chladni shapes.
+        let n = 2.0 + floor(clamp(u.bass, 0.0, 1.0) * 3.0);   // 2..5
+        let m = 2.0 + floor(clamp(u.high, 0.0, 1.0) * 4.0);   // 2..6
+
+        // Very slow phase drift so the pattern gently evolves over the song.
+        // Beat_pulse shifts phase → sudden "mode jump" → pattern crystallises back.
+        let drift = u.time * 0.04;
+        let bp    = u.beat_pulse * 1.6;
+
+        let ax = p.pos.x * n * PI + drift + bp;
+        let ay = p.pos.y * m * PI - drift;
+        let bx = p.pos.x * m * PI - drift * 0.7;
+        let by = p.pos.y * n * PI + drift * 0.5 - bp;
+
+        // Wave superposition: sin(ax)·sin(ay) + sin(bx)·sin(by)
+        let W = sin(ax) * sin(ay) + sin(bx) * sin(by);
+
+        // Analytic partial derivatives ∂W/∂x and ∂W/∂y
+        let dWdx = cos(ax) * (n * PI) * sin(ay)
+                 + cos(bx) * (m * PI) * sin(by);
+        let dWdy = sin(ax) * cos(ay) * (m * PI)
+                 + sin(bx) * cos(by) * (n * PI);
+
+        // Force toward nodal lines; bass boosts strength on drops.
+        let str = 0.00014 * (1.0 + u.bass * 0.6);
+        p.vel += -vec2f(W * dWdx, W * dWdy) * str;
+
+        // Tiny curl noise → organic sand-grain granularity.
+        p.vel += curl2d(p.pos, u.time) * u.noise_str * 0.15;
+
+        // Soft boundary push.
+        let bnd  = 0.04;
+        let push = str * 40.0;
+        if p.pos.x < bnd           { p.vel.x += (bnd - p.pos.x) * push; }
+        if p.pos.x > 1.0 - bnd     { p.vel.x -= (p.pos.x - 1.0 + bnd) * push; }
+        if p.pos.y < bnd           { p.vel.y += (bnd - p.pos.y) * push; }
+        if p.pos.y > 1.0 - bnd     { p.vel.y -= (p.pos.y - 1.0 + bnd) * push; }
+
+        // Strong damping → particles settle and accumulate on nodal lines.
+        p.vel *= 0.88;
+        p.pos  = clamp(p.pos + p.vel * u.speed, vec2f(0.0), vec2f(1.0));
+
+        // Near-monochromatic hue: warm amber base with tiny per-particle spread.
+        p.hue = fract(u.hue_base + (uf01(uhash(p.seed + 3u)) - 0.5) * 0.05);
+
+        // Age breathes with energy (same as vortex mode).
+        let dyn_life = u.lifetime * clamp(0.25 + u.energy * 7.0, 0.10, 2.5);
+        p.age += 1.0 / max(dyn_life, 1.0);
+
+        // Respawn at random position with near-zero velocity.
+        if p.age > 1.0 {
+            let s  = uhash(p.seed + u32(u.time * 97.0 + f32(i)));
+            let s1 = uhash(s); let s2 = uhash(s1);
+            let s3 = uhash(s2); let s4 = uhash(s3);
+            p.pos  = vec2f(uf01(s1), uf01(s2));
+            p.vel  = vec2f(0.0);
+            p.age  = uf01(s4) * 0.08;
+            p.seed = s4;
+            p.hue  = fract(u.hue_base + (uf01(uhash(s4 + 1u)) - 0.5) * 0.05);
+        }
+
+        particles[i] = p;
+        return;
+    }
+
+    // =========================================================================
+    // VORTEX MODE (original — unchanged)
+    // =========================================================================
+
     // Pre-compute all 4 pole positions (avoids 4× repeated trig in loops)
     let ppos = array<vec2f, 4>(
         pole_pos(0u), pole_pos(1u), pole_pos(2u), pole_pos(3u)
     );
 
     // ---- Multi-pole vortex (pure tangential — no radial attraction) ----
-    // Pure curl field: no sources or sinks, so particle density is preserved.
-    // Particles follow the STREAMLINES between poles (not orbits around them),
-    // creating flowing ribbons rather than visible blobs at pole positions.
     let orbit = u.orbit_str * (1.0 + u.bass * 1.6);
 
     var force        = vec2f(0.0);
@@ -123,21 +200,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     p.vel += force;
 
-    // ---- Aurora bias ----------------------------------------------------------------
-    // When vortex is weak (low orbit_str), a slow oscillating horizontal current
-    // dominates → aurora / curtain aesthetic.  As orbit_str rises the bias fades
-    // out, giving way to plasma / ribbon / storm looks.
-    // aurora_str → 0 when orbit_str ≥ 0.00045 (Vortex slider ≥ 9).
+    // ---- Aurora bias ----
     let aurora_str = max(0.0, 0.00045 - u.orbit_str) * 0.55;
-    let fa = sin(u.time * 0.06) * 0.55;            // ±31° swing, 105-s period
-    let flow_dir = vec2f(cos(fa), sin(fa) * 0.18); // mostly horizontal curtains
+    let fa = sin(u.time * 0.06) * 0.55;
+    let flow_dir = vec2f(cos(fa), sin(fa) * 0.18);
     p.vel += flow_dir * aurora_str;
 
-    // ---- Mid-frequency swirl: voices / synths stir the field ----
+    // ---- Mid-frequency swirl ----
     let perp_vel = vec2f(-p.vel.y, p.vel.x);
     p.vel += perp_vel * u.mid * 0.0004;
 
-    // ---- Organic shimmer (low-amplitude curl noise) ----
+    // ---- Organic shimmer ----
     p.vel += curl2d(p.pos, u.time) * u.noise_str;
 
     // ---- Soft canvas boundary ----
@@ -153,8 +226,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     p.pos  = clamp(p.pos + p.vel * u.speed, vec2f(0.0), vec2f(1.0));
 
     // ---- Hue slowly converges toward nearest pole's colour ----
-    // Each pole has a complementary hue; colour regions flow and merge
-    // as poles drift — the colours themselves become part of the animation.
     let phues      = array<f32, 4>(0.06, 0.56, 0.16, 0.66);
     let target_hue = fract(phues[nearest_pole] + u.hue_base);
     var dh         = target_hue - p.hue;
@@ -163,7 +234,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     p.hue = fract(p.hue + dh * 0.012);
 
     // ---- Age breathes with energy ----
-    // Quiet sections → short-lived sparks; loud drops → long trailing ribbons.
     let dyn_life = u.lifetime * clamp(0.25 + u.energy * 7.0, 0.10, 2.5);
     p.age += 1.0 / max(dyn_life, 1.0);
 
@@ -176,12 +246,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let s4 = uhash(s3);
         p.pos  = vec2f(uf01(s1), uf01(s2));
         let va = uf01(s3) * 6.28318;
-        // Seed with small velocity in a random direction — poles quickly pull
-        // particles into their orbits within a few frames.
         p.vel  = vec2f(cos(va), sin(va)) * u.orbit_str * 0.3;
         p.age  = uf01(s4) * 0.08;
         p.seed = s4;
-        // Assign hue of nearest pole at birth position
         var md = 99.0; var np = 0u;
         for (var pi = 0u; pi < 4u; pi++) {
             let d = length(p.pos - ppos[pi]);
