@@ -14,6 +14,8 @@
         </nav>
         <span class="idef0-diagram-title">{{ currentDiagram?.title ?? 'IDEF0 Editor' }}</span>
         <div class="idef0-toolbar-actions">
+          <button class="idef0-btn" @click="undo(currentDiagram)" :disabled="!canUndo" title="Undo (Ctrl+Z)">↩ Undo</button>
+          <button class="idef0-btn" @click="redo(currentDiagram)" :disabled="!canRedo" title="Redo (Ctrl+Y)">↪ Redo</button>
           <button class="idef0-btn" @click="handleAddBox">+ Block</button>
           <button
             v-if="selectedBoxId"
@@ -233,8 +235,9 @@
 </template>
 
 <script setup>
-import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { project, currentDiagram, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { project, currentDiagram, currentDiagramId, addBox, removeBox, updateBox, navigateTo, addArrow, updateArrow, addBoundaryArrow } from './IDEF0Editor/model.js'
+import { pushSnapshot, undo, redo, resetHistory, canUndo, canRedo } from './IDEF0Editor/history.js'
 import { navigateInto, navigateUp } from './IDEF0Editor/hierarchy.js'
 import {
   renderBox, routeArrow, renderArrow, renderArrowLabel,
@@ -254,6 +257,9 @@ const ICOM_LEGEND = [
   { code: 'M', desc: 'Mechanism — enters bottom' },
   { code: 'R', desc: 'Call — exits bottom' },
 ]
+
+// Reset history whenever we navigate to a different diagram
+watch(currentDiagramId, () => resetHistory())
 
 // --- Inline editing ---
 const editingBoxId = ref(null)
@@ -312,9 +318,11 @@ function onArrowLabelDblClick(arrowLabel, e) {
 function confirmEdit() {
   if (!editingBoxId.value && !editingArrowId.value) return
   if (editingBoxId.value) {
+    pushSnapshot(currentDiagram.value)
     updateBox(editingBoxId.value, { label: editingValue.value.trim() || 'Unnamed' })
     editingBoxId.value = null
   } else if (editingArrowId.value) {
+    pushSnapshot(currentDiagram.value)
     updateArrow(editingArrowId.value, { label: editingValue.value })
     editingArrowId.value = null
   }
@@ -331,6 +339,7 @@ function cancelEdit() {
 const selectedBoxId = ref(null)
 const isDraggingBox = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
+const dragSnapshotNeeded = ref(false)
 
 // --- Arrow Drawing ---
 const hoveredBoxId = ref(null)
@@ -390,6 +399,7 @@ function onBoxMouseDown(box, e) {
   e.stopPropagation()
   selectedBoxId.value = box.id
   isDraggingBox.value = true
+  dragSnapshotNeeded.value = true
   const world = toWorldCoords(e.clientX, e.clientY)
   dragOffset.value = { x: world.x - box.x, y: world.y - box.y }
 }
@@ -403,6 +413,10 @@ function onMouseMove(e) {
     return
   }
   if (isDraggingBox.value && selectedBoxId.value) {
+    if (dragSnapshotNeeded.value) {
+      pushSnapshot(currentDiagram.value)
+      dragSnapshotNeeded.value = false
+    }
     const world = toWorldCoords(e.clientX, e.clientY)
     updateBox(selectedBoxId.value, {
       x: world.x - dragOffset.value.x,
@@ -426,6 +440,7 @@ function onMouseUp(e) {
       const { boxId: toBoxId, side: toSide } = targetHandle.value
       const arrowType = typeFromSides(fromSide, toSide)
       if (arrowType) {
+        pushSnapshot(currentDiagram.value)
         addArrow({ label: '', type: arrowType, sourceBoxId: fromBoxId, targetBoxId: toBoxId })
       }
     } else if (e) {
@@ -439,6 +454,7 @@ function onMouseUp(e) {
       else if (world.y <= BOUNDARY_ZONE) bType = 'control'
       else if (world.y >= VIEW_H - BOUNDARY_ZONE) bType = 'mechanism'
       if (bType && currentDiagram.value) {
+        pushSnapshot(currentDiagram.value)
         const count = currentDiagram.value.boundaryArrows.filter(ba => ba.type === bType).length
         addBoundaryArrow({ label: '', type: bType, icomCode: icomCode(bType, count + 1), boxId: fromBoxId })
       }
@@ -449,6 +465,7 @@ function onMouseUp(e) {
   }
   isPanning.value = false
   isDraggingBox.value = false
+  dragSnapshotNeeded.value = false
 }
 
 function onMouseLeave() {
@@ -463,9 +480,20 @@ function onMouseLeave() {
 
 function onKeyDown(e) {
   if (editingBoxId.value || editingArrowId.value) return
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    undo(currentDiagram.value)
+    return
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault()
+    redo(currentDiagram.value)
+    return
+  }
   if (!selectedBoxId.value) return
   if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault()
+    pushSnapshot(currentDiagram.value)
     removeBox(selectedBoxId.value)
     selectedBoxId.value = null
   }
@@ -547,6 +575,7 @@ const rubberBandStart = computed(() => {
 
 // --- Toolbar actions ---
 function handleAddBox() {
+  pushSnapshot(currentDiagram.value)
   addBox({ label: 'New Block' })
 }
 
