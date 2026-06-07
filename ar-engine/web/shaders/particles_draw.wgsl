@@ -92,11 +92,12 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
     let age_env    = sin(clamp(p.age, 0.0, 1.0) * 3.14159);
     let brightness = 0.30 + 0.70 * max(spd_env, age_env * 0.6);
 
-    // Sclera particles (nova hue > 0.80): cream-white, low saturation
-    let is_sclera = u.nova_mode > 0.5 && fract(p.hue) > 0.80;
-    let base_hue = select(fract(p.hue + u.high * 0.04), 0.095f, is_sclera);
-    let base_sat = select(clamp(0.90 + u.mid * 0.10, 0.0, 1.0), 0.18f, is_sclera);
-    let val = select(0.50f, 0.74f, is_sclera);
+    // Base hue/sat per particle. (The old sclera-orbit override is gone: the Nova
+    // sphere model clamps hue to ≤0.70 in the compute pass, so no particle is ever
+    // "sclera" — the previous `fract(p.hue) > 0.80` branch was unreachable.)
+    let base_hue = fract(p.hue + u.high * 0.04);
+    let base_sat = clamp(0.90 + u.mid * 0.10, 0.0, 1.0);
+    let val = 0.50f;
 
     // Timbre tint: shift hue/sat toward the spectral-timbre colour, scaled by its
     // confidence. Applies to every mode so colour tracks vocal vs instrumental.

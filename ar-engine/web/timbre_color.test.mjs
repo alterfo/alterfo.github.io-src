@@ -40,6 +40,13 @@ test('circular hue mean wraps across the 1/0 seam', () => {
     assert.ok(hueDist(h, 0.5) > 0.4, `circular mean=${h} wrongly near 0.5`);
 });
 
+test('circular hue mean falls back to 0 for empty / zero-weight input', () => {
+    // The (sx===0 && sy===0) guard must return a finite hue, not NaN.
+    assert.equal(circularHueMean([], []), 0);
+    assert.equal(circularHueMean([0.5], [0]), 0);
+    assert.equal(circularHueMean([0.2, 0.7], [0, 0]), 0);
+});
+
 test('weight is monotonic increasing with tonal (at strings centroid)', () => {
     // At c=0.65, rising tonal moves toward the strings anchor (c0.65,t0.90),
     // so confidence must rise both via proximity and via the tonal factor.
