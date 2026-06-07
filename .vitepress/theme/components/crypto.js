@@ -94,10 +94,12 @@ export function unpackEnvelope(str) {
   const iv = base64ToBytes(parsed.iv);
   if (salt.length !== 16) throw new Error('Invalid salt length');
   if (iv.length !== 12) throw new Error('Invalid IV length');
+  const ciphertext = base64ToBytes(parsed.ciphertext);
+  if (ciphertext.length < 16) throw new Error('Invalid ciphertext length');
   return {
     salt,
     iterations: parsed.iterations,
     iv,
-    ciphertext: base64ToBytes(parsed.ciphertext),
+    ciphertext,
   };
 }

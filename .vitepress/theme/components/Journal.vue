@@ -157,7 +157,9 @@ function triggerImportPicker() {
     _fileInputEl.addEventListener('change', onImportFileChange)
   }
   _fileInputEl.value = ''
+  document.body.appendChild(_fileInputEl)
   _fileInputEl.click()
+  document.body.removeChild(_fileInputEl)
 }
 
 async function onImportFileChange(e) {
@@ -186,6 +188,7 @@ async function doImport() {
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
     const importKey = await deriveKey(importPassphrase.value, salt, iterations)
     const importedVault = await decryptJSON(importKey, { iv, ciphertext })
+    upsertEntry(vault, todayISO.value, todayText.value)
     const merged = mergeVaults(vault, importedVault)
     Object.assign(vault, merged)
     todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
@@ -229,6 +232,7 @@ onMounted(async () => {
       Object.assign(vault, merged)
       const mergedToday = vault.entries[todayISO.value]
       if (mergedToday) todayText.value = mergedToday.text
+      await persistVault()
     } catch (err) {
       console.warn('[journal] cross-tab sync failed:', err)
     }
@@ -272,7 +276,7 @@ onUnmounted(() => {
           type="password"
           class="journal-passphrase-input"
           :placeholder="hasVault ? 'Passphrase' : 'New passphrase'"
-          autocomplete="current-password"
+          :autocomplete="hasVault ? 'current-password' : 'new-password'"
           @keydown="onPassphraseKeydown"
         />
         <div class="journal-lock-actions">
