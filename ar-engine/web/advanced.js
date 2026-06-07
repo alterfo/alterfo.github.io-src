@@ -24,17 +24,37 @@ const SLIDERS = [
 
 const BAND_OPTIONS = ['off', 'sub', 'bass', 'mid', 'high'];
 
-// Named presets — each evokes a different abstract visual mood
+// Named presets — qualitatively distinct visual aesthetics, not just parameter nudges.
+//
+// Low Vortex (1-3): aurora-bias dominates → horizontal curtains, slow sweep
+// Mid Vortex (4-6): mixed → turbulent plasma, organic flows
+// High Vortex (7-10): pure vortex → tight ribbons, storm sparks
+//
+// Decay + Lifetime together control whether you see TRAILS (high/long) or SPARKS (low/short).
 const PRESETS = [
-    { name: 'Plasma',  noiseScale: 4.0, noiseSpeed: 0.6,  decay: 0.96, lifetime: 240, hueScale: 1.0 },
-    { name: 'Vortex',  noiseScale: 7.0, noiseSpeed: 0.4,  decay: 0.97, lifetime: 360, hueScale: 0.5 },
-    { name: 'Aurora',  noiseScale: 2.5, noiseSpeed: 0.3,  decay: 0.98, lifetime: 480, hueScale: 0.3 },
-    { name: 'Storm',   noiseScale: 6.0, noiseSpeed: 1.5,  decay: 0.93, lifetime: 120, hueScale: 3.0 },
-    { name: 'Minimal', noiseScale: 2.0, noiseSpeed: 0.9,  decay: 0.95, lifetime: 180, hueScale: 2.0 },
+    // Cosmos — deep space nebula: barely-moving aurora curtains, maximum trail persistence.
+    // aurora_bias very strong (orbit=1 → 0.000245), poles near-stationary, 10-s particle life.
+    { name: 'Cosmos',  noiseScale: 1.0, noiseSpeed: 0.15, decay: 0.99, lifetime: 600, hueScale: 0.2 },
+
+    // Aurora — northern lights: slow horizontal sweeps, long glowing ribbons.
+    // aurora_bias dominant, gentle pole drift, vivid complementary colours.
+    { name: 'Aurora',  noiseScale: 2.5, noiseSpeed: 0.25, decay: 0.98, lifetime: 480, hueScale: 0.4 },
+
+    // Plasma — turbulent energy: aurora + vortex in rough balance, evolving rapidly.
+    // The "default" concert-screen mode: flows AND disruption, reacts strongly to bass.
+    { name: 'Plasma',  noiseScale: 4.5, noiseSpeed: 0.65, decay: 0.96, lifetime: 300, hueScale: 1.0 },
+
+    // Vortex — calligraphic spirals: pure vortex (no aurora), tight slow-moving ribbons.
+    // Poles drift at medium speed creating looping calligraphic stroke patterns.
+    { name: 'Vortex',  noiseScale: 7.0, noiseSpeed: 0.35, decay: 0.97, lifetime: 420, hueScale: 0.6 },
+
+    // Storm — electric chaos: maximum vortex + fastest poles + short trails.
+    // Each frame looks different; strong bass/beat create visible arcing sparks.
+    { name: 'Storm',   noiseScale: 9.5, noiseSpeed: 1.80, decay: 0.91, lifetime: 110, hueScale: 3.0 },
 ];
 
 const DEFAULTS = {
-    noiseScale: 4.0, noiseSpeed: 0.6, decay: 0.96, lifetime: 240, hueScale: 1.0,
+    noiseScale: 4.5, noiseSpeed: 0.65, decay: 0.96, lifetime: 300, hueScale: 1.0,
     blendMode: 0, paletteIdx: 0,
     resolution: '1080p', bitrate: 8, codec: 'vp9',
     bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off' },

@@ -99,38 +99,43 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         pole_pos(0u), pole_pos(1u), pole_pos(2u), pole_pos(3u)
     );
 
-    // ---- Multi-pole vortex force ----
-    // Adjacent poles rotate in opposite directions (CW / CCW).
-    // Their interference creates S-curves, figure-8 loops and flowing ribbons —
-    // the aurora-like patterns visible on concert LED screens.
-    let orbit = u.orbit_str * (1.0 + u.bass * 1.8);
+    // ---- Multi-pole vortex (pure tangential — no radial attraction) ----
+    // Pure curl field: no sources or sinks, so particle density is preserved.
+    // Particles follow the STREAMLINES between poles (not orbits around them),
+    // creating flowing ribbons rather than visible blobs at pole positions.
+    let orbit = u.orbit_str * (1.0 + u.bass * 1.6);
 
-    var force       = vec2f(0.0);
-    var min_dist    = 99.0;
+    var force        = vec2f(0.0);
+    var min_dist     = 99.0;
     var nearest_pole = 0u;
 
     for (var pi = 0u; pi < 4u; pi++) {
         let diff  = p.pos - ppos[pi];
         let dist  = length(diff);
         if dist < 0.001 { continue; }
-        let sdist = max(dist, 0.03);
-        let radial  = diff / sdist;
+        let sdist   = max(dist, 0.03);
         let tangent = vec2f(-diff.y, diff.x) / sdist;
 
-        // Even poles CCW (+1), odd poles CW (−1)
-        let rot    = select(-1.0, 1.0, pi % 2u == 0u);
-        // Tangential: Keplerian 1/r falloff — fast orbit near pole, slow far away
-        force += tangent * rot * orbit / (sdist + 0.04);
-        // Mild attraction — keeps particles loosely bound without collapsing to dots
-        force -= radial * orbit * 0.18 / (sdist + 0.04);
+        let rot = select(-1.0, 1.0, pi % 2u == 0u);
+        force += tangent * rot * orbit / (sdist + 0.05);
 
         if dist < min_dist { min_dist = dist; nearest_pole = pi; }
     }
     p.vel += force;
 
+    // ---- Aurora bias ----------------------------------------------------------------
+    // When vortex is weak (low orbit_str), a slow oscillating horizontal current
+    // dominates → aurora / curtain aesthetic.  As orbit_str rises the bias fades
+    // out, giving way to plasma / ribbon / storm looks.
+    // aurora_str → 0 when orbit_str ≥ 0.00045 (Vortex slider ≥ 9).
+    let aurora_str = max(0.0, 0.00045 - u.orbit_str) * 0.55;
+    let fa = sin(u.time * 0.06) * 0.55;            // ±31° swing, 105-s period
+    let flow_dir = vec2f(cos(fa), sin(fa) * 0.18); // mostly horizontal curtains
+    p.vel += flow_dir * aurora_str;
+
     // ---- Mid-frequency swirl: voices / synths stir the field ----
     let perp_vel = vec2f(-p.vel.y, p.vel.x);
-    p.vel += perp_vel * u.mid * 0.0005;
+    p.vel += perp_vel * u.mid * 0.0004;
 
     // ---- Organic shimmer (low-amplitude curl noise) ----
     p.vel += curl2d(p.pos, u.time) * u.noise_str;
