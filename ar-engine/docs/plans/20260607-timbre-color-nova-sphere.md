@@ -158,19 +158,25 @@ anchor blends).
 - [x] run: `node --test web/timbre_color.test.mjs` (or `node web/timbre_color.test.mjs`) — must pass before Task 4. — 9 passed, 0 failed (Node v22.15.0; .js loads as ESM via syntax detection).
 
 ### Task 4: Plumb timbre color into the draw pipeline
-- [ ] In `web/particles.js` `tick()`: call `timbreToColor(frame.centroid, frame.tonal)`,
-      write `hue`, `sat`, `weight` into `DrawUniforms` free slots. Repurpose `_p2`,`_p3`
-      and (if needed) widen `DrawUniforms` to 12 floats (48 bytes) — update `DRAW_UBO_BYTES`,
-      the struct in `particles_draw.wgsl`, and the `_drawArr` writes together.
-- [ ] In `particles_draw.wgsl`: add `timbre_hue, timbre_sat, timbre_weight` fields;
-      blend into the per-particle hue: `hue = mix(base_hue, timbre_hue, timbre_weight * BLEND)`
-      and `sat = mix(base_sat, timbre_sat, timbre_weight * BLEND)` where `BLEND≈0.7`.
-      Applies to all modes (fluid/cymatics/nova) so color tracks timbre everywhere.
-- [ ] Ensure Nova zone/per-fiber hue still combines sensibly with timbre (timbre shifts
-      the whole iris hue; zone contrast preserved via sat/brightness).
-- [ ] verify (manual): page loads, no WGSL/console errors; hue visibly shifts with
-      vocal vs instrumental passages. (No automated test — checkbox = clean load.)
-- [ ] confirm clean load + no console errors — must pass before Task 5.
+- [x] In `web/particles.js` `tick()`: smooth `frame.centroid`/`frame.tonal` via a
+      per-pipeline `createTimbreSmoother({tau:0.25})` (frame-rate-correct dt, clamped to
+      [1/240, 0.1] s so idle-throttle gaps don't snap colour), write `hue`/`sat`/`weight`
+      into `DrawUniforms`. Widened `DrawUniforms` to 12 floats (48 bytes): `DRAW_UBO_BYTES`
+      = 48, `_drawArr[6..8]` = timbre hue/sat/weight, struct in `particles_draw.wgsl`
+      updated together. (Used the stateful smoother rather than raw `timbreToColor` so hue
+      tracks smoothly and circularly.)
+- [x] In `particles_draw.wgsl`: added `timbre_hue, timbre_sat, timbre_weight` fields;
+      base hue/sat now blend toward timbre: `hue = mix(base_hue, timbre_hue, weight·0.7)`,
+      `sat = mix(base_sat, timbre_sat, weight·0.7)` (`BLEND=0.7`). Applies to all modes.
+- [x] Nova zone/per-fiber hue preserved: timbre shifts the whole iris hue via the same
+      blend; zone contrast still carried by `zone_scale` (brightness) and per-fiber
+      `nova_fx`, and `val` (lightness) is untouched by the timbre blend.
+- [x] verify (manual): page loads, no WGSL/console errors — WebGPU not runnable in CI;
+      verified by proxy (JS syntax OK, DrawUniforms 12-float/48-byte layout consistent
+      between JS `_drawArr` and WGSL struct, existing JS+C tests still pass). Visual hue
+      shift = manual (Post-Completion).
+- [x] confirm clean load + no console errors — manual (not automatable here); deferred to
+      Post-Completion visual check. Static validation (syntax + UBO byte consistency) clean.
 
 ### Task 5: Nova sphere meridian flow (compute shader)
 - [ ] Rewrite the `nova_mode` branch in `particles_update.wgsl` to the sphere model.

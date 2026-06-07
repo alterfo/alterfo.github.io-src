@@ -12,13 +12,16 @@ struct Particle {
 };
 
 struct DrawUniforms {
-    energy      : f32,
-    beat_pulse  : f32,
-    mid         : f32,
-    high        : f32,
-    kaleidoscope: f32,   // 1.0 = cymatics quarter×4 mirror mode
-    nova_mode   : f32,   // 1.0 = iris mode (zone brightness scaling)
-    _p2 : f32, _p3 : f32,
+    energy       : f32,
+    beat_pulse   : f32,
+    mid          : f32,
+    high         : f32,
+    kaleidoscope : f32,   // 1.0 = cymatics quarter×4 mirror mode
+    nova_mode    : f32,   // 1.0 = iris mode (zone brightness scaling)
+    timbre_hue   : f32,   // 0..1 hue suggested by spectral timbre
+    timbre_sat   : f32,   // 0..1 saturation suggested by timbre
+    timbre_weight: f32,   // 0..1 confidence; scales how strongly timbre tints
+    _p3 : f32, _p4 : f32, _p5 : f32,
 };
 
 @group(0) @binding(0) var<storage, read> particles : array<Particle>;
@@ -91,9 +94,16 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
 
     // Sclera particles (nova hue > 0.80): cream-white, low saturation
     let is_sclera = u.nova_mode > 0.5 && fract(p.hue) > 0.80;
-    let hue = select(fract(p.hue + u.high * 0.04), 0.095f, is_sclera);
-    let sat = select(clamp(0.90 + u.mid * 0.10, 0.0, 1.0), 0.18f, is_sclera);
+    let base_hue = select(fract(p.hue + u.high * 0.04), 0.095f, is_sclera);
+    let base_sat = select(clamp(0.90 + u.mid * 0.10, 0.0, 1.0), 0.18f, is_sclera);
     let val = select(0.50f, 0.74f, is_sclera);
+
+    // Timbre tint: shift hue/sat toward the spectral-timbre colour, scaled by its
+    // confidence. Applies to every mode so colour tracks vocal vs instrumental.
+    // BLEND caps the maximum pull so the base palette/zone structure still reads.
+    let timbre_blend = clamp(u.timbre_weight, 0.0, 1.0) * 0.7;
+    let hue = mix(base_hue, u.timbre_hue, timbre_blend);
+    let sat = mix(base_sat, u.timbre_sat, timbre_blend);
     let rgb = hsl2rgb(hue, sat, val);
 
     let energy_boost = 1.0 + u.energy * 3.8;

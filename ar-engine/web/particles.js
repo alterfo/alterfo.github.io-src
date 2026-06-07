@@ -7,6 +7,7 @@
 //   noiseStr   → shimmer (organic curl-noise perturbation)
 
 import { SIM_WIDTH, SIM_HEIGHT, getRecommendedParticleCount, getGpuTier } from './renderer.js';
+import { createTimbreSmoother } from './timbre_color.js';
 
 // Set at initParticlePipeline() time based on detected GPU tier.
 // Exported as let so callers (record.js etc.) can read the live value.
@@ -14,7 +15,7 @@ export let PARTICLE_COUNT = 500_000;
 
 const PARTICLE_STRIDE  = 8 * 4;  // bytes per particle (8 floats)
 const UPDATE_UBO_BYTES = 64;
-const DRAW_UBO_BYTES   = 32;    // was 16; added kaleidoscope + 3 padding floats
+const DRAW_UBO_BYTES   = 48;    // 12 floats; added timbre hue/sat/weight (+ padding)
 
 // Defaults (overridden by advanced.js via setParticleParams)
 let _noiseScale   = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
@@ -169,6 +170,8 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     let _prevBeat = 0;
     let _hueBase  = 0;
+    let _prevTime = null;                          // seconds; for frame-rate-correct EMA dt
+    const _timbreSmoother = createTimbreSmoother({ tau: 0.25 });
 
     function tick(frame, time) {
         const energy = frame?.energy     ?? 0;
@@ -176,6 +179,13 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         const mid    = frame?.mid        ?? 0;
         const high   = frame?.high       ?? 0;
         const beat   = frame?.beat_pulse ?? 0;
+        const centroid = frame?.centroid ?? 0;
+        const tonal    = frame?.tonal    ?? 0;
+
+        // Frame delta for the timbre EMA. Clamp so idle-throttle gaps don't snap colour.
+        const dt = _prevTime === null ? 1 / 60 : Math.min(Math.max(time - _prevTime, 1 / 240), 0.1);
+        _prevTime = time;
+        const timbre = _timbreSmoother(centroid, tonal, dt);
 
         // Hue drifts continuously; high-frequency content accelerates colour cycling
         _hueBase = (_hueBase + 0.00005 + energy * 0.0002 + high * 0.0007) % 1.0;
@@ -212,7 +222,10 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _drawArr[3] = high;
         _drawArr[4] = isKaleidoscope;
         _drawArr[5] = _novaMode;
-        // [6..7] padding zeros
+        _drawArr[6] = timbre.hue;     // timbre_hue
+        _drawArr[7] = timbre.sat;     // timbre_sat
+        _drawArr[8] = timbre.weight;  // timbre_weight
+        // [9..11] padding zeros
         device.queue.writeBuffer(drawUbo, 0, _drawArr);
 
         _prevBeat = beat;
