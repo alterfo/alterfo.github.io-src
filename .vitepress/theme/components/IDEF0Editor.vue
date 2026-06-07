@@ -117,6 +117,7 @@ let cleanupExternalChange = null
 const historyStack = []
 let historyIndex = -1
 let dragResize = null
+let dragResizeMoved = false
 
 function pushHistory() {
   const snap = JSON.parse(JSON.stringify({ blocks: blocks.value, arrows: arrows.value }))
@@ -941,9 +942,9 @@ function onMouseDown(e) {
 
   const rh = hitTestResizeHandle(e.offsetX, e.offsetY)
   if (rh) {
-    pushHistory()
     const p = screenToWorld(e.offsetX, e.offsetY)
     dragResize = { ...rh, startX: p.x, startY: p.y }
+    dragResizeMoved = false
     return
   }
 
@@ -983,6 +984,7 @@ function onMouseMove(e) {
   }
 
   if (dragResize) {
+    if (!dragResizeMoved) { pushHistory(); dragResizeMoved = true }
     const p = screenToWorld(e.offsetX, e.offsetY)
     const dx = p.x - dragResize.startX
     const dy = p.y - dragResize.startY
@@ -1095,6 +1097,7 @@ function onMouseUp() {
   dragBlock = null
   dragBlockMoved = false
   dragResize = null
+  dragResizeMoved = false
   isPanning = false
 }
 
@@ -1130,8 +1133,13 @@ async function onImportFile(e) {
       alert('Неверный формат — отсутствует корневая диаграмма A0')
       return
     }
+    editing.value = null
+    selectedBlockId.value = null
+    selectedArrowId.value = null
+    arrowTypeMenu.value = null
     diagrams.value = data.diagrams
     currentDiagramId.value = 'A0'
+    setDiagramIdInQuery('A0')
     loadDiagram()
     saveDiagram()
   } catch {
