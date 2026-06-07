@@ -12,7 +12,7 @@ import { setRecordParams } from './record.js';
 
 const LS_KEY = 'arfluid_advanced_v4';
 
-const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix', 'Chladni'];
+const PALETTE_NAMES = ['Cyberpunk', 'Fire', 'Ocean', 'Matrix', 'Chladni', 'Nova'];
 
 const SLIDERS = [
     { key: 'noiseScale', label: 'Vortex',   min: 1.0,  max: 10.0, step: 0.5,  places: 1 },
@@ -20,6 +20,8 @@ const SLIDERS = [
     { key: 'decay',      label: 'Trails',   min: 0.88, max: 0.99, step: 0.01, places: 2 },
     { key: 'lifetime',   label: 'Lifetime', min: 60,   max: 600,  step: 30,   places: 0 },
     { key: 'hueScale',   label: 'Hue Spd',  min: 0,    max: 3,    step: 0.1,  places: 1 },
+    { key: 'exposure',   label: 'Exposure', min: 1.0,  max: 5.0,  step: 0.1,  places: 1 },
+    { key: 'gamma',      label: 'Gamma',    min: 0.5,  max: 1.5,  step: 0.05, places: 2 },
 ];
 
 const BAND_OPTIONS = ['off', 'sub', 'bass', 'mid', 'high'];
@@ -57,13 +59,19 @@ const PRESETS = [
     // Mode numbers n,m driven by bass/treble; beat_pulse shifts phase → "mode jump".
     // Long trails + strong damping → particles accumulate on geometric nodal lines.
     { name: 'Cymatics', noiseScale: 3.0, noiseSpeed: 0.10, decay: 0.983, lifetime: 480, hueScale: 0.04, paletteIdx: 4, chladniMode: 1 },
+
+    // Nova — centrifugal spiral bloom: particles spawn near centre (warm gold),
+    // spiral outward along N rotating arms driven by bass (3..6 arms).
+    // Beat_pulse fires an outward burst. Electric cyan filaments at the edge.
+    { name: 'Nova', noiseScale: 2.0, noiseSpeed: 0.50, decay: 0.965, lifetime: 260, hueScale: 0.15, paletteIdx: 5, novaMode: 1 },
 ];
 
 const DEFAULTS = {
     noiseScale: 4.5, noiseSpeed: 0.65, decay: 0.96, lifetime: 300, hueScale: 1.0,
-    blendMode: 0, paletteIdx: 0, chladniMode: 0,
+    exposure: 2.8, gamma: 0.8,
+    blendMode: 0, paletteIdx: 0, chladniMode: 0, novaMode: 0,
     resolution: '1080p', bitrate: 8, codec: 'vp9',
-    bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off' },
+    bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off', exposure: 'off', gamma: 'off' },
 };
 
 // Interpolate between two flat-12-float palette arrays.
@@ -396,6 +404,7 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             lifetime:    p.lifetime,
             hueScale:    p.hueScale,
             chladniMode: p.chladniMode ?? 0,
+            novaMode:    p.novaMode    ?? 0,
         });
         // Switch palette if preset specifies one
         if (p.paletteIdx !== undefined && p.paletteIdx !== state.paletteIdx) {
@@ -530,12 +539,15 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             noiseSpeed:  state.noiseSpeed,
             lifetime:    state.lifetime,
             chladniMode: state.chladniMode ?? 0,
+            novaMode:    state.novaMode    ?? 0,
         });
         setFeedbackParams({ decayNormal: state.decay });
         setRenderParams({
             palette:   currentPalette(),
             blendMode: state.blendMode,
             hueScale:  state.hueScale,
+            exposure:  state.exposure  ?? 2.8,
+            gamma:     state.gamma     ?? 0.8,
         });
     }
 
@@ -560,13 +572,17 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
         const decay      = effective(SLIDERS[2]);
         const lifetime   = effective(SLIDERS[3]);
         const hueScale   = effective(SLIDERS[4]);
+        const exposure   = effective(SLIDERS[5]);
+        const gamma      = effective(SLIDERS[6]);
 
-        setParticleParams({ noiseScale, noiseSpeed, lifetime, chladniMode: state.chladniMode ?? 0 });
+        setParticleParams({ noiseScale, noiseSpeed, lifetime, chladniMode: state.chladniMode ?? 0, novaMode: state.novaMode ?? 0 });
         setFeedbackParams({ decayNormal: decay });
         setRenderParams({
             palette:   currentPalette(),
             blendMode: state.blendMode,
             hueScale,
+            exposure,
+            gamma,
         });
     }
 

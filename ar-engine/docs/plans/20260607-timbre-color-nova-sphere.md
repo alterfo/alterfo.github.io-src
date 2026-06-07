@@ -133,7 +133,7 @@ anchor blends).
 - [x] run C tests + confirm `make -C engine` exits 0 — 19 passed, 0 failed; make exit 0.
 
 ### Task 3: Timbre→hue color module (JS)
-- [ ] Create `web/timbre_color.js` exporting `timbreToColor(centroid, tonal)` →
+- [x] Create `web/timbre_color.js` exporting `timbreToColor(centroid, tonal)` →
       `{ hue, sat, weight }`. Implement inverse-distance (Shepard) interpolation over
       anchor points in (centroid, tonal) space with **circular** hue mean (sum unit
       vectors `(cos2πh, sin2πh)` weighted, `atan2` back). Anchors (tunable):
@@ -142,13 +142,20 @@ anchor blends).
       - strings       `(c0.65, t0.90)` → hue 0.33 (green), sat 0.85
       - percussion    `(c0.85, t0.20)` → hue 0.10 (warm), sat 0.25 (near-white)
       - bass/low      `(c0.10, t0.45)` → hue 0.00 (red),  sat 0.80
-- [ ] `weight` = confidence: higher when close to an anchor and when `tonal` is high
+      (Done: exports `timbreToColor`, `circularHueMean`, `ANCHORS`. `EPS=1e-4` softens
+      the 1/d² singularity at an anchor.)
+- [x] `weight` = confidence: higher when close to an anchor and when `tonal` is high
       (tonal content has a clearer "color"); low for ambiguous/noisy → lets base palette
       show through. EMA-smooth hue (circularly), sat, weight in the module (τ≈0.25 s).
-- [ ] write tests `web/timbre_color.test.mjs` (plain `node --test` or assert script):
+      (Done: `weight = proximity·(0.3+0.7·tonal)`, proximity from nearest-anchor distance,
+      `PROX_SCALE=0.35`. EMA via `createTimbreSmoother({tau})` — frame-rate-correct
+      `alpha = 1−exp(−dt/τ)`, hue smoothed circularly as a unit vector, first call snaps.)
+- [x] write tests `web/timbre_color.test.mjs` (plain `node --test` or assert script):
       female-ish input → hue near 0.92; strings-ish → near 0.33; verify circular mean
       wraps (blend of 0.95 and 0.05 → near 0.0, not 0.5); weight monotonic w/ tonal.
-- [ ] run: `node --test web/timbre_color.test.mjs` (or `node web/timbre_color.test.mjs`) — must pass before Task 4.
+      (Done: 9 tests incl. anchor round-trip, out-of-range clamping, smoother snap+converge.
+      Wrap assert is circular: 0.95&0.05 → ~1.0 ≡ 0.0.)
+- [x] run: `node --test web/timbre_color.test.mjs` (or `node web/timbre_color.test.mjs`) — must pass before Task 4. — 9 passed, 0 failed (Node v22.15.0; .js loads as ESM via syntax detection).
 
 ### Task 4: Plumb timbre color into the draw pipeline
 - [ ] In `web/particles.js` `tick()`: call `timbreToColor(frame.centroid, frame.tonal)`,

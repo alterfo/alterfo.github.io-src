@@ -6,13 +6,15 @@
 //   noiseSpeed → pole_speed (Lissajous frequency multiplier, direct)
 //   noiseStr   → shimmer (organic curl-noise perturbation)
 
-import { SIM_WIDTH, SIM_HEIGHT } from './renderer.js';
+import { SIM_WIDTH, SIM_HEIGHT, getRecommendedParticleCount, getGpuTier } from './renderer.js';
 
-export const PARTICLE_COUNT = 500_000;
+// Set at initParticlePipeline() time based on detected GPU tier.
+// Exported as let so callers (record.js etc.) can read the live value.
+export let PARTICLE_COUNT = 500_000;
 
 const PARTICLE_STRIDE  = 8 * 4;  // bytes per particle (8 floats)
 const UPDATE_UBO_BYTES = 64;
-const DRAW_UBO_BYTES   = 16;
+const DRAW_UBO_BYTES   = 32;    // was 16; added kaleidoscope + 3 padding floats
 
 // Defaults (overridden by advanced.js via setParticleParams)
 let _noiseScale   = 4.0;     // Vortex slider: 1–10 → orbit_str = value × 0.00005
@@ -21,17 +23,22 @@ let _noiseStr     = 0.00005; // shimmer: subtle curl-noise perturbation
 let _lifetime     = 240.0;   // frames per particle (4 s at 60 fps)
 let _speed        = 0.7;
 let _chladniMode  = 0;       // 0 = vortex, 1 = Chladni standing-wave
+let _novaMode     = 0;       // 1 = radial spiral bloom
 
-export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode } = {}) {
+export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode, novaMode } = {}) {
     if (noiseScale   !== undefined) _noiseScale   = noiseScale;
     if (noiseSpeed   !== undefined) _noiseSpeed   = noiseSpeed;
     if (noiseStr     !== undefined) _noiseStr     = noiseStr;
     if (lifetime     !== undefined) _lifetime     = lifetime;
     if (speed        !== undefined) _speed        = speed;
     if (chladniMode  !== undefined) _chladniMode  = chladniMode;
+    if (novaMode     !== undefined) _novaMode     = novaMode;
 }
 
 export async function initParticlePipeline(device, texMgr, passMgr) {
+    // Scale particle count to detected GPU tier (prevents hang on integrated GPUs).
+    PARTICLE_COUNT = getRecommendedParticleCount();
+
     // --- particle storage buffer ---
     const particleBuf = device.createBuffer({
         label: 'particles',
@@ -131,24 +138,30 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     // REGISTER PASSES
     // =========================================================================
+    // Dynamic compute dispatch: Cymatics uses only ¼ of particles (4× faster).
+    const _updateDispatch = { type: 'compute', x: Math.ceil(PARTICLE_COUNT / 256) };
     passMgr.add({
         label:     'particles_update',
         pipeline:  updatePipeline,
         bindGroup: updateBG,
-        dispatch:  { type: 'compute', x: Math.ceil(PARTICLE_COUNT / 256) },
+        dispatch:  _updateDispatch,
     });
+
+    // Draw dispatch: always PARTICLE_COUNT vertices.
+    // Kaleidoscope maps first-quarter particles × 4 quadrants inside the shader.
+    const _drawDispatch = {
+        type:       'render',
+        targetView: particleDrawView,
+        loadOp:     'clear',
+        clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
+        drawCount:  PARTICLE_COUNT,
+    };
 
     passMgr.add({
         label:     'particles_draw',
         pipeline:  drawPipeline,
         bindGroup: drawBG,
-        dispatch:  {
-            type:       'render',
-            targetView: particleDrawView,
-            loadOp:     'clear',
-            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
-            drawCount:  PARTICLE_COUNT,
-        },
+        dispatch:  _drawDispatch,
     });
 
     // =========================================================================
@@ -182,19 +195,31 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _updArr[11] = beat;
         _updArr[12] = _prevBeat;
         _updArr[13] = _chladniMode;
-        // [14..15] padding (zeroed by default)
+        _updArr[14] = _novaMode;
+        // [15] padding (zeroed by default)
         device.queue.writeBuffer(updateUbo, 0, _updArr);
+
+        // Cymatics: compute only ¼ of particles + quarter×4 draw = 4× speedup each.
+        const isKaleidoscope = _chladniMode > 0.5 ? 1.0 : 0.0;
+        const chladniWorkgroups = Math.ceil(PARTICLE_COUNT / 4 / 256);
+        _updateDispatch.x = isKaleidoscope ? chladniWorkgroups : Math.ceil(PARTICLE_COUNT / 256);
+        // Draw always PARTICLE_COUNT; shader maps quarter×4 for kaleidoscope.
+        _drawDispatch.drawCount = PARTICLE_COUNT;
 
         _drawArr[0] = energy;
         _drawArr[1] = beat;
         _drawArr[2] = mid;
         _drawArr[3] = high;
+        _drawArr[4] = isKaleidoscope;
+        _drawArr[5] = _novaMode;
+        // [6..7] padding zeros
         device.queue.writeBuffer(drawUbo, 0, _drawArr);
 
         _prevBeat = beat;
     }
 
-    console.log('[particles] vortex pipeline ready',
+    console.log('[particles] pipeline ready',
+        '| tier:', getGpuTier(),
         '| count:', PARTICLE_COUNT,
         '| buf:', (PARTICLE_COUNT * PARTICLE_STRIDE / 1024 / 1024).toFixed(1), 'MB',
         '| workgroups:', Math.ceil(PARTICLE_COUNT / 256));

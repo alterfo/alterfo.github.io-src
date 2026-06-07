@@ -7,3 +7,4 @@ dist
 ar-engine/web/engine.js
 ar-engine/web/engine.wasm
 docs/plans/
+.DS_Store

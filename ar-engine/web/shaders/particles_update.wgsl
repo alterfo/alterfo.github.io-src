@@ -31,7 +31,7 @@ struct Uniforms {
     beat_pulse   : f32,
     prev_beat    : f32,
     chladni_mode : f32,  // 0 = vortex, 1 = Chladni standing-wave
-    _p1          : f32,
+    nova_mode    : f32,  // 1 = radial spiral bloom
     _p2          : f32,
 };
 
@@ -96,74 +96,227 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var p = particles[i];
 
     // =========================================================================
-    // CHLADNI / CYMATICS MODE
-    // Particles are attracted to nodal lines of a 2D standing-wave field.
-    // W = sin(n·π·x + φ)·sin(m·π·y) + sin(m·π·x)·sin(n·π·y − φ)
-    // Force = −W·∇W  (analytically derived, pushes toward W = 0).
-    // Mode numbers n, m are driven by audio bands so the pattern responds
-    // to frequency content. Beat_pulse shifts the phase → visible mode jump.
+    // CHLADNI / CYMATICS MODE — cosine free-edge plate, live-morphing.
+    // W(x,y) = cos(n·π·x + φ)·cos(m·π·y) + cos(m·π·x)·cos(n·π·y + φ)
+    // Fractional n,m (no floor) → pattern morphs continuously with music.
+    // Slow time drift ensures visible evolution even during constant audio.
+    // Beat injects a phase jump φ → pattern "shakes" and re-crystallises.
+    // Curl noise prevents full freeze. Draw shader mirrors 4 quadrants.
     // =========================================================================
     if u.chladni_mode > 0.5 {
-        // Mode numbers: bass → low-order wide pattern, treble → dense pattern.
-        // Clamp so modes stay in 2..6 for visually distinct Chladni shapes.
-        let n = 2.0 + floor(clamp(u.bass, 0.0, 1.0) * 3.0);   // 2..5
-        let m = 2.0 + floor(clamp(u.high, 0.0, 1.0) * 4.0);   // 2..6
+        // Smooth fractional modes — no floor(), so pattern morphs in-between
+        // Bass drives n [1..4], high drives m [1..4], slow autonomous drift
+        let n = 1.2 + u.bass * 2.8 + sin(u.time * 0.13) * 0.6;
+        let m = 1.2 + u.high * 2.8 + cos(u.time * 0.09) * 0.6 + u.mid * 0.8;
 
-        // Very slow phase drift so the pattern gently evolves over the song.
-        // Beat_pulse shifts phase → sudden "mode jump" → pattern crystallises back.
-        let drift = u.time * 0.04;
-        let bp    = u.beat_pulse * 1.6;
+        // Phase: beat causes a sudden jump; time causes slow pattern rotation
+        let phi = u.beat_pulse * PI * 0.6 + u.time * 0.05;
 
-        let ax = p.pos.x * n * PI + drift + bp;
-        let ay = p.pos.y * m * PI - drift;
-        let bx = p.pos.x * m * PI - drift * 0.7;
-        let by = p.pos.y * n * PI + drift * 0.5 - bp;
+        // Cosine free-edge Chladni — precompute sin/cos for each angle (8 calls total).
+        // curl2d removed (was 32 sin/cos calls per particle → ~16M ops/frame at 500k).
+        // Cheap hash-noise replaces it for anti-freeze: zero trig, pure integer ops.
+        let ax = p.pos.x * n * PI + phi;
+        let ay = p.pos.y * m * PI;
+        let bx = p.pos.x * m * PI;
+        let by = p.pos.y * n * PI + phi;
+        let cax = cos(ax); let sax = sin(ax);
+        let cay = cos(ay); let say = sin(ay);
+        let cbx = cos(bx); let sbx = sin(bx);
+        let cby = cos(by); let sby = sin(by);
+        let W    = cax * cay + cbx * cby;
+        let dWdx = -(n * PI) * sax * cay - (m * PI) * sbx * cby;
+        let dWdy = -(m * PI) * cax * say - (n * PI) * cbx * sby;
 
-        // Wave superposition: sin(ax)·sin(ay) + sin(bx)·sin(by)
-        let W = sin(ax) * sin(ay) + sin(bx) * sin(by);
-
-        // Analytic partial derivatives ∂W/∂x and ∂W/∂y
-        let dWdx = cos(ax) * (n * PI) * sin(ay)
-                 + cos(bx) * (m * PI) * sin(by);
-        let dWdy = sin(ax) * cos(ay) * (m * PI)
-                 + sin(bx) * cos(by) * (n * PI);
-
-        // Force toward nodal lines; bass boosts strength on drops.
-        let str = 0.00014 * (1.0 + u.bass * 0.6);
+        let str = 0.00028 * (1.0 + u.bass * 0.3 + u.beat_pulse * 0.5);
         p.vel += -vec2f(W * dWdx, W * dWdy) * str;
 
-        // Tiny curl noise → organic sand-grain granularity.
-        p.vel += curl2d(p.pos, u.time) * u.noise_str * 0.15;
+        // Cheap anti-freeze: hash-based random kick, zero trig ops.
+        // Time-quantized so groups of 64 particles get kicks at staggered moments.
+        let hk  = uhash(p.seed ^ (u32(u.time * 8.0) + (i >> 6u) + 5u));
+        let hk2 = uhash(hk + 2u);
+        p.vel += vec2f((uf01(hk) - 0.5), (uf01(hk2) - 0.5)) * 0.00015;
 
-        // Soft boundary push.
-        let bnd  = 0.04;
-        let push = str * 40.0;
+        // Boundary push
+        let bnd  = 0.03;
+        let push = str * 28.0;
         if p.pos.x < bnd           { p.vel.x += (bnd - p.pos.x) * push; }
         if p.pos.x > 1.0 - bnd     { p.vel.x -= (p.pos.x - 1.0 + bnd) * push; }
         if p.pos.y < bnd           { p.vel.y += (bnd - p.pos.y) * push; }
         if p.pos.y > 1.0 - bnd     { p.vel.y -= (p.pos.y - 1.0 + bnd) * push; }
 
-        // Strong damping → particles settle and accumulate on nodal lines.
-        p.vel *= 0.88;
+        // Moderate damping — snaps to lines but not instantly frozen
+        p.vel *= 0.83;
         p.pos  = clamp(p.pos + p.vel * u.speed, vec2f(0.0), vec2f(1.0));
 
-        // Near-monochromatic hue: warm amber base with tiny per-particle spread.
-        p.hue = fract(u.hue_base + (uf01(uhash(p.seed + 3u)) - 0.5) * 0.05);
+        // Blue hue (draw shader will fold to kaleidoscope 4×)
+        p.hue = fract(0.62 + (uf01(uhash(p.seed + 3u)) - 0.5) * 0.04);
 
-        // Age breathes with energy (same as vortex mode).
-        let dyn_life = u.lifetime * clamp(0.25 + u.energy * 7.0, 0.10, 2.5);
+        let dyn_life = u.lifetime * clamp(0.30 + u.energy * 6.0, 0.15, 2.5);
         p.age += 1.0 / max(dyn_life, 1.0);
 
-        // Respawn at random position with near-zero velocity.
         if p.age > 1.0 {
             let s  = uhash(p.seed + u32(u.time * 97.0 + f32(i)));
             let s1 = uhash(s); let s2 = uhash(s1);
             let s3 = uhash(s2); let s4 = uhash(s3);
             p.pos  = vec2f(uf01(s1), uf01(s2));
             p.vel  = vec2f(0.0);
-            p.age  = uf01(s4) * 0.08;
+            p.age  = uf01(s4) * 0.06;
             p.seed = s4;
-            p.hue  = fract(u.hue_base + (uf01(uhash(s4 + 1u)) - 0.5) * 0.05);
+            p.hue  = fract(0.62 + (uf01(uhash(s4 + 1u)) - 0.5) * 0.04);
+        }
+
+        particles[i] = p;
+        return;
+    }
+
+    // =========================================================================
+    // NOVA MODE — living iris with dilating pupil. FOUNTAIN MODEL:
+    // Particles flow radially outward from pupil → limbus, then teleport
+    // back to inner edge. 72 fiber bundles with permanent per-particle
+    // angular jitter (±7°) and curvature → organic, not discrete sticks.
+    // Beat → mydriasis (pupil dilation) + outward burst.
+    // Two colour zones: collarette amber (inner) → blue-grey (outer).
+    // All geometry in screen space (ASPECT-corrected) → perfect circle.
+    // =========================================================================
+    if u.nova_mode > 0.5 {
+        let ASPECT: f32 = 16.0 / 9.0;
+        let cx = 0.5; let cy = 0.5;
+
+        let dxs = (p.pos.x - cx) * ASPECT;
+        let dy  = p.pos.y - cy;
+        let r_s = max(sqrt(dxs * dxs + dy * dy), 0.001);
+        let th  = atan2(dy, dxs);
+
+        let R_iris  = 0.295;
+
+        // ~12.5 % of particles orbit the sclera zone (eyeball white, outside iris)
+        if (p.seed % 8u) == 7u {
+            let h_sr  = uhash(p.seed + 50u);
+            let R_orb = R_iris + 0.030 + uf01(h_sr) * 0.085;  // orbit 0.325..0.410
+            let tang  = vec2f(-sin(th) / ASPECT, cos(th));
+            let rad   = vec2f(cos(th) / ASPECT, sin(th));
+            let dir   = select(-1.0, 1.0, (p.seed & 1u) == 0u);
+            let t_spd = (0.00015 + u.energy * 0.00008) * dir;
+            p.vel += tang * t_spd;                          // slow tangential orbit
+            p.vel += rad  * (r_s - R_orb) * (-0.0010);     // spring back to orbit radius
+            p.vel *= 0.93;
+            let nx  = dxs + p.vel.x * u.speed * ASPECT;
+            let ny  = dy  + p.vel.y * u.speed;
+            let nr  = max(sqrt(nx * nx + ny * ny), 0.001);
+            let nt  = atan2(ny, nx);
+            let ncl = clamp(nr, R_iris + 0.002, 0.445);
+            p.pos   = vec2f(cx + cos(nt) * ncl / ASPECT, cy + sin(nt) * ncl);
+            p.hue   = 0.85 + (uf01(uhash(p.seed + 51u)) - 0.5) * 0.06;  // sclera hue marker
+            p.age  += 1.0 / max(u.lifetime * 2.5, 1.0);
+            if p.age > 1.0 || ncl >= 0.440 {
+                let ss  = uhash(p.seed ^ u32(u.time * 31.0 + f32(i)));
+                let ss1 = uhash(ss);
+                let a_s = uf01(ss1) * 6.28318;
+                let r_sc = R_iris + 0.005 + uf01(uhash(ss1 + 1u)) * 0.025;
+                p.pos = vec2f(cx + cos(a_s) * r_sc / ASPECT, cy + sin(a_s) * r_sc);
+                p.vel = vec2f(-sin(a_s) / ASPECT, cos(a_s)) * 0.00015 * dir;
+                p.age = uf01(uhash(ss1 + 2u)) * 0.4;
+            }
+            particles[i] = p;
+            return;
+        }
+
+        // Beat-reactive pupil (mydriasis on kick drum) + slow organic breathing
+        let R_pupil_base = 0.090 + u.beat_pulse * 0.070 + u.bass * 0.018
+                         + 0.005 * sin(u.time * 0.71);  // ~0.11 Hz gentle dilation
+        // 3-lobe irregularity from particle angle → natural non-circular pupil edge
+        let R_pupil = R_pupil_base + 0.007 * sin(th * 3.0 + u.time * 0.23);
+
+        // 72 fiber bundles; each particle has PERMANENT jitter from seed
+        // (not time-varying) → stable organic bundle shape, never a thin spike.
+        let N_ARMS   = 72u;
+        let arm_id   = p.seed % N_ARMS;
+        let base_ang = f32(arm_id) / f32(N_ARMS) * 2.0 * PI;
+
+        let h_jit  = uhash(p.seed + 31u);
+        let h_curv = uhash(p.seed + 32u);
+        let h_ph   = uhash(p.seed + 33u);
+
+        // ±1.4° permanent per-particle offset (MUST be < arm_spacing/2 = 2.5°)
+        // so fiber bundles remain separated — no merging into solid ring.
+        let jitter = (uf01(h_jit) - 0.5) * 0.025;
+        let curv   = (uf01(h_curv) - 0.5) * 0.04;
+        let t_pos  = clamp((r_s - R_pupil) / (R_iris - R_pupil), 0.0, 1.0);
+        // Gentle undulation per fiber: random phase → each fiber waves independently
+        let h_wave  = uhash(p.seed + 35u);
+        let wave_ph = uf01(h_wave) * 6.28318;
+        let wave    = sin(t_pos * 4.5 + wave_ph) * 0.013;  // ±0.74° wavy offset
+        let fiber_ang = base_ang + jitter + curv * t_pos + wave;
+
+        var da = th - fiber_ang;
+        if da >  PI { da -= 2.0 * PI; }
+        if da < -PI { da += 2.0 * PI; }
+
+        let tang = vec2f(-sin(th) / ASPECT, cos(th));
+        let rad  = vec2f(cos(th) / ASPECT, sin(th));
+
+        // Angular spring: keeps particle on its personal fiber
+        p.vel += tang * (-da * 0.0025);
+
+        // RADIAL OUTWARD DRIFT — the fountain drive; beat sends burst
+        let v_rad = 0.00055 + u.beat_pulse * 0.0030 + u.energy * 0.00050;
+        p.vel += rad * v_rad;
+
+        // Treble flutter: fine trembling of fiber tips
+        let flutter = u.high * 0.00030 * sin(u.time * 16.0 + uf01(h_ph) * 6.28318);
+        p.vel += rad * flutter;
+
+        p.vel *= 0.86;
+
+        let new_dxs = dxs + p.vel.x * u.speed * ASPECT;
+        let new_dy  = dy  + p.vel.y * u.speed;
+        let new_r_s = sqrt(new_dxs * new_dxs + new_dy * new_dy);
+        let new_th  = atan2(new_dy, new_dxs);
+
+        // FOUNTAIN: particle reaches limbus → teleport to a RANDOM position along
+        // the same fiber (not always inner edge). This prevents synchronized waves
+        // that cause visible radial dashes; gives immediate uniform fiber fill.
+        if new_r_s >= R_iris - 0.010 {
+            let sp1 = uhash(p.seed ^ (u32(u.time * 13.0) + 1u));
+            let sp2 = uhash(sp1 + 1u);
+            let ang_sp = base_ang + jitter + (uf01(sp1) - 0.5) * 0.04;
+            let r_frac = uf01(sp2);   // 0 = inner edge, 1 = outer edge
+            let r_sp = R_pupil + 0.004 + r_frac * (R_iris - R_pupil - 0.014);
+            p.pos = vec2f(cx + cos(ang_sp) * r_sp / ASPECT,
+                          cy + sin(ang_sp) * r_sp);
+            p.vel = rad * (v_rad * (0.8 - r_frac * 0.4));
+            p.age = r_frac * 0.95;
+        } else {
+            // Normal step; inner boundary: never enter pupil
+            let r_cl = clamp(new_r_s, R_pupil + 0.002, R_iris - 0.002);
+            p.pos = vec2f(cx + cos(new_th) * r_cl / ASPECT,
+                          cy + sin(new_th) * r_cl);
+        }
+
+        // Two-zone hue: collarette amber → blue-grey; per-fiber color variety
+        let cdx = (p.pos.x - cx) * ASPECT;
+        let cdy = p.pos.y - cy;
+        let cr  = sqrt(cdx * cdx + cdy * cdy);
+        let t_r = clamp((cr - R_pupil) / (R_iris - R_pupil), 0.0, 1.0);
+        let h_hue = uhash(p.seed + 34u);
+        let hue_var = (uf01(h_hue) - 0.5) * 0.10;  // ±18° permanent per-fiber tint
+        p.hue = clamp(mix(0.09, 0.58, smoothstep(0.28, 0.72, t_r)) + hue_var, 0.01, 0.70);
+
+        // Age slowly (backup death if particle never reaches outer boundary)
+        let dyn_life = u.lifetime * clamp(0.6 + u.energy * 1.5, 0.4, 2.5);
+        p.age += 1.0 / max(dyn_life, 1.0);
+
+        if p.age > 1.0 {
+            let s  = uhash(p.seed ^ u32(u.time * 97.0 + f32(i)));
+            let s1 = uhash(s); let s2 = uhash(s1); let s3 = uhash(s2);
+            let ang_sp = base_ang + jitter + (uf01(s1) - 0.5) * 0.04;
+            let r_frac2 = uf01(s2);
+            let r_sp    = R_pupil + 0.004 + r_frac2 * (R_iris - R_pupil - 0.008);
+            p.pos = vec2f(cx + cos(ang_sp) * r_sp / ASPECT,
+                          cy + sin(ang_sp) * r_sp);
+            p.vel = rad * (v_rad * 0.6);
+            p.age = r_frac2 * 0.90;
+            // seed NOT changed → arm_id and jitter preserved
         }
 
         particles[i] = p;
