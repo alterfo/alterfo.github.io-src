@@ -37,11 +37,12 @@ export function upsertEntry(vault, dateISO, text, now = new Date().toISOString()
 // until the day actually rolls over with insufficient words).
 export function computeStreak(vault, todayISO, goal = 500) {
   let streak = 0;
-  let d = new Date(todayISO);
+  // Parse as UTC noon to avoid DST/timezone issues with getDate()/setDate().
+  let d = new Date(todayISO + 'T12:00:00Z');
 
   const todayEntry = vault.entries[todayISO];
   if (todayEntry && goalMet(todayEntry, goal)) streak++;
-  d.setDate(d.getDate() - 1);
+  d = new Date(d.getTime() - 86400000);
 
   // Walk backward until a day without a qualifying entry.
   while (true) {
@@ -49,7 +50,7 @@ export function computeStreak(vault, todayISO, goal = 500) {
     const entry = vault.entries[iso];
     if (!entry || !goalMet(entry, goal)) break;
     streak++;
-    d.setDate(d.getDate() - 1);
+    d = new Date(d.getTime() - 86400000);
   }
 
   return streak;

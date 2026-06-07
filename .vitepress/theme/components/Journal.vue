@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { loadEnvelope, saveEnvelope, initCrossTabSync } from './Journal/db.js'
+import { loadEnvelope, saveEnvelope, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
@@ -68,9 +68,12 @@ let _dayTimer = null
 function scheduleDayRollover() {
   const now = new Date()
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-  _dayTimer = setTimeout(() => {
+  _dayTimer = setTimeout(async () => {
     const newDay = localDateISO()
     if (newDay !== todayISO.value) {
+      // Flush any pending keystrokes before switching dates.
+      clearTimeout(_saveTimer)
+      await persistVault()
       todayISO.value = newDay
       todayText.value = vault.entries[newDay]?.text ?? ''
     }
@@ -146,20 +149,14 @@ const importPhase = ref('idle')   // 'idle' | 'awaiting-passphrase' | 'merging' 
 const importPassphrase = ref('')
 const importError = ref('')
 let _pendingImportStr = null
-let _fileInputEl = null
+const _fileInputRef = ref(null)
 
 function triggerImportPicker() {
   importError.value = ''
-  if (!_fileInputEl) {
-    _fileInputEl = document.createElement('input')
-    _fileInputEl.type = 'file'
-    _fileInputEl.accept = '.journal'
-    _fileInputEl.addEventListener('change', onImportFileChange)
+  if (_fileInputRef.value) {
+    _fileInputRef.value.value = ''
+    _fileInputRef.value.click()
   }
-  _fileInputEl.value = ''
-  document.body.appendChild(_fileInputEl)
-  _fileInputEl.click()
-  document.body.removeChild(_fileInputEl)
 }
 
 async function onImportFileChange(e) {
@@ -232,7 +229,9 @@ onMounted(async () => {
       Object.assign(vault, merged)
       const mergedToday = vault.entries[todayISO.value]
       if (mergedToday) todayText.value = mergedToday.text
-      await persistVault()
+      // Use quiet save (no localStorage event) to avoid triggering sync in other tabs.
+      const { iv: newIv, ciphertext: newCt } = await encryptJSON(_key, vault)
+      await saveEnvelopeQuiet(packEnvelope({ salt: _salt, iterations: _iterations, iv: newIv, ciphertext: newCt }))
     } catch (err) {
       console.warn('[journal] cross-tab sync failed:', err)
     }
@@ -243,16 +242,19 @@ onUnmounted(() => {
   _cleanupSync()
   clearTimeout(_saveTimer)
   clearTimeout(_dayTimer)
-  if (_fileInputEl) {
-    _fileInputEl.removeEventListener('change', onImportFileChange)
-    _fileInputEl = null
-  }
   _key = null
 })
 </script>
 
 <template>
   <div class="journal-root">
+    <input
+      ref="_fileInputRef"
+      type="file"
+      accept=".journal"
+      style="display:none"
+      @change="onImportFileChange"
+    />
 
     <!-- Loading -->
     <div v-if="phase === 'loading'" class="journal-center">

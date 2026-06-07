@@ -83,7 +83,9 @@ export function packEnvelope({ salt, iterations, iv, ciphertext }) {
 const MAX_ITERATIONS = 2_000_000;
 
 export function unpackEnvelope(str) {
-  const parsed = JSON.parse(str);
+  let parsed;
+  try { parsed = JSON.parse(str); } catch { throw new Error('Malformed envelope: not valid JSON'); }
+
   if (!Number.isInteger(parsed.iterations) || parsed.iterations < 1 || parsed.iterations > MAX_ITERATIONS) {
     throw new Error('Invalid iterations in envelope');
   }

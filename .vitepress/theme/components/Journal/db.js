@@ -41,23 +41,36 @@ async function loadEnvelope() {
 
 let _saveTimer = null
 
+async function writeEnvelope(envelopeStr) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const req = tx.objectStore(STORE).put(envelopeStr, ENVELOPE_KEY)
+    req.onsuccess = () => resolve()
+    req.onerror = e => reject(e.target.error)
+  })
+}
+
 function saveEnvelope(envelopeStr) {
   if (typeof indexedDB === 'undefined') return
   clearTimeout(_saveTimer)
   _saveTimer = setTimeout(async () => {
     try {
-      const db = await openDB()
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite')
-        const req = tx.objectStore(STORE).put(envelopeStr, ENVELOPE_KEY)
-        req.onsuccess = () => resolve()
-        req.onerror = e => reject(e.target.error)
-      })
+      await writeEnvelope(envelopeStr)
       try { localStorage.setItem('journal:saved', String(Date.now())) } catch {}
     } catch (err) {
       console.warn('[journal] saveEnvelope failed:', err)
     }
   }, 300)
+}
+
+async function saveEnvelopeQuiet(envelopeStr) {
+  if (typeof indexedDB === 'undefined') return
+  try {
+    await writeEnvelope(envelopeStr)
+  } catch (err) {
+    console.warn('[journal] saveEnvelopeQuiet failed:', err)
+  }
 }
 
 function initCrossTabSync(onReload) {
@@ -69,4 +82,4 @@ function initCrossTabSync(onReload) {
   return () => window.removeEventListener('storage', handler)
 }
 
-export { loadEnvelope, saveEnvelope, initCrossTabSync }
+export { loadEnvelope, saveEnvelope, saveEnvelopeQuiet, initCrossTabSync }
