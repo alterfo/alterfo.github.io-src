@@ -6,7 +6,7 @@ VitePress-based personal site with a fully client-side IDEF0 diagram editor at `
 
 ## Key paths
 
-- `.vitepress/theme/components/IDEF0Editor.vue` — main Vue component (~1100 lines), canvas-based editor
+- `.vitepress/theme/components/IDEF0Editor.vue` — main Vue component (~1280 lines), canvas-based editor
 - `.vitepress/theme/components/IDEF0Editor/` — editor modules (see below)
 - `idef0.md` — page that mounts the editor
 
@@ -44,7 +44,9 @@ VitePress-based personal site with a fully client-side IDEF0 diagram editor at `
 
 - Critical UX bug fixes: inline editor positioning, arrow drag, boundary arrow offset on block drag
 - FIPS 183 compliance: correct ICOM markers, CALL/MECHANISM direction, validation
-- Undo/redo (Ctrl+Z / Ctrl+Y), 50-step history
+- Undo/redo (Ctrl+Z / Ctrl+Y), 50-step history; history resets on diagram navigation (per-diagram undo)
 - Arrow type change via T key popup menu
 - Block resize via corner handles
 - JSON import/export
+- Double-click on any block always opens the inline label editor; use the "↳ Войти" toolbar button to enter a decomposition
+- Plan files live in `docs/plans/` and are git-ignored (local only)

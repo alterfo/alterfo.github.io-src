@@ -94,8 +94,6 @@ function validateICOMEdge(arrow) {
     default:
       return null;
   }
-
-  return null;
 }
 
 export function hasErrors(diagram) {

@@ -110,7 +110,9 @@ let lastY = 0
 let dragBlock = null
 let dragOffsetX = 0
 let dragOffsetY = 0
+let dragBlockMoved = false
 let dragArrowEnd = null
+let dragArrowMoved = false
 let cleanupExternalChange = null
 const historyStack = []
 let historyIndex = -1
@@ -305,6 +307,7 @@ function loadDiagram() {
   arrows.value = d.arrows || []
   historyStack.length = 0
   historyIndex = -1
+  pushHistory()
   if (d.view) {
     offsetX.value = d.view.x
     offsetY.value = d.view.y
@@ -929,8 +932,8 @@ function onMouseDown(e) {
       saveDiagram()
       return
     }
-    pushHistory()
     dragArrowEnd = { arrowId: endHit.arrow.id, end: endHit.end }
+    dragArrowMoved = false
     selectedArrowId.value = endHit.arrow.id
     selectedBlockId.value = null
     return
@@ -948,8 +951,8 @@ function onMouseDown(e) {
   if (b) {
     selectedBlockId.value = b.id
     selectedArrowId.value = null
-    pushHistory()
     dragBlock = b
+    dragBlockMoved = false
     const p = screenToWorld(e.offsetX, e.offsetY)
     dragOffsetX = p.x - b.x
     dragOffsetY = p.y - b.y
@@ -1019,6 +1022,7 @@ function onMouseMove(e) {
   if (dragArrowEnd) {
     const a = arrows.value.find(x => x.id === dragArrowEnd.arrowId)
     if (a) {
+      if (!dragArrowMoved) { pushHistory(); dragArrowMoved = true }
       const ep = dragArrowEnd.end === 'from' ? a.from : a.to
       const p = screenToWorld(e.offsetX, e.offsetY)
       ep.x = p.x
@@ -1042,6 +1046,7 @@ function onMouseMove(e) {
   }
 
   if (dragBlock) {
+    if (!dragBlockMoved) { pushHistory(); dragBlockMoved = true }
     const p = screenToWorld(e.offsetX, e.offsetY)
     dragBlock.x = p.x - dragOffsetX
     dragBlock.y = p.y - dragOffsetY
@@ -1067,6 +1072,8 @@ function onMouseMove(e) {
       }
     }
     render()
+    canvasEl.value.style.cursor = 'move'
+    return
   }
 
   const rHit = hitTestResizeHandle(e.offsetX, e.offsetY)
@@ -1084,7 +1091,9 @@ function onMouseUp() {
     saveDiagram()
   }
   dragArrowEnd = null
+  dragArrowMoved = false
   dragBlock = null
+  dragBlockMoved = false
   dragResize = null
   isPanning = false
 }
@@ -1115,6 +1124,10 @@ async function onImportFile(e) {
     const data = await importFromJSON(file)
     if (!data || typeof data.diagrams !== 'object') {
       alert('Неверный формат — ожидается { diagrams: {...} }')
+      return
+    }
+    if (!data.diagrams['A0']) {
+      alert('Неверный формат — отсутствует корневая диаграмма A0')
       return
     }
     diagrams.value = data.diagrams
