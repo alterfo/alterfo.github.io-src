@@ -255,9 +255,14 @@ anchor blends).
       Static proxy: WGSL braces/parens balanced, removed vars gone, UBO layouts consistent.
 
 ### Task 8: [Final] Update documentation
-- [ ] Update `ar-engine/CLAUDE.md` (or `web/` README) `AudioFrame` struct to include
+- [x] Update `ar-engine/CLAUDE.md` (or `web/` README) `AudioFrame` struct to include
       `centroid` / `tonal`; note the timbre-color module and Nova sphere model.
-- [ ] Note the new `web/timbre_color.js` + tunable anchor table location for future tweaks.
+      (Created `ar-engine/CLAUDE.md`: AudioFrame 13-float ABI table incl. centroid/tonal,
+      timbre→colour module section, Nova orthographic sphere meridian-flow section,
+      DrawUniforms layout, build/test commands.)
+- [x] Note the new `web/timbre_color.js` + tunable anchor table location for future tweaks.
+      (Documented `ANCHORS` as the single retune point with the full anchor table + tuning
+      knobs EPS/PROX_SCALE/BLEND/τ in `ar-engine/CLAUDE.md`.)
 
 ## Technical Details
 
