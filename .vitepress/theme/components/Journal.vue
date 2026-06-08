@@ -249,7 +249,9 @@ async function doImport() {
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
     const importKey = await deriveKey(importPassphrase.value, salt, iterations)
     const importedVault = await decryptJSON(importKey, { iv, ciphertext })
-    upsertEntry(vault, todayISO.value, todayText.value)
+    // Only upsert today's in-progress text if there's actually something typed.
+    // An empty upsert would stamp updatedAt=NOW and win LWW over imported entries.
+    if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
     const merged = mergeVaults(vault, importedVault)
     Object.assign(vault, merged)
     todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
