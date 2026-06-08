@@ -351,6 +351,18 @@ describe('generic checkNote / repeatSection dispatchers', () => {
     assert.equal(state.measureIdx, 0)
     assert.equal(state.noteIdx, 0)
   })
+
+  it('returns measure-complete on last note of L2 measure', () => {
+    const state = createLevel2State(loadScore('c-major-scale'))
+    // measure 0: [60, 62, 64, 65] — last note 65 completes the measure
+    checkNote(state, new Set([60]), LONG_HOLD)
+    checkNote(state, new Set([62]), LONG_HOLD)
+    checkNote(state, new Set([64]), LONG_HOLD)
+    const result = checkNote(state, new Set([65]), LONG_HOLD)
+    assert.equal(result, 'measure-complete')
+    assert.equal(state.measureIdx, 1)
+    assert.equal(state.noteIdx, 0)
+  })
 })
 
 // ── Stats: _state.stats tracks independently of Piano.vue refs ───────────────
@@ -380,25 +392,24 @@ describe('Stats: _state.stats tracks independently via checkNoteL1', () => {
     assert.equal(state.stats.longestStreak, 2)
   })
 
-  it('Piano.vue-style sync: assigning refs to state.stats keeps them equal', () => {
-    // Simulate how Piano.vue syncs Vue refs → _state.stats after each advance
+  it('Piano.vue-style sync: checkNote updates _state.stats, Vue refs sync from it', () => {
+    // Simulate how Piano.vue advanceNote now works: call checkNote, then sync Vue refs
+    // from _state.stats (checkNote is the authoritative source for correct/streak)
     const state = createLevel1State(loadScore('c-major-scale'))
-    let correctCount = 0, streak = 0, longestStreak = 0
 
-    // Simulate 3 correct notes (Piano.vue advanceNote pattern)
-    for (let i = 0; i < 3; i++) {
-      correctCount++
-      streak++
-      if (streak > longestStreak) longestStreak = streak
-      state.stats.correct = correctCount
-      state.stats.streak = streak
-      state.stats.longestStreak = longestStreak
-    }
+    checkNote(state, new Set([60]), LONG_HOLD)
+    checkNote(state, new Set([62]), LONG_HOLD)
+    checkNote(state, new Set([64]), LONG_HOLD)
 
-    assert.equal(correctCount, 3)
-    assert.equal(state.stats.correct, 3, '_state.stats.correct mirrors Vue ref')
-    assert.equal(state.stats.streak, 3)
-    assert.equal(state.stats.longestStreak, 3)
+    // Piano.vue reads these after each advanceNote call
+    const correctCount = state.stats.correct
+    const streak = state.stats.streak
+    const longestStreak = state.stats.longestStreak
+
+    assert.equal(correctCount, 3, 'correctCount synced from _state.stats')
+    assert.equal(streak, 3)
+    assert.equal(longestStreak, 3)
+    assert.equal(state.stats.correct, 3)
   })
 })
 
