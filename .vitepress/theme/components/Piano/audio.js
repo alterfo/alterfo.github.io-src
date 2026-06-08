@@ -12,7 +12,9 @@ export function usePianoAudio() {
   let _synth = null
   let _sampler = null
   let _chain = null  // [eq, comp, reverb, limiter]
+  let _chainPromise = null  // deduplicates concurrent _buildChain calls
   let _Tone = null
+  let _disposed = false
 
   async function _ensureTone() {
     if (_Tone) return _Tone
@@ -31,11 +33,18 @@ export function usePianoAudio() {
     return eq
   }
 
+  async function _getOrBuildChain(T) {
+    if (_chain) return _chain[0]
+    if (!_chainPromise) _chainPromise = _buildChain(T).finally(() => { _chainPromise = null })
+    return _chainPromise
+  }
+
   async function _ensureSynth() {
     if (_synth) return
     const T = await _ensureTone()
     await T.start()
-    const dest = _chain ? _chain[0] : await _buildChain(T)
+    const dest = await _getOrBuildChain(T)
+    if (_synth) return  // another concurrent call already built the synth
     _synth = new T.PolySynth(T.Synth, {
       oscillator: { type: 'triangle8' },
       envelope: { attack: 0.005, decay: 0.4, sustain: 0.15, release: 1.5 },
@@ -49,7 +58,7 @@ export function usePianoAudio() {
     samplerLoading.value = true
     const T = await _ensureTone()
     await T.start()
-    const dest = _chain ? _chain[0] : await _buildChain(T)
+    const dest = await _getOrBuildChain(T)
     return new Promise((resolve, reject) => {
       _sampler = new T.Sampler({
         urls: {
@@ -62,6 +71,7 @@ export function usePianoAudio() {
         },
         baseUrl: '/audio/salamander/',
         onload: () => {
+          if (_disposed) return
           samplerReady.value = true
           samplerLoading.value = false
           mode.value = 'sampler'
@@ -108,6 +118,7 @@ export function usePianoAudio() {
   }
 
   function dispose() {
+    _disposed = true
     if (_synth) { _synth.dispose(); _synth = null }
     if (_sampler) { _sampler.dispose(); _sampler = null }
     if (_chain) { _chain.forEach(n => n.dispose()); _chain = null }
