@@ -34,6 +34,10 @@ export function usePianoAudio() {
       ;[eq, comp, reverb, limiter].forEach(n => n.dispose())
       throw err
     }
+    if (_disposed) {
+      ;[eq, comp, reverb, limiter].forEach(n => n.dispose())
+      throw new Error('disposed')
+    }
     _chain = [eq, comp, reverb, limiter]
     return eq
   }
