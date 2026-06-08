@@ -392,24 +392,14 @@ describe('Stats: _state.stats tracks independently via checkNoteL1', () => {
     assert.equal(state.stats.longestStreak, 2)
   })
 
-  it('Piano.vue-style sync: checkNote updates _state.stats, Vue refs sync from it', () => {
-    // Simulate how Piano.vue advanceNote now works: call checkNote, then sync Vue refs
-    // from _state.stats (checkNote is the authoritative source for correct/streak)
+  it('generic checkNote dispatcher accumulates stats identically to checkNoteL1', () => {
     const state = createLevel1State(loadScore('c-major-scale'))
-
     checkNote(state, new Set([60]), LONG_HOLD)
     checkNote(state, new Set([62]), LONG_HOLD)
     checkNote(state, new Set([64]), LONG_HOLD)
-
-    // Piano.vue reads these after each advanceNote call
-    const correctCount = state.stats.correct
-    const streak = state.stats.streak
-    const longestStreak = state.stats.longestStreak
-
-    assert.equal(correctCount, 3, 'correctCount synced from _state.stats')
-    assert.equal(streak, 3)
-    assert.equal(longestStreak, 3)
     assert.equal(state.stats.correct, 3)
+    assert.equal(state.stats.streak, 3)
+    assert.equal(state.stats.longestStreak, 3)
   })
 })
 

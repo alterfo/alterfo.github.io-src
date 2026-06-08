@@ -120,6 +120,7 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - `Piano.vue` is registered as `defineAsyncComponent` — VexFlow loads only on `/piano`
 - VexFlow is isolated via `manualChunks` in `config.mts` → separate `vexflow.[hash].js` chunk (~677 KB gzip)
 - Firefox: Web MIDI requires `dom.webmidi.enabled` flag; Safari: unsupported natively
+- HD sampler loads from `/audio/salamander/` (local Salamander Grand Piano mp3s; not bundled — must be present in `public/audio/salamander/` for HD mode to work)
 
 ## Development
 
