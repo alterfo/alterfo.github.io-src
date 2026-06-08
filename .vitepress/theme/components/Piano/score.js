@@ -221,23 +221,38 @@ const ODE_TO_JOY = {
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm2', notes: [
           { midi: 67, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm3', notes: [
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm4', notes: [
           { midi: 64, duration: 'q.', hand: 'right' },
           { midi: 62, duration: '8',  hand: 'right' },
           { midi: 62, duration: 'h',  hand: 'right' },
+          { midi: 45, duration: 'q',  hand: 'left'  }, // A2
+          { midi: 52, duration: 'q',  hand: 'left'  }, // E3
+          { midi: 50, duration: 'h',  hand: 'left'  }, // D3
         ]},
       ],
     },
@@ -249,23 +264,38 @@ const ODE_TO_JOY = {
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm6', notes: [
           { midi: 67, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm7', notes: [
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm8', notes: [
           { midi: 62, duration: 'q.', hand: 'right' },
           { midi: 61, duration: '8',  hand: 'right' },
           { midi: 61, duration: 'h',  hand: 'right' },
+          { midi: 45, duration: 'q',  hand: 'left'  }, // A2
+          { midi: 52, duration: 'q',  hand: 'left'  }, // E3
+          { midi: 45, duration: 'h',  hand: 'left'  }, // A2
         ]},
       ],
     },
@@ -277,6 +307,10 @@ const ODE_TO_JOY = {
           { midi: 62, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
         ]},
         { id: 'm10', notes: [
           { midi: 62, duration: 'q',  hand: 'right' },
@@ -284,6 +318,11 @@ const ODE_TO_JOY = {
           { midi: 66, duration: '8',  hand: 'right' },
           { midi: 64, duration: 'q',  hand: 'right' },
           { midi: 62, duration: 'q',  hand: 'right' },
+          { midi: 50, duration: 'q',  hand: 'left'  }, // D3
+          { midi: 50, duration: '8',  hand: 'left'  }, // D3
+          { midi: 57, duration: '8',  hand: 'left'  }, // A3
+          { midi: 57, duration: 'q',  hand: 'left'  }, // A3
+          { midi: 50, duration: 'q',  hand: 'left'  }, // D3
         ]},
         { id: 'm11', notes: [
           { midi: 61, duration: 'q',  hand: 'right' },
@@ -291,10 +330,17 @@ const ODE_TO_JOY = {
           { midi: 64, duration: '8',  hand: 'right' },
           { midi: 66, duration: '8',  hand: 'right' },
           { midi: 64, duration: 'q',  hand: 'right' },
+          { midi: 45, duration: 'q',  hand: 'left'  }, // A2
+          { midi: 45, duration: 'q',  hand: 'left'  }, // A2
+          { midi: 45, duration: '8',  hand: 'left'  }, // A2
+          { midi: 52, duration: '8',  hand: 'left'  }, // E3
+          { midi: 45, duration: 'q',  hand: 'left'  }, // A2
         ]},
         { id: 'm12', notes: [
           { midi: 62, duration: 'h.',  hand: 'right' },
           { midi: 61, duration: 'q',   hand: 'right' },
+          { midi: 50, duration: 'h.',  hand: 'left'  }, // D3
+          { midi: 45, duration: 'q',   hand: 'left'  }, // A2
         ]},
       ],
     },
@@ -306,21 +352,34 @@ const ODE_TO_JOY = {
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm14', notes: [
           { midi: 67, duration: 'q', hand: 'right' },
           { midi: 66, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
+          { midi: 50, duration: 'q', hand: 'left'  }, // D3
+          { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm15', notes: [
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 61, duration: 'q', hand: 'right' },
           { midi: 62, duration: 'q', hand: 'right' },
           { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
+          { midi: 45, duration: 'q', hand: 'left'  }, // A2
+          { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm16', notes: [
           { midi: 62, duration: 'w', hand: 'right' },
+          { midi: 50, duration: 'w', hand: 'left'  }, // D3
         ]},
       ],
     },

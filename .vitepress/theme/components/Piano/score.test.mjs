@@ -212,15 +212,31 @@ describe('loadScore / listScores', () => {
     }
   })
 
-  it('all built-in notes beats sum to timeSignature[0]', () => {
+  it('all built-in notes beats sum to timeSignature[0] per hand', () => {
     for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio']) {
       const score = loadScore(id)
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
-          const sum = measure.notes.reduce((acc, n) => acc + (DURATION_BEATS[n.duration] ?? 0), 0)
-          assert.equal(sum, score.timeSignature[0],
-            `${id} measure ${measure.id}: expected ${score.timeSignature[0]} beats, got ${sum}`)
+          const byHand = {}
+          for (const note of measure.notes) {
+            const h = note.hand ?? 'right'
+            byHand[h] = (byHand[h] ?? 0) + (DURATION_BEATS[note.duration] ?? 0)
+          }
+          for (const [hand, sum] of Object.entries(byHand)) {
+            assert.equal(sum, score.timeSignature[0],
+              `${id} measure ${measure.id} hand ${hand}: expected ${score.timeSignature[0]} beats, got ${sum}`)
+          }
         }
+      }
+    }
+  })
+
+  it('ODE_TO_JOY all 16 measures have left-hand notes', () => {
+    const score = loadScore('ode-to-joy')
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        const hasLeft = measure.notes.some(n => n.hand === 'left')
+        assert.ok(hasLeft, `ode-to-joy measure ${measure.id} missing left-hand notes`)
       }
     }
   })
