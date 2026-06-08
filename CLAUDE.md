@@ -19,6 +19,8 @@ VitePress-based personal site with three fully client-side apps:
 - `.vitepress/theme/components/Piano.vue` — piano teacher root component (async/`<ClientOnly>`): topbar, stave, keyboard, metronome
 - `.vitepress/theme/components/Piano/` — piano modules (see below)
 - `piano.md` — page that mounts the piano teacher
+- `posts.data.ts` — VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts `excerpt` via `extractExcerpt()` (first non-heading/list/blockquote/HTML line, strips inline Markdown, truncates to 120 chars; returns `''` if no qualifying paragraph found)
+- `.vitepress/theme/components/BlogList.vue` — blog index component; groups posts by year (`groupedPosts` computed), renders year sections with per-post title, ISO-attributed `<time>`, and optional excerpt; uses hardcoded `rgba()` values instead of `var(--vp-c-*)` tokens to match the dark portfolio theme
 
 ## IDEF0 Editor modules
 
