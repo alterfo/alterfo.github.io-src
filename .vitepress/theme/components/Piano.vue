@@ -163,7 +163,11 @@ function advanceNote(heldMs = Infinity) {
   if (!_state || isComplete.value) return
 
   const result = checkNote(_state, pressedNotes.value, heldMs, tempoFactor.value)
-  if (result === 'waiting' || result === 'wrong') return
+  if (result === 'waiting') return
+  if (result === 'wrong') {
+    wrongCount.value = _state.stats.wrong
+    return
+  }
 
   // Sync cursor refs from state (checkNote updated them)
   noteIdx.value = _state.noteIdx
