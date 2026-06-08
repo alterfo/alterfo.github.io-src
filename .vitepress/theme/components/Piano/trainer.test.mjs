@@ -276,6 +276,23 @@ describe('Level2: repeatSection resets to phrase start', () => {
     assert.equal(state.noteIdx, 0)
     assert.equal(state.phraseIdx, 0)
   })
+
+  it('preserves phraseIdx when repeating from within phrase 1', () => {
+    // Advance to phrase 1 (play all of phrase 0), then advance a bit into phrase 1
+    const state = createLevel2State(loadScore('c-major-scale'))
+    const phrase0Notes = [60, 62, 64, 65, 67, 69, 71, 72]
+    for (const m of phrase0Notes) checkNoteL2(state, new Set([m]), LONG_HOLD)
+    assert.equal(state.phraseIdx, 1)
+    // Advance into measure 1 of phrase 1
+    for (const m of [72, 71, 69, 67]) checkNoteL2(state, new Set([m]), LONG_HOLD)
+    assert.equal(state.phraseIdx, 1)
+    assert.equal(state.measureIdx, 1)
+    // Repeat should reset to phrase 1, measure 0 — phraseIdx must stay at 1
+    repeatSection(state)
+    assert.equal(state.phraseIdx, 1, 'phraseIdx must stay in phrase 1')
+    assert.equal(state.measureIdx, 0, 'measureIdx reset to 0')
+    assert.equal(state.noteIdx, 0, 'noteIdx reset to 0')
+  })
 })
 
 // ── Tempo factor ──────────────────────────────────────────────────────────────

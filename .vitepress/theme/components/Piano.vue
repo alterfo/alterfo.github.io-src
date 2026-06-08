@@ -329,6 +329,7 @@ function doRepeat() {
   repeatSection(_state)
   noteIdx.value = _state.noteIdx
   measureIdx.value = _state.measureIdx
+  phraseIdx.value = _state.phraseIdx
   correctHoldStart = null
   nextTick(renderStave)
 }
