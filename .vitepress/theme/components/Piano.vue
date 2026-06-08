@@ -38,6 +38,7 @@ async function initTrainer(scoreId, level) {
   const score = loadScore(scoreId)
   const saved = await loadProgress(scoreId)
   stopCheckLoop()
+  wrongFlashPending = false
   wrongNoteIdx.value = -1
   isComplete.value = false
   trainer.value = buildTrainer(score, level, saved)
