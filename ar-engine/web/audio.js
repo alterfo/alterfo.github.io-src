@@ -55,6 +55,7 @@ export async function initAudio(engine) {
 export async function loadFile(file) {
     await _ensureContext();
     _stopSource();
+    _ended = false;
     const ab = await file.arrayBuffer();
     _audioBuffer = await _audioCtx.decodeAudioData(ab);
     if (_eng) _eng.reset();
