@@ -28,7 +28,7 @@ const groupedPosts = computed(() => {
       <h2 class="year-header">{{ year }}</h2>
       <article v-for="post in yearPosts" :key="post.url" class="post-article">
         <a :href="post.url" class="post-link">
-          <span class="post-title">{{ post.title }}</span>
+          <h3 class="post-title">{{ post.title }}</h3>
           <time class="post-date" :datetime="new Date(post.date.time).toISOString().slice(0, 10)">{{ post.date.string }}</time>
           <span v-if="post.excerpt" class="post-excerpt">{{ post.excerpt }}</span>
         </a>

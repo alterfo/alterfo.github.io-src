@@ -142,13 +142,18 @@ function removeBox(boxId, diagramId = null) {
   d.boundaryArrows = d.boundaryArrows.filter(a => a.boxId !== boxId)
 }
 
-function _isDescendant(candidateId, rootId, visited = new Set()) {
-  if (visited.has(candidateId)) return false
-  visited.add(candidateId)
-  const d = project.diagrams[candidateId]
-  if (!d) return false
-  if (d.parentId === rootId) return true
-  return d.parentId ? _isDescendant(d.parentId, rootId, visited) : false
+function _isDescendant(candidateId, rootId) {
+  const visited = new Set()
+  let id = candidateId
+  while (id) {
+    if (visited.has(id)) return false
+    visited.add(id)
+    const d = project.diagrams[id]
+    if (!d) return false
+    if (d.parentId === rootId) return true
+    id = d.parentId ?? null
+  }
+  return false
 }
 
 function removeDecomposition(boxId, diagramId = null) {

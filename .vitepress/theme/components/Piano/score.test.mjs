@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores } from './score.js'
+import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores, DURATION_BEATS } from './score.js'
 
 describe('getScaleKeys', () => {
   it('C major has 7 keys: C D E F G A B', () => {
@@ -187,12 +187,11 @@ describe('loadScore / listScores', () => {
   })
 
   it('all built-in notes beats sum to timeSignature[0]', () => {
-    const BEATS = { w:4, 'w.':6, h:2, 'h.':3, q:1, 'q.':1.5, '8':0.5, '8.':0.75, '16':0.25 }
     for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio']) {
       const score = loadScore(id)
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
-          const sum = measure.notes.reduce((acc, n) => acc + (BEATS[n.duration] ?? 0), 0)
+          const sum = measure.notes.reduce((acc, n) => acc + (DURATION_BEATS[n.duration] ?? 0), 0)
           assert.equal(sum, score.timeSignature[0],
             `${id} measure ${measure.id}: expected ${score.timeSignature[0]} beats, got ${sum}`)
         }
