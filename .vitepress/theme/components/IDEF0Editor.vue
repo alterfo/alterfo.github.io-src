@@ -55,6 +55,7 @@ function addBox() {
     y: 120 + row * 220,
     width: 220,
     height: 110,
+    childDiagramId: null,
   }
   boxes.push(box)
   selectedBoxId.value = box.id
