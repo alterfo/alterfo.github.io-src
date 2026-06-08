@@ -70,6 +70,7 @@ function renderStave() {
 // ── Note-check loop ──────────────────────────────────────────────
 let noteStartTime = 0
 let checkIntervalId = null
+let wrongFlashPending = false
 
 function startCheckLoop() {
   if (checkIntervalId) return
@@ -88,9 +89,11 @@ function doCheckNote() {
 
   if (result === 'wrong') {
     wrongNoteIdx.value = trainer.value.noteIdx
+    wrongFlashPending = true
     stopCheckLoop()
     renderStave()
     setTimeout(() => {
+      wrongFlashPending = false
       wrongNoteIdx.value = -1
       renderStave()
       // Restart loop if the expected notes are still held after the flash
@@ -134,6 +137,7 @@ function doCheckNote() {
 
 watch(pressedNotes, (notes) => {
   if (!trainer.value || trainer.value.complete) return
+  if (wrongFlashPending) { renderStave(); return }
   const curNote = getCurrentNote(trainer.value)
   if (!curNote) return
   const expected = Array.isArray(curNote.midi) ? curNote.midi : [curNote.midi]

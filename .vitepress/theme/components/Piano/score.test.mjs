@@ -154,7 +154,7 @@ describe('loadScore / listScores', () => {
   })
 
   it('all built-in notes have valid duration codes', () => {
-    const validDurations = new Set(['w', 'h', 'h.', 'q', '8', '16'])
+    const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16'])
     for (const score of ['c-major-scale', 'twinkle', 'minuet-g'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
