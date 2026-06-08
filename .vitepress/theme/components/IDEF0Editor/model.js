@@ -148,9 +148,9 @@ function _isDescendant(candidateId, rootId) {
   while (id) {
     if (visited.has(id)) return false
     visited.add(id)
+    if (id === rootId) return true
     const d = project.diagrams[id]
     if (!d) return false
-    if (d.parentId === rootId) return true
     id = d.parentId ?? null
   }
   return false
