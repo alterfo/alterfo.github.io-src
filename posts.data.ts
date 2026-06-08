@@ -9,11 +9,27 @@ interface Post {
     time: number
     string: string
   }
+  excerpt: string
+}
+
+function extractExcerpt(content: string, maxLen = 120): string {
+  const lines = content.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('>') || trimmed.startsWith('!')) continue
+    const plain = trimmed
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[*_`]/g, '')
+      .replace(/&nbsp;/g, ' ')
+    if (plain.length < 10) continue
+    return plain.length > maxLen ? plain.slice(0, maxLen) + '…' : plain
+  }
+  return ''
 }
 
 function buildPost(file: string, postsDir: string): Post {
   const raw = readFileSync(join(postsDir, file), 'utf-8')
-  const { data: fm } = matter(raw)
+  const { data: fm, content } = matter(raw)
   const date = new Date(fm.date as string)
   date.setUTCHours(12)
   return {
@@ -27,6 +43,7 @@ function buildPost(file: string, postsDir: string): Post {
         day: 'numeric',
       }),
     },
+    excerpt: extractExcerpt(content),
   }
 }
 
