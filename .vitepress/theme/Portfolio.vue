@@ -1,64 +1,16 @@
 <template>
   <div class="portfolio-page">
 
+    <!-- Full-page particle background -->
+    <canvas ref="canvasEl" class="bg-canvas" aria-hidden="true" />
+
     <!-- ── HERO ─────────────────────────────────────────────── -->
     <header class="hero">
-      <canvas ref="canvasEl" class="hero-canvas" />
       <div class="hero-inner">
-        <svg class="hero-staff" viewBox="0 0 700 56" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <line v-for="y in [10,20,30,40,50]" :key="y" x1="80" :y1="y" x2="690" :y2="y"
-                stroke="rgba(200,180,255,0.18)" stroke-width="1"/>
-          <text x="4" y="54" font-size="52" fill="rgba(179,77,255,0.75)"
-                font-family="'Times New Roman', Georgia, serif">𝄞</text>
-          <text v-for="n in staffNotes" :key="n.x" :x="n.x" :y="n.y"
-                font-size="20" fill="rgba(200,180,255,0.45)"
-                font-family="'Times New Roman', Georgia, serif">{{ n.sym }}</text>
-        </svg>
         <h1 class="hero-name">Oleg Sidorkin</h1>
-        <p class="hero-roles">Engineer&nbsp;&nbsp;·&nbsp;&nbsp;Musician&nbsp;&nbsp;·&nbsp;&nbsp;Builder</p>
-        <p class="hero-tagline">"I build instruments for ideas."</p>
+        <p class="hero-roles">Engineer&nbsp;·&nbsp;Musician&nbsp;·&nbsp;Builder</p>
       </div>
     </header>
-
-    <!-- ── BIO ──────────────────────────────────────────────── -->
-    <section class="bio">
-      <div class="section-inner bio-inner">
-        <div class="bio-text">
-          <p>
-            Самоучка в музыке — гитара, барабаны, эрху, кларнет, голос, DAW.
-            Изучал теорию музыки: гармония, лады, контрапункт. Пишу и выпускаю
-            треки, снимаю клипы через аудио-реактивные пайплайны на ComfyUI.
-            Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
-          </p>
-          <p>
-            В IT 20 лет: 10 лет системный инженер, 13 лет в разработке —
-            последние 10 как Fullstack TypeScript. Сейчас технический лидер
-            в Альфа-Банке. Внедрил CODEOWNERS по всей компании — TTL упал
-            с 9&nbsp;месяцев до 2–3. Монорепо ускорило платформенные релизы
-            с полугода до квартала. Нанял 10 разработчиков — ни один не ушёл.
-          </p>
-          <p class="bio-accent">
-            Оба мира устроены одинаково: сложные системы требуют правильной
-            структуры — и там, и там.
-          </p>
-        </div>
-
-        <div class="bio-instruments">
-          <span class="bio-label">Instruments</span>
-          <div class="instruments-row">
-            <span v-for="inst in instruments" :key="inst" class="inst-chip">{{ inst }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- staff divider -->
-    <div class="staff-divider" aria-hidden="true">
-      <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
-        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
-        <text x="12" y="24" font-size="24" fill="rgba(179,77,255,0.4)" font-family="'Times New Roman', Georgia, serif">𝄽</text>
-      </svg>
-    </div>
 
     <!-- ── PROJECTS ─────────────────────────────────────────── -->
     <section class="projects">
@@ -170,6 +122,37 @@
           </ul>
         </div>
 
+      </div>
+    </section>
+
+    <!-- ── BIO ──────────────────────────────────────────────── -->
+    <section class="bio">
+      <div class="section-inner bio-inner">
+        <div class="bio-text">
+          <p>
+            Самоучка в музыке — гитара, барабаны, эрху, кларнет, голос, DAW.
+            Изучал теорию музыки: гармония, лады, контрапункт. Пишу и выпускаю
+            треки, снимаю клипы через аудио-реактивные пайплайны на ComfyUI.
+            Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
+          </p>
+          <p>
+            В IT 20 лет: 10 лет системный инженер, 13 лет в разработке —
+            последние 10 как Fullstack TypeScript. Сейчас технический лидер
+            в Альфа-Банке. Внедрил CODEOWNERS по всей компании — TTL упал
+            с 9&nbsp;месяцев до 2–3. Монорепо ускорило платформенные релизы
+            с полугода до квартала. Нанял 10 разработчиков — ни один не ушёл.
+          </p>
+          <p class="bio-accent">
+            Оба мира устроены одинаково: сложные системы требуют правильной
+            структуры — и там, и там.
+          </p>
+        </div>
+        <div class="bio-instruments">
+          <span class="bio-label">Instruments</span>
+          <div class="instruments-row">
+            <span v-for="inst in instruments" :key="inst" class="inst-chip">{{ inst }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -328,10 +311,12 @@ onBeforeUnmount(() => {
 <style scoped>
 /* ── Reset & base ─────────────────────────────────────────────── */
 .portfolio-page {
+  position: relative;
   min-height: 100vh;
-  background: #0a0020;
+  background: transparent;
   color: #e0e0ff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  z-index: 1;
 }
 
 .section-inner {
@@ -340,67 +325,63 @@ onBeforeUnmount(() => {
   padding: 0 1.5rem;
 }
 
-/* ── Hero ────────────────────────────────────────────────────── */
-.hero {
+/* Sections sit above the canvas with a dark transparent backdrop */
+.projects, .expertise, .bio, .staff-divider, .site-footer {
   position: relative;
-  min-height: 52vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: #0a0020;
+  z-index: 1;
+  background: rgba(10, 0, 32, 0.75);
 }
 
-.hero-canvas {
-  position: absolute;
+/* ── Full-page canvas background ─────────────────────────────── */
+.bg-canvas {
+  position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  z-index: 1;
 }
 
 .hero-inner {
   position: relative;
   z-index: 2;
-  text-align: center;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 2rem 1.5rem;
-}
-
-.hero-staff {
-  width: min(600px, 90vw);
-  height: 44px;
-  margin-bottom: 0.4rem;
-  overflow: visible;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0 1.5rem;
 }
 
 .hero-name {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(2.4rem, 8vw, 5rem);
+  font-size: 1.65rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
   color: #fff;
   margin: 0;
-  text-shadow: 0 0 60px rgba(179, 77, 255, 0.5);
+  text-shadow: 0 0 40px rgba(179, 77, 255, 0.6);
+  white-space: nowrap;
 }
 
 .hero-roles {
-  font-size: clamp(0.8rem, 2.2vw, 1.05rem);
-  letter-spacing: 0.18em;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(200, 180, 255, 0.6);
+  color: rgba(200, 180, 255, 0.55);
   margin: 0;
   font-weight: 400;
+  white-space: nowrap;
 }
 
 .hero-tagline {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-style: italic;
-  font-size: clamp(1rem, 2.5vw, 1.3rem);
-  color: rgba(200, 180, 255, 0.8);
-  margin: 0.4rem 0 0;
+  display: none;
 }
 
 /* ── Bio ─────────────────────────────────────────────────────── */
@@ -477,7 +458,7 @@ onBeforeUnmount(() => {
 
 /* ── Projects ────────────────────────────────────────────────── */
 .projects {
-  padding: 3.5rem 0;
+  padding: 2rem 0 3.5rem;
 }
 
 .section-title {
