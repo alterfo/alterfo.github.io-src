@@ -112,9 +112,9 @@ describe('getActiveKey / modulations', () => {
 })
 
 describe('loadScore / listScores', () => {
-  it('listScores returns 3 entries', () => {
+  it('listScores returns 5 entries', () => {
     const list = listScores()
-    assert.equal(list.length, 3)
+    assert.equal(list.length, 5)
   })
 
   it('listScores entries have id, title, composer, key, tempo', () => {
@@ -153,14 +153,42 @@ describe('loadScore / listScores', () => {
     assert.equal(s.id, 'c-major-scale')
   })
 
+  it('loadScore("ode-to-joy") has correct key and tempo', () => {
+    const s = loadScore('ode-to-joy')
+    assert.equal(s.key.root, 'D')
+    assert.equal(s.key.mode, 'major')
+    assert.equal(s.tempo, 80)
+  })
+
+  it('loadScore("rachmaninoff-2-adagio") has correct key and tempo', () => {
+    const s = loadScore('rachmaninoff-2-adagio')
+    assert.equal(s.key.root, 'A')
+    assert.equal(s.key.mode, 'major')
+    assert.equal(s.tempo, 52)
+  })
+
   it('all built-in notes have valid duration codes', () => {
     const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16'])
-    for (const score of ['c-major-scale', 'twinkle', 'minuet-g'].map(loadScore)) {
+    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
           for (const note of measure.notes) {
             assert.ok(validDurations.has(note.duration), `invalid duration '${note.duration}' in score ${score.id}`)
           }
+        }
+      }
+    }
+  })
+
+  it('all built-in notes beats sum to timeSignature[0]', () => {
+    const BEATS = { w:4, 'w.':6, h:2, 'h.':3, q:1, 'q.':1.5, '8':0.5, '8.':0.75, '16':0.25 }
+    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio']) {
+      const score = loadScore(id)
+      for (const phrase of score.phrases) {
+        for (const measure of phrase.measures) {
+          const sum = measure.notes.reduce((acc, n) => acc + (BEATS[n.duration] ?? 0), 0)
+          assert.equal(sum, score.timeSignature[0],
+            `${id} measure ${measure.id}: expected ${score.timeSignature[0]} beats, got ${sum}`)
         }
       }
     }
