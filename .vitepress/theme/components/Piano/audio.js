@@ -77,7 +77,7 @@ export function usePianoAudio() {
         },
         baseUrl: '/audio/salamander/',
         onload: () => {
-          if (_disposed) return
+          if (_disposed) { reject(new Error('disposed')); return }
           samplerReady.value = true
           samplerLoading.value = false
           mode.value = 'sampler'
@@ -94,6 +94,7 @@ export function usePianoAudio() {
   }
 
   async function playNote(midi, velocity = 80) {
+    if (_disposed) return
     try {
       const T = await _ensureTone()
       const noteName = T.Frequency(midi, 'midi').toNote()
@@ -110,6 +111,7 @@ export function usePianoAudio() {
   }
 
   async function releaseNote(midi) {
+    if (_disposed) return
     try {
       const T = await _ensureTone()
       const noteName = T.Frequency(midi, 'midi').toNote()
@@ -125,6 +127,7 @@ export function usePianoAudio() {
 
   function dispose() {
     _disposed = true
+    _chainPromise = null
     if (_synth) { _synth.dispose(); _synth = null }
     if (_sampler) { _sampler.dispose(); _sampler = null }
     if (_chain) { _chain.forEach(n => n.dispose()); _chain = null }
