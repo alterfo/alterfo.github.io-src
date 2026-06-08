@@ -16,7 +16,7 @@ function extractExcerpt(content: string, maxLen = 120): string {
   const lines = content.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('>') || trimmed.startsWith('!')) continue
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\*+$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('!') || trimmed.startsWith('<')) continue
     const plain = trimmed
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/[*_`]/g, '')

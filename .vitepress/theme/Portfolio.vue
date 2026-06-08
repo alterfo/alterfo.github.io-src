@@ -392,10 +392,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.hero-tagline {
-  display: none;
-}
-
 /* ── Bio ─────────────────────────────────────────────────────── */
 .bio {
   padding: 4rem 0 3rem;
