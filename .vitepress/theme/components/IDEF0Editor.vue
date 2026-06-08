@@ -138,7 +138,7 @@ function decompose() {
   const idx = currentDiagram.value.boxes.indexOf(box)
   const childId = parentId === 'A0' ? `A${idx + 1}` : `${parentId}${idx + 1}`
   if (!project.diagrams[childId]) {
-    project.diagrams[childId] = { id: childId, title: box.label, boxes: [], arrows: [] }
+    project.diagrams[childId] = { id: childId, title: box.label, boxes: [], arrows: [], boundaryArrows: [] }
     if (!project.childMap[parentId]) project.childMap[parentId] = []
     if (!project.childMap[parentId].includes(childId)) project.childMap[parentId].push(childId)
   }
