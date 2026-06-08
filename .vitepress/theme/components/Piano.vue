@@ -152,45 +152,32 @@ function rafTick() {
       const threshold = (60 / currentScore.value.tempo) * beats * 1000 * tempoFactor.value * 0.6
       if (heldMs >= threshold) {
         correctHoldStart = null
-        advanceNote()
+        advanceNote(heldMs)
       }
     }
   }
   _rafId = requestAnimationFrame(rafTick)
 }
 
-function advanceNote() {
+function advanceNote(heldMs = Infinity) {
   if (!_state || isComplete.value) return
 
-  correctCount.value++
-  streak.value++
-  if (streak.value > longestStreak.value) longestStreak.value = streak.value
-  // Keep _state.stats mirroring Vue refs (Vue refs are primary / display source)
-  _state.stats.correct = correctCount.value
-  _state.stats.streak = streak.value
-  _state.stats.longestStreak = longestStreak.value
+  const result = checkNote(_state, pressedNotes.value, heldMs, tempoFactor.value)
+  if (result === 'waiting' || result === 'wrong') return
 
-  const score = currentScore.value
-  const phrase = score.phrases[_state.phraseIdx]
-  const measure = phrase?.measures[_state.measureIdx]
-  if (!measure) return
+  // Sync cursor refs from state (checkNote updated them)
+  noteIdx.value = _state.noteIdx
+  measureIdx.value = _state.measureIdx
+  phraseIdx.value = _state.phraseIdx
 
-  if (_state.noteIdx < measure.notes.length - 1) {
-    _state.noteIdx++
-  } else if (_state.measureIdx < phrase.measures.length - 1) {
-    _state.measureIdx++
-    _state.noteIdx = 0
-  } else if (_state.phraseIdx < score.phrases.length - 1) {
-    _state.phraseIdx++
-    _state.measureIdx = 0
-    _state.noteIdx = 0
-  } else {
+  // Sync stats refs from state.stats (checkNote updated them via _updateStats)
+  correctCount.value = _state.stats.correct
+  streak.value = _state.stats.streak
+  longestStreak.value = _state.stats.longestStreak
+
+  if (result === 'complete') {
     isComplete.value = true
   }
-
-  phraseIdx.value = _state.phraseIdx
-  measureIdx.value = _state.measureIdx
-  noteIdx.value = _state.noteIdx
 
   nextTick(renderStave)
   saveProgress(selectedScoreId.value, {
