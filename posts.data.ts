@@ -27,6 +27,11 @@ function extractExcerpt(content: string, maxLen = 120): string {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/[*_`]/g, '')
       .replace(/&nbsp;/g, ' ')
+      .replace(/&mdash;/g, '—')
+      .replace(/&ndash;/g, '–')
+      .replace(/&amp;/g, '&')
+      .replace(/&laquo;/g, '«')
+      .replace(/&raquo;/g, '»')
     if (plain.length < 10) continue
     return plain.length > maxLen ? plain.slice(0, maxLen) + '…' : plain
   }
@@ -40,6 +45,7 @@ function buildPost(file: string, postsDir: string): Post {
   if (!fm.title) throw new Error(`Post "${file}" is missing a title in frontmatter`)
   const rawDate = fm.date instanceof Date ? fm.date.toISOString().slice(0, 10) : String(fm.date).slice(0, 10)
   const date = new Date(rawDate + 'T12:00:00Z')
+  if (isNaN(date.getTime())) throw new Error(`Post "${file}" has an unparseable date: ${fm.date}`)
   return {
     title: fm.title as string,
     url: '/posts/' + file.replace(/\.md$/, ''),
