@@ -164,12 +164,6 @@
             структуры — и там, и там.
           </p>
         </div>
-        <div class="bio-instruments">
-          <span class="bio-label">Instruments</span>
-          <div class="instruments-row">
-            <span v-for="inst in instruments" :key="inst" class="inst-chip">{{ inst }}</span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -199,8 +193,6 @@ const arWaves = (() => {
   }))
 })()
 
-const instruments = ['Гитара', 'Барабаны', 'Эрху', 'Кларнет', 'Голос', 'DAW']
-
 const staffNotes = [
   { x: 110, y: 27, sym: '♩' }, { x: 175, y: 37, sym: '♩' },
   { x: 250, y: 17, sym: '♪' }, { x: 330, y: 42, sym: '♩' },
@@ -210,16 +202,16 @@ const staffNotes = [
 
 const projects = [
   { id: 'ar',      title: 'AR Engine', href: '/ar/',
-    desc: 'Audio-reactive WebGPU визуализатор — частицы и поля реагируют на микрофонный вход в реальном времени.',
+    desc: 'Audio-reactive WebGPU визуализатор — частицы и поля реагируют на аудио в реальном времени.',
     tag: 'WebGPU', color: '#b34dff', external: false },
   { id: 'blog',    title: 'Блог', href: '/blog/',
-    desc: 'Заметки на русском: разработка, архитектура, музыка, инструменты. Пишу про реальный опыт.',
+    desc: 'Заметки: разработка, архитектура, музыка, инструменты. Пишу про реальный опыт.',
     tag: 'Blog', color: '#1accff', external: false },
   { id: 'idef0',   title: 'IDEF0 Editor', href: '/idef0',
     desc: 'Браузерный редактор функциональных диаграмм. FIPS 183, иерархия, экспорт SVG/PNG.',
     tag: 'Tool', color: '#33ff4d', external: false },
   { id: 'journal', title: 'Дневник', href: '/journal',
-    desc: 'Зашифрованный локальный дневник с целью 500 слов в день. E2EE, IndexedDB, P2P-синхронизация.',
+    desc: 'Зашифрованный локальный дневник с целью 500 слов в день. E2EE, IndexedDB. P2P-синхронизация — в планах.',
     tag: 'Tool', color: '#ff6688', external: false },
   { id: 'piano',   title: 'Piano Teacher', href: '/piano',
     desc: 'MIDI-тренажёр: учи пьесы нота за нотой. Web MIDI API, VexFlow, IndexedDB.',
@@ -434,36 +426,6 @@ onBeforeUnmount(() => {
   border-left: 2px solid rgba(179, 77, 255, 0.6);
   padding-left: 1rem;
   margin-top: 1.25rem !important;
-}
-
-.bio-instruments {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.bio-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(200, 180, 255, 0.45);
-  font-weight: 600;
-}
-
-.instruments-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.inst-chip {
-  font-size: 0.8rem;
-  padding: 0.25em 0.75em;
-  border: 1px solid rgba(179, 77, 255, 0.35);
-  border-radius: 100px;
-  color: rgba(200, 180, 255, 0.8);
-  background: rgba(179, 77, 255, 0.07);
-  letter-spacing: 0.04em;
 }
 
 /* ── Staff divider ───────────────────────────────────────────── */
