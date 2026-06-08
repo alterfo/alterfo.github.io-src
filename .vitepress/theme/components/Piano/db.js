@@ -14,7 +14,12 @@ function openDB() {
         db.createObjectStore(STORE)
       }
     }
-    req.onsuccess = e => resolve(e.target.result)
+    req.onsuccess = e => {
+      const db = e.target.result
+      db.onclose = () => { _dbPromise = null }
+      db.onversionchange = () => { db.close(); _dbPromise = null }
+      resolve(db)
+    }
     req.onerror = e => { _dbPromise = null; reject(e.target.error) }
   })
   return _dbPromise

@@ -98,7 +98,8 @@ function doCheckNote() {
         const curNote = getCurrentNote(trainer.value)
         if (curNote) {
           const expected = Array.isArray(curNote.midi) ? curNote.midi : [curNote.midi]
-          if (expected.every(m => pressedNotes.value.has(m))) {
+          const noExtra = ![...pressedNotes.value].some(m => !expected.includes(m))
+          if (noExtra && expected.every(m => pressedNotes.value.has(m))) {
             noteStartTime = Date.now()
             startCheckLoop()
           }
@@ -249,8 +250,14 @@ function onRestart() {
 }
 
 // ── Watchers ──────────────────────────────────────────────────────
-watch(selectedScoreId, id => initTrainer(id, selectedLevel.value))
-watch(selectedLevel, level => initTrainer(selectedScoreId.value, level))
+watch(selectedScoreId, id => {
+  initTrainer(id, selectedLevel.value)
+  if (metronomeOn.value) { stopMetronome(); startMetronome() }
+})
+watch(selectedLevel, level => {
+  initTrainer(selectedScoreId.value, level)
+  if (metronomeOn.value) { stopMetronome(); startMetronome() }
+})
 
 watch(tempoFactor, () => {
   if (metronomeOn.value) { stopMetronome(); startMetronome() }
