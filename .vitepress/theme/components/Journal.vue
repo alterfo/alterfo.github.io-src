@@ -459,6 +459,22 @@ onUnmounted(() => {
             Цель 500 слов на сегодня достигнута.
           </div>
 
+          <!-- Past entries -->
+          <div v-if="pastEntries.length" class="journal-past">
+            <div class="journal-past-header">Предыдущие записи</div>
+            <div
+              v-for="[date, entry] in pastEntries"
+              :key="date"
+              class="journal-past-entry"
+            >
+              <div class="journal-past-meta">
+                <span class="journal-past-date">{{ date }}</span>
+                <span class="journal-past-words">{{ entry.words }} сл.</span>
+              </div>
+              <div class="journal-past-text">{{ entry.text }}</div>
+            </div>
+          </div>
+
         </main>
 
       </div><!-- /journal-body -->
@@ -849,4 +865,56 @@ onUnmounted(() => {
 }
 
 .journal-muted { color: #777; }
+
+/* ══════════════════════════════════════════════
+   Past entries
+══════════════════════════════════════════════ */
+.journal-past {
+  margin: 16px 0 32px;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.journal-past-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #555;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #3a3a3a;
+}
+.journal-past-entry {
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.journal-past-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.journal-past-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #aaa;
+}
+.journal-past-words {
+  font-size: 11px;
+  color: #666;
+}
+.journal-past-text {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #bbb;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
 </style>
