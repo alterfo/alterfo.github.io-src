@@ -203,6 +203,27 @@ describe('Level1: repeatSection', () => {
   })
 })
 
+describe('Level1: wrong note triggers repeatSection reset', () => {
+  it('after wrong note, repeatSection resets noteIdx to 0 but not measureIdx', () => {
+    const score = loadScore('c-major-scale')
+    const state = createLevel1State(score)
+    // Advance to measure 1, noteIdx 2 (notes: 67, 69, 71, 72)
+    for (const m of [60, 62, 64, 65]) checkNoteL1(state, new Set([m]), LONG_HOLD)
+    checkNoteL1(state, new Set([67]), LONG_HOLD)
+    checkNoteL1(state, new Set([69]), LONG_HOLD)
+    assert.equal(state.measureIdx, 1)
+    assert.equal(state.noteIdx, 2)
+    // Wrong note
+    const result = checkNoteL1(state, new Set([60]), LONG_HOLD)
+    assert.equal(result, 'wrong')
+    // Simulate Piano.vue triggerWrong: call repeatSection
+    repeatSection(state)
+    assert.equal(state.noteIdx, 0, 'noteIdx should reset to 0')
+    assert.equal(state.measureIdx, 1, 'measureIdx should stay in measure 1')
+    assert.equal(state.phraseIdx, 0, 'phraseIdx should be unchanged')
+  })
+})
+
 // ── Level 2 ───────────────────────────────────────────────────────────────────
 
 describe('Level2: note-by-note within measure', () => {
