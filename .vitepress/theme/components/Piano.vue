@@ -91,6 +91,11 @@ function triggerWrong() {
   wrongFlashNote.value = noteIdx.value
   wrongCount.value++
   streak.value = 0
+  // Keep _state.stats mirroring Vue refs (Vue refs are primary / display source)
+  if (_state) {
+    _state.stats.wrong = wrongCount.value
+    _state.stats.streak = 0
+  }
   clearTimeout(_wrongTimer)
   _wrongTimer = setTimeout(() => {
     wrongFlashNote.value = -1
@@ -160,6 +165,10 @@ function advanceNote() {
   correctCount.value++
   streak.value++
   if (streak.value > longestStreak.value) longestStreak.value = streak.value
+  // Keep _state.stats mirroring Vue refs (Vue refs are primary / display source)
+  _state.stats.correct = correctCount.value
+  _state.stats.streak = streak.value
+  _state.stats.longestStreak = longestStreak.value
 
   const score = currentScore.value
   const phrase = score.phrases[_state.phraseIdx]
