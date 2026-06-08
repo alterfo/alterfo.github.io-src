@@ -16,7 +16,7 @@ function extractExcerpt(content: string, maxLen = 120): string {
   const lines = content.split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('!') || trimmed.startsWith('<')) continue
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<')) continue
     const plain = trimmed
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/[*_`]/g, '')
@@ -30,6 +30,7 @@ function extractExcerpt(content: string, maxLen = 120): string {
 function buildPost(file: string, postsDir: string): Post {
   const raw = readFileSync(join(postsDir, file), 'utf-8')
   const { data: fm, content } = matter(raw)
+  if (!fm.date) throw new Error(`Post "${file}" is missing a date in frontmatter`)
   const date = new Date(fm.date as string)
   date.setUTCHours(12)
   return {
