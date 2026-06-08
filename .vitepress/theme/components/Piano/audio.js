@@ -56,9 +56,15 @@ export function usePianoAudio() {
   async function loadSampler() {
     if (mode.value === 'sampler' || samplerLoading.value) return
     samplerLoading.value = true
-    const T = await _ensureTone()
-    await T.start()
-    const dest = await _getOrBuildChain(T)
+    let T, dest
+    try {
+      T = await _ensureTone()
+      await T.start()
+      dest = await _getOrBuildChain(T)
+    } catch (err) {
+      samplerLoading.value = false
+      throw err
+    }
     return new Promise((resolve, reject) => {
       _sampler = new T.Sampler({
         urls: {
