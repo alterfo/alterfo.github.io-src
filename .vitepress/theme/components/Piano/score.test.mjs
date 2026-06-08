@@ -153,18 +153,24 @@ describe('loadScore / listScores', () => {
     assert.equal(s.id, 'c-major-scale')
   })
 
-  it('loadScore("ode-to-joy") has correct key and tempo', () => {
+  it('loadScore("ode-to-joy") has correct key, tempo, and structure', () => {
     const s = loadScore('ode-to-joy')
+    assert.equal(s.id, 'ode-to-joy')
     assert.equal(s.key.root, 'D')
     assert.equal(s.key.mode, 'major')
     assert.equal(s.tempo, 80)
+    assert.equal(s.timeSignature[0], 4)
+    assert.ok(s.phrases.length > 0)
   })
 
-  it('loadScore("rachmaninoff-2-adagio") has correct key and tempo', () => {
+  it('loadScore("rachmaninoff-2-adagio") has correct key, tempo, and structure', () => {
     const s = loadScore('rachmaninoff-2-adagio')
+    assert.equal(s.id, 'rachmaninoff-2-adagio')
     assert.equal(s.key.root, 'A')
     assert.equal(s.key.mode, 'major')
     assert.equal(s.tempo, 52)
+    assert.equal(s.timeSignature[0], 4)
+    assert.ok(s.phrases.length > 0)
   })
 
   it('all built-in notes have valid duration codes', () => {

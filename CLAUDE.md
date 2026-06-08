@@ -156,6 +156,7 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - IndexedDB persistence (auto-save debounced 300 ms) + cross-tab sync via localStorage
 - Export: SVG, PNG (2×), JSON; Import: JSON round-trip
 - FIPS 183 validation panel: errors shown in sidebar, red border on offending blocks
+- Remove decomposition: "✕ Декомп." toolbar button (enabled only when selected box has `childDiagramId`) recursively deletes child diagram subtree from `project.diagrams` and `project.childMap`, clears `box.childDiagramId`, navigates away if current view is inside the deleted subtree
 
 ### Journal app (as of 2026-06-08)
 
@@ -173,7 +174,7 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - Interactive MIDI teacher at `/piano`: Web MIDI API (no polyfill, native), VexFlow 5 via npm (no CDN)
 - Modules in `.vitepress/theme/components/Piano/`:
   - `midi.js` — `useMidi()` composable: device list, reactive pressed-notes Set, noteOn/noteOff
-  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet), `getScaleKeys()`, `getActiveKey()`
+  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet in G, Ode to Joy, Rachmaninoff Sym. 2 Adagio), `getScaleKeys()`, `getActiveKey()`; all measures must sum to `timeSignature[0]` beats (validated by beat-sum test in `score.test.mjs`)
   - `trainer.js` — `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` dispatchers; L1 repeats measure, L2 repeats phrase
   - `renderer.js` — VexFlow wrapper: `renderPhrase()`, current-note highlight, look-ahead (30% opacity), wrong-note flash (400 ms red overlay)
   - `keyboard.js` — SVG 88-key piano (A0–C8), `generateKeyRects()`, `keyColor()`
