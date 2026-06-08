@@ -365,6 +365,40 @@ describe('generic checkNote / repeatSection dispatchers', () => {
   })
 })
 
+// ── Level 2: wrong-note stats and completion flag ────────────────────────────
+
+describe('Level2: wrong note stats and completion', () => {
+  it('returns wrong when wrong note pressed', () => {
+    const state = createLevel2State(loadScore('c-major-scale'))
+    assert.equal(checkNoteL2(state, new Set([61]), LONG_HOLD), 'wrong')
+  })
+
+  it('increments stats.wrong and resets streak on wrong note', () => {
+    const state = createLevel2State(loadScore('c-major-scale'))
+    checkNoteL2(state, new Set([60]), LONG_HOLD)  // correct
+    checkNoteL2(state, new Set([63]), LONG_HOLD)  // wrong
+    assert.equal(state.stats.wrong, 1)
+    assert.equal(state.stats.streak, 0)
+    assert.equal(state.stats.correct, 1)
+  })
+
+  it('returns waiting when empty midiSet', () => {
+    const state = createLevel2State(loadScore('c-major-scale'))
+    assert.equal(checkNoteL2(state, new Set(), LONG_HOLD), 'waiting')
+  })
+
+  it('sets state.complete and returns complete immediately on further calls', () => {
+    const score = loadScore('c-major-scale')
+    const state = createLevel2State(score)
+    const allNotes = [60, 62, 64, 65, 67, 69, 71, 72, 72, 71, 69, 67, 65, 64, 62, 60]
+    let last
+    for (const m of allNotes) last = checkNoteL2(state, new Set([m]), LONG_HOLD)
+    assert.equal(last, 'complete')
+    assert.equal(state.complete, true)
+    assert.equal(checkNoteL2(state, new Set([60]), LONG_HOLD), 'complete')
+  })
+})
+
 // ── Stats: _state.stats tracks independently of Piano.vue refs ───────────────
 // Piano.vue uses Vue refs (correctCount, wrongCount, streak, longestStreak) as
 // the primary/display source. _state.stats is kept in sync by Piano.vue via
