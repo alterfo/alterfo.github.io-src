@@ -189,10 +189,10 @@ describe('loadScore / listScores', () => {
     assert.ok(s.phrases.length > 0)
   })
 
-  it('loadScore("rachmaninoff-2-adagio") has correct key, tempo, and structure', () => {
-    const s = loadScore('rachmaninoff-2-adagio')
-    assert.equal(s.id, 'rachmaninoff-2-adagio')
-    assert.equal(s.key.root, 'A')
+  it('loadScore("rachmaninoff-prelude-d") has correct key, tempo, and structure', () => {
+    const s = loadScore('rachmaninoff-prelude-d')
+    assert.equal(s.id, 'rachmaninoff-prelude-d')
+    assert.equal(s.key.root, 'D')
     assert.equal(s.key.mode, 'major')
     assert.equal(s.tempo, 52)
     assert.equal(s.timeSignature[0], 4)
@@ -201,7 +201,7 @@ describe('loadScore / listScores', () => {
 
   it('all built-in notes have valid duration codes', () => {
     const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16'])
-    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio'].map(loadScore)) {
+    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
           for (const note of measure.notes) {
@@ -213,7 +213,7 @@ describe('loadScore / listScores', () => {
   })
 
   it('all built-in notes beats sum to timeSignature[0] per hand', () => {
-    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-2-adagio']) {
+    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d']) {
       const score = loadScore(id)
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
@@ -237,6 +237,18 @@ describe('loadScore / listScores', () => {
       for (const measure of phrase.measures) {
         const hasLeft = measure.notes.some(n => n.hand === 'left')
         assert.ok(hasLeft, `ode-to-joy measure ${measure.id} missing left-hand notes`)
+      }
+    }
+  })
+
+  it('RACHMANINOFF_PRELUDE_D all measures have both right- and left-hand notes', () => {
+    const score = loadScore('rachmaninoff-prelude-d')
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        const hasRight = measure.notes.some(n => n.hand === 'right')
+        const hasLeft  = measure.notes.some(n => n.hand === 'left')
+        assert.ok(hasRight, `rachmaninoff-prelude-d measure ${measure.id} missing right-hand notes`)
+        assert.ok(hasLeft,  `rachmaninoff-prelude-d measure ${measure.id} missing left-hand notes`)
       }
     }
   })
