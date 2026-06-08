@@ -14,9 +14,15 @@ interface Post {
 
 function extractExcerpt(content: string, maxLen = 120): string {
   const lines = content.split('\n')
+  let inCodeBlock = false
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('`') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<') || trimmed.startsWith('|')) continue
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      inCodeBlock = !inCodeBlock
+      continue
+    }
+    if (inCodeBlock) continue
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<') || trimmed.startsWith('|')) continue
     const plain = trimmed
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/[*_`]/g, '')
@@ -32,8 +38,8 @@ function buildPost(file: string, postsDir: string): Post {
   const { data: fm, content } = matter(raw)
   if (!fm.date) throw new Error(`Post "${file}" is missing a date in frontmatter`)
   if (!fm.title) throw new Error(`Post "${file}" is missing a title in frontmatter`)
-  const date = new Date(fm.date as string)
-  date.setUTCHours(12)
+  const rawDate = fm.date instanceof Date ? fm.date.toISOString().slice(0, 10) : String(fm.date).slice(0, 10)
+  const date = new Date(rawDate + 'T12:00:00Z')
   return {
     title: fm.title as string,
     url: '/posts/' + file.replace(/\.md$/, ''),
