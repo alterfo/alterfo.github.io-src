@@ -200,7 +200,130 @@ const MINUET_G = {
   ],
 }
 
-const SCORES = [C_MAJOR_SCALE, TWINKLE, MINUET_G]
+const ODE_TO_JOY = {
+  id: 'ode-to-joy',
+  title: 'Ода к Радости',
+  composer: 'L. van Beethoven, op. 125',
+  tempo: 80,
+  key: { root: 'D', mode: 'major' },
+  timeSignature: [4, 4],
+  modulations: [],
+  phrases: [
+    {
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm2', notes: [
+          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm3', notes: [
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm4', notes: [
+          { midi: 64, duration: 'q.', hand: 'right' },
+          { midi: 62, duration: '8',  hand: 'right' },
+          { midi: 62, duration: 'h',  hand: 'right' },
+        ]},
+      ],
+    },
+    {
+      id: 'p2',
+      measures: [
+        { id: 'm5', notes: [
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm6', notes: [
+          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm7', notes: [
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm8', notes: [
+          { midi: 62, duration: 'q.', hand: 'right' },
+          { midi: 61, duration: '8',  hand: 'right' },
+          { midi: 61, duration: 'h',  hand: 'right' },
+        ]},
+      ],
+    },
+    {
+      id: 'p3',
+      measures: [
+        { id: 'm9', notes: [
+          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm10', notes: [
+          { midi: 62, duration: 'q',  hand: 'right' },
+          { midi: 64, duration: '8',  hand: 'right' },
+          { midi: 66, duration: '8',  hand: 'right' },
+          { midi: 64, duration: 'q',  hand: 'right' },
+          { midi: 62, duration: 'q',  hand: 'right' },
+        ]},
+        { id: 'm11', notes: [
+          { midi: 61, duration: 'q',  hand: 'right' },
+          { midi: 62, duration: 'q',  hand: 'right' },
+          { midi: 64, duration: '8',  hand: 'right' },
+          { midi: 66, duration: '8',  hand: 'right' },
+          { midi: 64, duration: 'q',  hand: 'right' },
+        ]},
+        { id: 'm12', notes: [
+          { midi: 62, duration: 'h.',  hand: 'right' },
+          { midi: 61, duration: 'q',   hand: 'right' },
+        ]},
+      ],
+    },
+    {
+      id: 'p4',
+      measures: [
+        { id: 'm13', notes: [
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm14', notes: [
+          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 66, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm15', notes: [
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right' },
+        ]},
+        { id: 'm16', notes: [
+          { midi: 62, duration: 'w', hand: 'right' },
+        ]},
+      ],
+    },
+  ],
+}
+
+const SCORES = [C_MAJOR_SCALE, TWINKLE, MINUET_G, ODE_TO_JOY]
 
 export function listScores() {
   return SCORES.map(s => ({ id: s.id, title: s.title, composer: s.composer, key: s.key, tempo: s.tempo }))
