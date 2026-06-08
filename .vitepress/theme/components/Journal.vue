@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
@@ -15,7 +15,6 @@ const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
 const hasVault = ref(false)
 const passphraseInput = ref('')
 const error = ref('')
-const focusMode = ref(false)
 
 const vault = reactive({ version: 1, entries: {}, createdAt: '' })
 
@@ -31,13 +30,63 @@ const wordCount = computed(() => countWords(todayText.value))
 const progress = computed(() => Math.min(100, (wordCount.value / 500) * 100))
 const streak = computed(() => computeStreak(vault, todayISO.value))
 const isGoalMet = computed(() => wordCount.value >= 500)
-const focusLocked = computed(() => focusMode.value && !isGoalMet.value)
 
 const pastEntries = computed(() =>
   Object.entries(vault.entries)
     .filter(([date]) => date !== todayISO.value)
     .sort(([a], [b]) => b.localeCompare(a))
 )
+
+// ---- Calendar ----
+const calOffset = ref(0)  // 0 = current month, -1 = previous, etc.
+
+const calYear = computed(() => {
+  const d = new Date(parseInt(todayISO.value.slice(0, 4)), parseInt(todayISO.value.slice(5, 7)) - 1 + calOffset.value, 1)
+  return d.getFullYear()
+})
+const calMonth = computed(() => {
+  const d = new Date(parseInt(todayISO.value.slice(0, 4)), parseInt(todayISO.value.slice(5, 7)) - 1 + calOffset.value, 1)
+  return d.getMonth()
+})
+const calMonthLabel = computed(() => {
+  return new Date(calYear.value, calMonth.value, 1)
+    .toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+})
+const calFirstDow = computed(() => {
+  const d = new Date(calYear.value, calMonth.value, 1)
+  return (d.getDay() + 6) % 7  // Monday = 0
+})
+const calDays = computed(() => {
+  const year = calYear.value
+  const month = calMonth.value
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const result = []
+  for (let n = 1; n <= daysInMonth; n++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(n).padStart(2, '0')}`
+    const entry = vault.entries[iso]
+    result.push({ n, iso, words: entry?.words ?? -1 })
+  }
+  return result
+})
+
+function calDayClass(day) {
+  if (day.iso === todayISO.value) return 'cal-today'
+  if (day.iso > todayISO.value) return 'cal-future'
+  if (day.words < 0) return 'cal-empty'
+  if (day.words >= 500) return 'cal-goal'
+  if (day.words > 0) return 'cal-partial'
+  return 'cal-zero'
+}
+
+// ---- Save status indicator ----
+const saveStatus = ref('idle')   // 'idle' | 'saving' | 'saved'
+let _statusTimer = null
+
+function setSaveStatus(s) {
+  clearTimeout(_statusTimer)
+  saveStatus.value = s
+  if (s === 'saved') _statusTimer = setTimeout(() => { saveStatus.value = 'idle' }, 2000)
+}
 
 // ---- Autosave (debounced via db.saveEnvelope's own 300 ms debounce; we add 100 ms here) ----
 let _saveTimer = null
@@ -50,16 +99,29 @@ async function buildEnvelope() {
 async function persistVault() {
   if (!_key) return
   try {
+    setSaveStatus('saving')
     upsertEntry(vault, todayISO.value, todayText.value)
     saveEnvelope(await buildEnvelope())
+    setSaveStatus('saved')
   } catch (e) {
     console.warn('[journal] save failed:', e)
+    setSaveStatus('idle')
   }
 }
 
 function onTextInput() {
   clearTimeout(_saveTimer)
   _saveTimer = setTimeout(persistVault, 100)
+}
+
+function onTextKeydown(e) {
+  if (e.key !== 'Tab') return
+  e.preventDefault()
+  const el = e.target
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  todayText.value = todayText.value.slice(0, start) + '\t' + todayText.value.slice(end)
+  nextTick(() => { el.selectionStart = el.selectionEnd = start + 1 })
 }
 
 // ---- Day rollover at midnight ----
@@ -247,6 +309,7 @@ onUnmounted(() => {
   _cleanupSync()
   clearTimeout(_saveTimer)
   clearTimeout(_dayTimer)
+  clearTimeout(_statusTimer)
   _key = null
   _salt = null
   _pendingImportStr = null
@@ -265,32 +328,32 @@ onUnmounted(() => {
 
     <!-- Loading -->
     <div v-if="phase === 'loading'" class="journal-center">
-      <span class="journal-muted">Loading…</span>
+      <span class="journal-muted">Загрузка…</span>
     </div>
 
     <!-- Lock screen -->
     <div v-else-if="phase === 'locked'" class="journal-center">
       <div class="journal-lock-card">
         <div class="journal-lock-icon">🔒</div>
-        <h2 class="journal-lock-title">
-          {{ hasVault ? 'Unlock your journal' : 'Create your journal' }}
-        </h2>
+        <p class="journal-lock-title">
+          {{ hasVault ? 'Открыть дневник' : 'Создать дневник' }}
+        </p>
         <p class="journal-lock-desc">
           {{ hasVault
-            ? 'Enter your passphrase to decrypt and open your journal.'
-            : 'Choose a passphrase. It encrypts your journal locally — it is never sent anywhere.' }}
+            ? 'Введите пароль для расшифровки вашего дневника.'
+            : 'Придумайте пароль. Дневник хранится зашифрованным только на вашем устройстве.' }}
         </p>
         <input
           v-model="passphraseInput"
           type="password"
           class="journal-passphrase-input"
-          :placeholder="hasVault ? 'Passphrase' : 'New passphrase'"
+          :placeholder="hasVault ? 'Пароль' : 'Новый пароль'"
           :autocomplete="hasVault ? 'current-password' : 'new-password'"
           @keydown="onPassphraseKeydown"
         />
         <div class="journal-lock-actions">
-          <button v-if="hasVault" class="journal-btn journal-btn-primary" @click="unlock">Unlock</button>
-          <button v-else class="journal-btn journal-btn-primary" @click="createVault">Create journal</button>
+          <button v-if="hasVault" class="journal-btn journal-btn-primary" @click="unlock">Открыть</button>
+          <button v-else class="journal-btn journal-btn-primary" @click="createVault">Создать</button>
         </div>
         <p v-if="error" class="journal-error">{{ error }}</p>
       </div>
@@ -299,116 +362,127 @@ onUnmounted(() => {
     <!-- Journal UI -->
     <div v-else class="journal-layout">
 
-      <!-- Sidebar -->
-      <aside class="journal-sidebar">
-        <div class="journal-streak-box">
-          <div class="journal-streak-count">{{ streak }}</div>
-          <div class="journal-streak-label">day streak</div>
-        </div>
-
-        <div class="journal-focus-toggle">
-          <label class="journal-toggle-label">
-            <input type="checkbox" v-model="focusMode" class="journal-toggle-input" />
-            Focus mode
-          </label>
-          <div class="journal-toggle-desc">Lock editing until 500 words</div>
-        </div>
-
-        <!-- Sync actions -->
-        <div class="journal-sync-section">
-          <div class="journal-past-header">Sync</div>
-          <button class="journal-btn journal-btn-sync" @click="doExport">Export .journal</button>
-          <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">Import .journal</button>
-          <div v-if="importPhase === 'idle' && importError" class="journal-error">{{ importError }}</div>
-
-          <!-- Import passphrase dialog -->
-          <div v-if="importPhase === 'awaiting-passphrase' || importPhase === 'merging'" class="journal-import-dialog">
-            <div class="journal-import-label">Passphrase for imported file:</div>
-            <input
-              v-model="importPassphrase"
-              type="password"
-              class="journal-passphrase-input journal-passphrase-input--small"
-              placeholder="Passphrase"
-              @keydown.enter="doImport"
-            />
-            <div class="journal-import-actions">
-              <button class="journal-btn journal-btn-primary journal-btn--sm" :disabled="importPhase === 'merging'" @click="doImport">Merge</button>
-              <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="cancelImport">Cancel</button>
-            </div>
-            <div v-if="importError" class="journal-error">{{ importError }}</div>
-          </div>
-        </div>
-
-        <div class="journal-past-header">Past entries</div>
-        <div class="journal-past-list">
+      <!-- Horizontal calendar strip (full width, top) -->
+      <div class="journal-cal-strip">
+        <button class="cal-nav-btn" @click="calOffset--" title="Предыдущий месяц">‹</button>
+        <div class="cal-strip-label">{{ calMonthLabel }}</div>
+        <button class="cal-nav-btn" @click="calOffset++" :disabled="calOffset >= 0" title="Следующий месяц">›</button>
+        <div class="cal-strip-scroll">
           <div
-            v-for="[date, entry] in pastEntries"
-            :key="date"
-            class="journal-past-item"
-            :class="{ 'journal-past-item--met': goalMet(entry) }"
+            v-for="day in calDays"
+            :key="day.iso"
+            class="cal-chip"
+            :class="calDayClass(day)"
           >
-            <span class="journal-past-date">{{ date }}</span>
-            <span class="journal-past-words">{{ entry.words }}w</span>
-          </div>
-          <div v-if="!pastEntries.length" class="journal-muted journal-past-empty">
-            No past entries yet.
+            <span class="cal-chip-n">{{ day.n }}</span>
+            <span class="cal-chip-w">{{ day.words >= 0 ? day.words : '·' }}</span>
           </div>
         </div>
-      </aside>
+      </div>
 
-      <!-- Main editor -->
-      <main class="journal-main">
-        <div class="journal-today-header">
-          <span class="journal-today-date">{{ todayISO }}</span>
-          <span
-            class="journal-word-count"
-            :class="{ 'journal-word-count--met': isGoalMet }"
-          >{{ wordCount }} / 500 words</span>
-        </div>
+      <!-- Body: sidebar + editor -->
+      <div class="journal-body">
 
-        <div class="journal-progress-bar-track">
-          <div
-            class="journal-progress-bar-fill"
-            :class="{ 'journal-progress-bar-fill--met': isGoalMet }"
-            :style="{ width: progress + '%' }"
-          ></div>
-        </div>
+        <!-- Sidebar -->
+        <aside class="journal-sidebar">
 
-        <div v-if="focusLocked" class="journal-focus-locked">
-          Keep writing — {{ 500 - wordCount }} more words to go.
-        </div>
+          <!-- Streak -->
+          <div class="journal-streak-box">
+            <div class="journal-streak-count">{{ streak }}</div>
+            <div class="journal-streak-label">дней подряд</div>
+          </div>
 
-        <textarea
-          v-model="todayText"
-          class="journal-textarea"
-          :disabled="focusLocked"
-          placeholder="Write today's entry…"
-          @input="onTextInput"
-          spellcheck="true"
-          autocorrect="on"
-        ></textarea>
+          <!-- Sync -->
+          <div class="journal-sync-section">
+            <div class="journal-section-label">Синхронизация</div>
+            <button class="journal-btn journal-btn-sync" @click="doExport">↑ Экспорт .journal</button>
+            <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">↓ Импорт .journal</button>
+            <div v-if="importPhase === 'idle' && importError" class="journal-error">{{ importError }}</div>
+            <div v-if="importPhase === 'awaiting-passphrase' || importPhase === 'merging'" class="journal-import-dialog">
+              <div class="journal-import-label">Пароль импортируемого файла:</div>
+              <input
+                v-model="importPassphrase"
+                type="password"
+                class="journal-passphrase-input journal-passphrase-input--small"
+                placeholder="Пароль"
+                @keydown.enter="doImport"
+              />
+              <div class="journal-import-actions">
+                <button class="journal-btn journal-btn-primary journal-btn--sm" :disabled="importPhase === 'merging'" @click="doImport">Объединить</button>
+                <button class="journal-btn journal-btn-cancel journal-btn--sm" @click="cancelImport">Отмена</button>
+              </div>
+              <div v-if="importError" class="journal-error">{{ importError }}</div>
+            </div>
+          </div>
 
-        <div v-if="isGoalMet" class="journal-goal-met">
-          500-word goal reached for today.
-        </div>
-      </main>
+        </aside>
 
-    </div>
+        <!-- Main editor -->
+        <main class="journal-main">
+
+          <!-- Top bar -->
+          <div class="journal-topbar">
+            <span class="journal-today-date">{{ todayISO }}</span>
+            <span class="journal-save-status" :class="'save-' + saveStatus">
+              <template v-if="saveStatus === 'saving'">сохранение…</template>
+              <template v-else-if="saveStatus === 'saved'">сохранено ✓</template>
+            </span>
+            <span class="journal-word-count" :class="{ 'wc-met': isGoalMet }">
+              {{ wordCount }} / 500 слов
+            </span>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="journal-progress-track">
+            <div
+              class="journal-progress-fill"
+              :class="{ 'pf-met': isGoalMet }"
+              :style="{ width: progress + '%' }"
+            ></div>
+          </div>
+
+          <!-- Lined-paper auto-grow textarea -->
+          <div class="grow-wrap" :data-replicated-value="todayText">
+            <textarea
+              v-model="todayText"
+              class="journal-textarea"
+              placeholder="Напишите запись на сегодня…"
+              @input="onTextInput"
+              @keydown="onTextKeydown"
+              spellcheck="true"
+              autocorrect="on"
+              rows="1"
+            ></textarea>
+          </div>
+
+          <div v-if="isGoalMet" class="journal-goal-banner">
+            Цель 500 слов на сегодня достигнута.
+          </div>
+
+        </main>
+
+      </div><!-- /journal-body -->
+    </div><!-- /journal-layout -->
   </div>
 </template>
 
 <style scoped>
+/* ══════════════════════════════════════════════
+   Root
+══════════════════════════════════════════════ */
 .journal-root {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
-  font-family: system-ui, -apple-system, sans-serif;
-  color: #1e293b;
+  background: #2c2c2c;
+  font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
+  color: #e8e8e8;
   min-height: 0;
 }
 
-/* ---- Lock screen ---- */
+/* ══════════════════════════════════════════════
+   Lock screen
+══════════════════════════════════════════════ */
 .journal-center {
   flex: 1;
   display: flex;
@@ -417,36 +491,38 @@ onUnmounted(() => {
 }
 
 .journal-lock-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 14px;
   padding: 40px 48px;
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   text-align: center;
-  box-shadow: 0 4px 24px rgba(0,0,0,.06);
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
 }
 
-.journal-lock-icon { font-size: 36px; margin-bottom: 12px; }
-.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
-.journal-lock-desc { margin: 0 0 20px; font-size: 14px; color: #64748b; line-height: 1.5; }
+.journal-lock-icon { font-size: 40px; margin-bottom: 14px; }
+.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #f0f0f0; }
+.journal-lock-desc { margin: 0 0 24px; font-size: 14px; color: #aaa; line-height: 1.6; }
 
 .journal-passphrase-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 14px;
+  padding: 11px 16px;
   font-size: 15px;
-  border: 1px solid #cbd5e1;
+  background: #222;
+  border: 1px solid #666;
   border-radius: 8px;
+  color: #eee;
   outline: none;
   transition: border-color .15s;
 }
-.journal-passphrase-input:focus { border-color: #6366f1; }
+.journal-passphrase-input:focus { border-color: #8888ff; }
 
-.journal-lock-actions { margin-top: 16px; }
+.journal-lock-actions { margin-top: 18px; }
 
 .journal-btn {
-  padding: 10px 24px;
+  padding: 10px 28px;
   font-size: 15px;
   border: none;
   border-radius: 8px;
@@ -454,238 +530,323 @@ onUnmounted(() => {
   font-weight: 500;
   transition: opacity .15s;
 }
-.journal-btn:hover { opacity: .88; }
-.journal-btn-primary { background: #6366f1; color: #fff; }
+.journal-btn:hover { opacity: .85; }
+.journal-btn-primary { background: #5555dd; color: #fff; }
 
 .journal-error {
   margin-top: 14px;
-  color: #ef4444;
+  color: #ff7070;
   font-size: 13px;
 }
 
-/* ---- Layout ---- */
+/* ══════════════════════════════════════════════
+   Layout
+══════════════════════════════════════════════ */
 .journal-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════════════
+   Horizontal calendar strip
+══════════════════════════════════════════════ */
+.journal-cal-strip {
+  flex-shrink: 0;
+  background: #222;
+  border-bottom: 1px solid #444;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cal-nav-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.cal-nav-btn:hover { color: #ccc; }
+.cal-nav-btn:disabled { color: #444; cursor: default; }
+
+.cal-strip-label {
+  font-size: 11px;
+  color: #aaa;
+  white-space: nowrap;
+  text-transform: capitalize;
+  min-width: 90px;
+  text-align: center;
+}
+.cal-strip-scroll {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: #444 transparent;
+}
+.cal-strip-scroll::-webkit-scrollbar { height: 3px; }
+.cal-strip-scroll::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+.cal-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 34px;
+  padding: 4px 2px;
+  border-radius: 5px;
+  cursor: default;
+  flex-shrink: 0;
+  background: #333;
+}
+.cal-chip-n {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ccc;
+}
+.cal-chip-w {
+  font-size: 9px;
+  color: #777;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.cal-chip.cal-today    { background: #3a3aaa; }
+.cal-chip.cal-today .cal-chip-n { color: #fff; }
+.cal-chip.cal-today .cal-chip-w { color: #aaaaff; }
+.cal-chip.cal-future   { background: #2a2a2a; }
+.cal-chip.cal-future .cal-chip-n { color: #555; }
+.cal-chip.cal-future .cal-chip-w { color: #444; }
+.cal-chip.cal-empty    { background: #2e2e2e; }
+.cal-chip.cal-empty .cal-chip-w { color: #555; }
+.cal-chip.cal-partial  { background: #1e3a1e; }
+.cal-chip.cal-partial .cal-chip-n { color: #99dd99; }
+.cal-chip.cal-partial .cal-chip-w { color: #77bb77; }
+.cal-chip.cal-goal     { background: #3a1e1e; }
+.cal-chip.cal-goal .cal-chip-n { color: #ff9999; }
+.cal-chip.cal-goal .cal-chip-w { color: #dd6666; }
+
+/* ══════════════════════════════════════════════
+   Layout: body row (sidebar + main)
+══════════════════════════════════════════════ */
+.journal-body {
   flex: 1;
   display: flex;
   min-height: 0;
   overflow: hidden;
 }
 
-/* ---- Sidebar ---- */
+/* ══════════════════════════════════════════════
+   Sidebar
+══════════════════════════════════════════════ */
 .journal-sidebar {
-  width: 220px;
+  width: 200px;
   flex-shrink: 0;
-  background: #fff;
-  border-right: 1px solid #e2e8f0;
+  background: #252525;
+  border-right: 1px solid #444;
   display: flex;
   flex-direction: column;
-  padding: 20px 16px;
-  gap: 20px;
+  padding: 16px 14px;
+  gap: 18px;
   overflow-y: auto;
 }
 
+/* Streak */
 .journal-streak-box {
   text-align: center;
-  background: #f1f5f9;
+  background: #333;
   border-radius: 10px;
-  padding: 16px 8px;
+  padding: 14px 8px;
+  border: 1px solid #444;
 }
 .journal-streak-count {
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 700;
-  color: #6366f1;
+  color: #8a8aff;
   line-height: 1;
 }
 .journal-streak-label {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 4px;
-}
-
-.journal-focus-toggle {}
-.journal-toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.journal-toggle-input { cursor: pointer; }
-.journal-toggle-desc { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-
-.journal-past-header {
   font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+/* Sync */
+.journal-section-label {
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: #94a3b8;
+  color: #666;
 }
-
-.journal-past-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.journal-past-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  background: #f8fafc;
-}
-.journal-past-item--met { background: #f0fdf4; }
-.journal-past-date { color: #475569; }
-.journal-past-words { color: #94a3b8; font-size: 11px; }
-.journal-past-item--met .journal-past-words { color: #22c55e; }
-
-.journal-past-empty { font-size: 12px; padding: 4px 0; }
-
-/* ---- Main editor ---- */
-.journal-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 24px 32px;
-  min-width: 0;
-  overflow-y: auto;
-}
-
-.journal-today-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.journal-today-date {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-}
-.journal-word-count {
-  font-size: 14px;
-  color: #64748b;
-  transition: color .2s;
-}
-.journal-word-count--met { color: #22c55e; font-weight: 600; }
-
-.journal-progress-bar-track {
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 999px;
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.journal-progress-bar-fill {
-  height: 100%;
-  background: #6366f1;
-  border-radius: 999px;
-  transition: width .3s ease, background .3s;
-}
-.journal-progress-bar-fill--met { background: #22c55e; }
-
-.journal-focus-locked {
-  background: #fef9c3;
-  border: 1px solid #fde047;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  color: #713f12;
-  margin-bottom: 12px;
-}
-
-.journal-textarea {
-  flex: 1;
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 16px 20px;
-  font-size: 16px;
-  line-height: 1.7;
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #1e293b;
-  background: #fff;
-  resize: none;
-  outline: none;
-  transition: border-color .15s;
-  min-height: 300px;
-}
-.journal-textarea:focus { border-color: #6366f1; }
-.journal-textarea:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
-
-.journal-goal-met {
-  margin-top: 12px;
-  font-size: 14px;
-  color: #22c55e;
-  font-weight: 500;
-  text-align: right;
-}
-
-.journal-muted { color: #94a3b8; }
-
-/* ---- Sync section ---- */
 .journal-sync-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
-
 .journal-btn-sync {
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 12px;
-  padding: 7px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 7px;
+  background: #333;
+  color: #aaa;
+  font-size: 11px;
+  padding: 7px 10px;
+  border: 1px solid #444;
+  border-radius: 6px;
   width: 100%;
   text-align: left;
   cursor: pointer;
-  font-weight: 500;
   transition: background .15s;
 }
-.journal-btn-sync:hover { background: #e2e8f0; }
+.journal-btn-sync:hover { background: #3a3a3a; color: #ddd; }
 
 .journal-import-dialog {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #2a2a2a;
+  border: 1px solid #444;
   border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+.journal-import-label { font-size: 10px; color: #888; }
+.journal-passphrase-input--small { font-size: 12px; padding: 7px 10px; }
+.journal-import-actions { display: flex; gap: 6px; }
+.journal-btn--sm { font-size: 11px; padding: 5px 12px; }
+.journal-btn-cancel { background: #444; color: #ccc; border: 1px solid #555; }
+.journal-btn-cancel:hover { background: #555; }
 
-.journal-import-label {
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 500;
-}
-
-.journal-passphrase-input--small {
-  font-size: 13px;
-  padding: 7px 10px;
-}
-
-.journal-import-actions {
+/* ══════════════════════════════════════════════
+   Main editor
+══════════════════════════════════════════════ */
+.journal-main {
+  flex: 1;
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #2c2c2c;
 }
 
-.journal-btn--sm {
+/* Top bar */
+.journal-topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 16px 16px 0;
+}
+.journal-today-date {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ddd;
+  flex: 1;
+}
+.journal-save-status {
   font-size: 12px;
-  padding: 6px 14px;
+  transition: opacity .3s;
+}
+.save-idle { opacity: 0; }
+.save-saving { color: #aaa; opacity: 1; }
+.save-saved { color: #77cc77; opacity: 1; }
+
+.journal-word-count {
+  font-size: 13px;
+  color: #888;
+  transition: color .2s;
+}
+.wc-met { color: #77cc77; font-weight: 600; }
+
+/* Progress bar */
+.journal-progress-track {
+  height: 4px;
+  background: #3a3a3a;
+  border-radius: 999px;
+  margin: 0 16px 14px;
+  overflow: hidden;
+}
+.journal-progress-fill {
+  height: 100%;
+  background: #5555dd;
+  border-radius: 999px;
+  transition: width .3s ease, background .3s;
+}
+.pf-met { background: #44aa44; }
+
+/* ── Grow-wrap auto-height textarea ── */
+.grow-wrap {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+.grow-wrap::after {
+  content: attr(data-replicated-value) " ";
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  visibility: hidden;
+  grid-area: 1 / 1 / 2 / 2;
+  /* must match textarea exactly */
+  font-size: 24px;
+  line-height: 40px;
+  font-family: Georgia, 'Times New Roman', serif;
+  padding: 50px 5% 34px calc(6.2% + 16px);
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid transparent;
 }
 
-.journal-btn-cancel {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
+/* Lined-paper textarea — images from ng2-words
+   lines.png: 1453×40, red margin at x=90 = 6.19% of width.
+   background-size: 100% 40px scales it to full element width.
+   padding-left: calc(6.2% + 16px) keeps text right of the scaled margin. */
+.journal-textarea {
+  grid-area: 1 / 1 / 2 / 2;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  outline: none;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 14px rgba(0,0,0,.6);
+
+  font-size: 24px;
+  line-height: 40px;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #222;
+  padding: 50px 5% 34px calc(6.2% + 16px);
+
+  background:
+    url(/assets/img/lines.png) repeat-y,
+    url(/assets/img/paper.png) repeat;
+  background-size: 100% 40px, auto;
+  background-attachment: local, local;
+  min-height: 400px;
 }
-.journal-btn-cancel:hover { background: #e2e8f0; }
+
+/* Goal banner */
+.journal-goal-banner {
+  margin: 12px 16px 16px;
+  font-size: 13px;
+  color: #77cc77;
+  font-weight: 500;
+  text-align: right;
+}
+
+.journal-muted { color: #777; }
 </style>

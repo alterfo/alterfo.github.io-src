@@ -52,7 +52,13 @@
       </div>
     </section>
 
-    <StaffDivider />
+    <!-- staff divider -->
+    <div class="staff-divider" aria-hidden="true">
+      <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
+        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
+        <text x="12" y="24" font-size="24" fill="rgba(179,77,255,0.4)" font-family="'Times New Roman', Georgia, serif">𝄽</text>
+      </svg>
+    </div>
 
     <!-- ── PROJECTS ─────────────────────────────────────────── -->
     <section class="projects">
@@ -70,14 +76,57 @@
             @click="navigate(p, $event)"
           >
             <div class="card-preview">
+              <!-- AR -->
               <template v-if="p.id === 'ar'">
                 <iframe v-if="arAvailable" src="/ar/" class="ar-iframe"
                         scrolling="no" tabindex="-1" aria-hidden="true" />
-                <SvgAr v-else />
+                <svg v-else viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                  <polyline v-for="(wave, i) in arWaves" :key="i"
+                    :points="wave.points" fill="none" :stroke="wave.color" stroke-width="1.2" opacity="0.7"/>
+                </svg>
               </template>
-              <SvgBlog    v-else-if="p.id === 'blog'" />
-              <SvgIdef0   v-else-if="p.id === 'idef0'" />
-              <SvgGithub  v-else-if="p.id === 'github'" />
+              <!-- Blog -->
+              <svg v-else-if="p.id === 'blog'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <rect x="30" y="10" width="140" height="80" rx="3" fill="none" stroke="rgba(26,204,255,0.35)" stroke-width="1"/>
+                <rect x="44" y="28" width="90" height="6" rx="3" fill="rgba(26,204,255,0.7)"/>
+                <rect x="44" y="38" width="112" height="6" rx="3" fill="rgba(26,204,255,0.3)"/>
+                <rect x="44" y="48" width="98" height="6" rx="3" fill="rgba(26,204,255,0.3)"/>
+                <rect x="44" y="58" width="105" height="6" rx="3" fill="rgba(26,204,255,0.3)"/>
+                <rect x="44" y="68" width="70" height="6" rx="3" fill="rgba(26,204,255,0.3)"/>
+              </svg>
+              <!-- IDEF0 -->
+              <svg v-else-if="p.id === 'idef0'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <rect x="60" y="25" width="80" height="50" rx="2" fill="none" stroke="rgba(51,255,77,0.7)" stroke-width="1.5"/>
+                <line x1="0" y1="50" x2="60" y2="50" stroke="rgba(51,255,77,0.5)" stroke-width="1"/>
+                <line x1="140" y1="50" x2="200" y2="50" stroke="rgba(51,255,77,0.5)" stroke-width="1"/>
+                <line x1="100" y1="0" x2="100" y2="25" stroke="rgba(51,255,77,0.5)" stroke-width="1"/>
+                <line x1="100" y1="75" x2="100" y2="100" stroke="rgba(51,255,77,0.5)" stroke-width="1"/>
+                <text x="100" y="54" text-anchor="middle" fill="rgba(51,255,77,0.8)" font-size="10" font-family="monospace">A0</text>
+                <text x="52" y="54" text-anchor="middle" fill="rgba(51,255,77,0.6)" font-size="8" font-family="monospace">I</text>
+                <text x="148" y="54" text-anchor="middle" fill="rgba(51,255,77,0.6)" font-size="8" font-family="monospace">O</text>
+                <text x="104" y="17" text-anchor="middle" fill="rgba(51,255,77,0.6)" font-size="8" font-family="monospace">C</text>
+                <text x="104" y="83" text-anchor="middle" fill="rgba(51,255,77,0.6)" font-size="8" font-family="monospace">M</text>
+              </svg>
+              <!-- Journal -->
+              <svg v-else-if="p.id === 'journal'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <rect x="20" y="8" width="160" height="84" rx="4" fill="#1e1e1e" stroke="rgba(255,100,136,0.5)" stroke-width="1"/>
+                <line v-for="ly in [28,44,60,76]" :key="ly" :x1="34" :y1="ly" :x2="166" :y2="ly" stroke="rgba(100,140,220,0.25)" stroke-width="1"/>
+                <rect x="34" y="20" width="80" height="5" rx="2" fill="rgba(255,100,136,0.7)"/>
+                <rect x="34" y="36" width="110" height="4" rx="2" fill="rgba(255,255,255,0.25)"/>
+                <rect x="34" y="52" width="90" height="4" rx="2" fill="rgba(255,255,255,0.2)"/>
+                <rect x="34" y="68" width="120" height="4" rx="2" fill="rgba(255,255,255,0.18)"/>
+                <text x="166" y="88" text-anchor="end" font-size="8" fill="rgba(255,100,136,0.6)" font-family="monospace">🔒 E2EE</text>
+              </svg>
+              <!-- GitHub -->
+              <svg v-else-if="p.id === 'github'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <text x="10" y="16" font-size="9" fill="rgba(255,153,26,0.5)" font-family="monospace">$ git log --oneline</text>
+                <rect x="10" y="18" width="100" height="5" rx="2" fill="rgba(255,153,26,0.8)"/>
+                <rect x="10" y="30" width="140" height="5" rx="2" fill="rgba(255,153,26,0.4)"/>
+                <rect x="10" y="42" width="80" height="5" rx="2" fill="rgba(255,153,26,0.6)"/>
+                <rect x="10" y="54" width="120" height="5" rx="2" fill="rgba(255,153,26,0.35)"/>
+                <rect x="10" y="66" width="60" height="5" rx="2" fill="rgba(255,153,26,0.5)"/>
+                <rect x="10" y="78" width="110" height="5" rx="2" fill="rgba(255,153,26,0.3)"/>
+              </svg>
             </div>
             <div class="card-body">
               <span class="card-tag">{{ p.tag }}</span>
@@ -89,7 +138,13 @@
       </div>
     </section>
 
-    <StaffDivider />
+    <!-- staff divider -->
+    <div class="staff-divider" aria-hidden="true">
+      <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
+        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
+        <text x="12" y="24" font-size="24" fill="rgba(179,77,255,0.4)" font-family="'Times New Roman', Georgia, serif">𝄽</text>
+      </svg>
+    </div>
 
     <!-- ── EXPERTISE ─────────────────────────────────────────── -->
     <section class="expertise">
@@ -129,95 +184,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
-
-// ── Decorative sub-components (inline, no extra files) ──────────
-
-const StaffDivider = defineComponent({
-  setup() {
-    return () => h('div', { class: 'staff-divider', 'aria-hidden': 'true' },
-      h('svg', { viewBox: '0 0 900 24', preserveAspectRatio: 'none', class: 'staff-div-svg' }, [
-        ...[4, 9, 14, 19, 24].map(y =>
-          h('line', { x1: 0, y1: y, x2: 900, y2: y, stroke: 'rgba(200,180,255,0.12)', 'stroke-width': 1 })
-        ),
-        h('text', { x: 12, y: 24, 'font-size': 24, fill: 'rgba(179,77,255,0.4)',
-                    'font-family': "'Times New Roman', Georgia, serif" }, '𝄽'),
-      ])
-    )
-  }
-})
-
-const SvgAr = defineComponent({
-  setup() {
-    return () => h('svg', { viewBox: '0 0 200 100', class: 'card-svg', 'aria-hidden': 'true' },
-      [0,1,2,3,4].map(i => {
-        const amps = [18, 30, 42, 28, 14]
-        const colors = ['#b34dff','#1accff','#33ff4d','#ff9933','#ff3380']
-        const points = Array.from({ length: 40 }, (_, k) =>
-          `${k * 5},${50 + amps[i] * Math.sin((k + i * 4) * 0.4)}`
-        ).join(' ')
-        return h('polyline', { points, fill: 'none', stroke: colors[i],
-                               'stroke-width': 1.2, opacity: 0.7 })
-      })
-    )
-  }
-})
-
-const SvgBlog = defineComponent({
-  setup() {
-    return () => h('svg', { viewBox: '0 0 200 100', class: 'card-svg', 'aria-hidden': 'true' }, [
-      h('rect', { x: 30, y: 10, width: 140, height: 80, rx: 3,
-                  fill: 'none', stroke: 'rgba(26,204,255,0.35)', 'stroke-width': 1 }),
-      ...[20,30,40,50,60].map((y, i) =>
-        h('rect', { x: 44, y: y + 8, width: i === 0 ? 90 : [112,98,105,70][i-1], height: 6,
-                    rx: 3, fill: `rgba(26,204,255,${i === 0 ? 0.7 : 0.3})` })
-      ),
-    ])
-  }
-})
-
-const SvgIdef0 = defineComponent({
-  setup() {
-    return () => h('svg', { viewBox: '0 0 200 100', class: 'card-svg', 'aria-hidden': 'true' }, [
-      h('rect', { x: 60, y: 25, width: 80, height: 50, rx: 2,
-                  fill: 'none', stroke: 'rgba(51,255,77,0.7)', 'stroke-width': 1.5 }),
-      h('line', { x1: 0,   y1: 50, x2: 60,  y2: 50, stroke: 'rgba(51,255,77,0.5)', 'stroke-width': 1 }),
-      h('line', { x1: 140, y1: 50, x2: 200, y2: 50, stroke: 'rgba(51,255,77,0.5)', 'stroke-width': 1 }),
-      h('line', { x1: 100, y1: 0,  x2: 100, y2: 25, stroke: 'rgba(51,255,77,0.5)', 'stroke-width': 1 }),
-      h('line', { x1: 100, y1: 75, x2: 100, y2: 100, stroke: 'rgba(51,255,77,0.5)', 'stroke-width': 1 }),
-      h('text', { x: 100, y: 54, 'text-anchor': 'middle', fill: 'rgba(51,255,77,0.8)',
-                  'font-size': 10, 'font-family': 'monospace' }, 'A0'),
-      ...[{ x: 52, label: 'I' }, { x: 148, label: 'O' },
-          { y: 17, label: 'C', tx: 104 }, { y: 83, label: 'M', tx: 104 }].map(({ x, y, label, tx }) =>
-        h('text', { x: tx ?? x ?? 0, y: y ?? 54,
-                    'text-anchor': 'middle', fill: 'rgba(51,255,77,0.6)',
-                    'font-size': 8, 'font-family': 'monospace' }, label)
-      ),
-    ])
-  }
-})
-
-const SvgGithub = defineComponent({
-  setup() {
-    const lines = [
-      { y: 18, w: 100, col: 'rgba(255,153,26,0.8)' },
-      { y: 30, w: 140, col: 'rgba(255,153,26,0.4)' },
-      { y: 42, w: 80,  col: 'rgba(255,153,26,0.6)' },
-      { y: 54, w: 120, col: 'rgba(255,153,26,0.35)' },
-      { y: 66, w: 60,  col: 'rgba(255,153,26,0.5)' },
-      { y: 78, w: 110, col: 'rgba(255,153,26,0.3)' },
-    ]
-    return () => h('svg', { viewBox: '0 0 200 100', class: 'card-svg', 'aria-hidden': 'true' }, [
-      h('text', { x: 10, y: 16, 'font-size': 9, fill: 'rgba(255,153,26,0.5)',
-                  'font-family': 'monospace' }, '$ git log --oneline'),
-      ...lines.map(({ y, w, col }) =>
-        h('rect', { x: 10, y, width: w, height: 5, rx: 2, fill: col })
-      ),
-    ])
-  }
-})
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 
 // ── Data ────────────────────────────────────────────────────────
+
+const arWaves = (() => {
+  const amps = [18, 30, 42, 28, 14]
+  const colors = ['#b34dff', '#1accff', '#33ff4d', '#ff9933', '#ff3380']
+  return [0, 1, 2, 3, 4].map(i => ({
+    color: colors[i],
+    points: Array.from({ length: 40 }, (_, k) =>
+      `${k * 5},${50 + amps[i] * Math.sin((k + i * 4) * 0.4)}`
+    ).join(' '),
+  }))
+})()
 
 const instruments = ['Гитара', 'Барабаны', 'Эрху', 'Кларнет', 'Голос', 'DAW']
 
@@ -229,16 +209,19 @@ const staffNotes = [
 ]
 
 const projects = [
-  { id: 'ar',     title: 'AR Engine', href: '/ar/',
+  { id: 'ar',      title: 'AR Engine', href: '/ar/',
     desc: 'Audio-reactive WebGPU визуализатор — частицы и поля реагируют на микрофонный вход в реальном времени.',
     tag: 'WebGPU', color: '#b34dff', external: false },
-  { id: 'blog',   title: 'Блог', href: '/blog/',
+  { id: 'blog',    title: 'Блог', href: '/blog/',
     desc: 'Заметки на русском: разработка, архитектура, музыка, инструменты. Пишу про реальный опыт.',
     tag: 'Blog', color: '#1accff', external: false },
-  { id: 'idef0',  title: 'IDEF0 Editor', href: '/idef0',
+  { id: 'idef0',   title: 'IDEF0 Editor', href: '/idef0',
     desc: 'Браузерный редактор функциональных диаграмм. FIPS 183, иерархия, экспорт SVG/PNG.',
     tag: 'Tool', color: '#33ff4d', external: false },
-  { id: 'github', title: 'GitHub', href: 'https://github.com/alterfo',
+  { id: 'journal', title: 'Дневник', href: '/journal',
+    desc: 'Зашифрованный локальный дневник с целью 500 слов в день. E2EE, IndexedDB, P2P-синхронизация.',
+    tag: 'Tool', color: '#ff6688', external: false },
+  { id: 'github',  title: 'GitHub', href: 'https://github.com/alterfo',
     desc: 'Open source проекты, эксперименты, инструменты.',
     tag: 'Profile', color: '#ff9933', external: true },
 ]
