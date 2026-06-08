@@ -30,7 +30,7 @@ const groupedPosts = computed(() => {
         <a :href="post.url" class="post-link">
           <span class="post-title">{{ post.title }}</span>
           <time class="post-date" :datetime="new Date(post.date.time).toISOString().slice(0, 10)">{{ post.date.string }}</time>
-          <p v-if="post.excerpt" class="post-excerpt">{{ post.excerpt }}</p>
+          <span v-if="post.excerpt" class="post-excerpt">{{ post.excerpt }}</span>
         </a>
       </article>
     </section>
@@ -106,6 +106,7 @@ const groupedPosts = computed(() => {
 }
 
 .post-excerpt {
+  display: block;
   font-size: 0.85rem;
   color: rgba(200, 180, 255, 0.45);
   line-height: 1.5;

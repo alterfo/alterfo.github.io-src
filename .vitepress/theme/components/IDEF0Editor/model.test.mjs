@@ -73,6 +73,23 @@ describe('removeDecomposition', () => {
     assert.equal(project.diagrams['A1'], undefined)
   })
 
+  it('no-op when diagramId does not exist', () => {
+    const diagramsBefore = Object.keys(project.diagrams).join(',')
+    removeDecomposition('b1', 'nonexistent-diagram')
+    assert.equal(Object.keys(project.diagrams).join(','), diagramsBefore)
+  })
+
+  it('uses currentDiagram when diagramId is omitted', () => {
+    const box = addBox({ id: 'b1', label: 'Step' }, 'A0')
+    createDiagram('A1', 'Child', 'A0')
+    updateBox('b1', { childDiagramId: 'A1' }, 'A0')
+
+    removeDecomposition('b1')
+
+    assert.equal(box.childDiagramId, null)
+    assert.equal(project.diagrams['A1'], undefined)
+  })
+
   it('navigate-away: if currentDiagramId is a descendant, navigates to parent before deleting', () => {
     const box = addBox({ id: 'b1', label: 'Step' }, 'A0')
     createDiagram('A1', 'Child', 'A0')
