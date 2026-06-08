@@ -117,6 +117,19 @@ function doCheckNote() {
   if (result === 'complete') isComplete.value = true
   saveProgress(currentScore.value.id, trainer.value)
   renderStave()
+  // Legato: if the next expected note is already held, restart immediately without waiting for a new MIDI event
+  if (!trainer.value.complete) {
+    const nextNote = getCurrentNote(trainer.value)
+    if (nextNote) {
+      const expected = Array.isArray(nextNote.midi) ? nextNote.midi : [nextNote.midi]
+      const allHeld = expected.every(m => pressedNotes.value.has(m))
+      const noExtra = ![...pressedNotes.value].some(m => !expected.includes(m))
+      if (allHeld && noExtra) {
+        noteStartTime = Date.now()
+        startCheckLoop()
+      }
+    }
+  }
 }
 
 watch(pressedNotes, (notes) => {
@@ -168,11 +181,11 @@ function stopMetronome() {
   beatIdx.value = 0
 }
 
-function toggleMetronome() {
+async function toggleMetronome() {
   metronomeOn.value = !metronomeOn.value
   if (metronomeOn.value) {
     if (!audioCtx) audioCtx = new AudioContext()
-    if (audioCtx.state === 'suspended') audioCtx.resume()
+    if (audioCtx.state === 'suspended') await audioCtx.resume()
     startMetronome()
   } else {
     stopMetronome()
