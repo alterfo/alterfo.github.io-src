@@ -28,7 +28,12 @@ export function usePianoAudio() {
     const reverb = new T.Reverb({ decay: 2.0, preDelay: 0.02, wet: 0.22 })
     const limiter = new T.Limiter(-2)
     eq.chain(comp, reverb, limiter, T.getDestination())
-    await reverb.ready
+    try {
+      await reverb.ready
+    } catch (err) {
+      ;[eq, comp, reverb, limiter].forEach(n => n.dispose())
+      throw err
+    }
     _chain = [eq, comp, reverb, limiter]
     return eq
   }
