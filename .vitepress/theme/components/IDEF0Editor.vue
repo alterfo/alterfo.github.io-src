@@ -158,13 +158,16 @@ function _removeSubtree(diagramId) {
   }
 }
 
-function _isDescendantDiagram(candidateId, rootId, visited = new Set()) {
-  if (visited.has(candidateId)) return false
-  visited.add(candidateId)
-  if (candidateId === rootId) return true
-  const parent = getParentId(candidateId)
-  if (!parent) return false
-  return _isDescendantDiagram(parent, rootId, visited)
+function _isDescendantDiagram(candidateId, rootId) {
+  const visited = new Set()
+  let id = candidateId
+  while (id) {
+    if (visited.has(id)) return false
+    visited.add(id)
+    if (id === rootId) return true
+    id = getParentId(id) ?? null
+  }
+  return false
 }
 
 function onRemoveDecomposition() {
