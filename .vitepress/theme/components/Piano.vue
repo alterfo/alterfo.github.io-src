@@ -98,10 +98,11 @@ function triggerWrong() {
     correctHoldStart = null
   }, 400)
   correctHoldStart = null
-  // Level 2: reset to start of current measure on wrong note
-  if (_state && level.value === 2) {
+  if (_state) {
     repeatSection(_state)
     noteIdx.value = _state.noteIdx
+    measureIdx.value = _state.measureIdx
+    phraseIdx.value = _state.phraseIdx
     nextTick(renderStave)
   }
 }
