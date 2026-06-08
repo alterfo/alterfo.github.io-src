@@ -85,6 +85,7 @@ export function usePianoAudio() {
           resolve()
         },
         onerror: (err) => {
+          if (_disposed) return
           samplerLoading.value = false
           _sampler = null
           reject(err)
