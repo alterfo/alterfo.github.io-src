@@ -1,6 +1,6 @@
 // Web Audio API → WASM engine bridge.
 // Exports: initAudio, loadFile, connectStream, play, pause, resume,
-//          isPlaying, setLoop, isLoop, getCurrentTime, getAudioFrame, setOnTrackEnded.
+//          isPlaying, isEnded, setLoop, isLoop, getCurrentTime, getAudioFrame, setOnTrackEnded.
 // connectStream() uses getDisplayMedia to capture a browser tab's audio —
 // used for Yandex Music / Spotify / any tab playing music.
 
@@ -22,6 +22,7 @@ let _source = null;
 let _audioBuffer = null;
 
 let _playing = false;
+let _ended   = false;
 let _loop     = false;
 let _startOffset = 0;
 let _startTime = 0;
@@ -134,6 +135,7 @@ export function seekTo(seconds) {
 // Start playback from offset seconds. Connects AudioWorklet for sample capture.
 export function play(offset = 0) {
     if (!_audioBuffer || !_audioCtx || !_workletReady) return;
+    _ended = false;
     _stopSource();
     if (_audioCtx.state === 'suspended') _audioCtx.resume();
 
@@ -161,7 +163,7 @@ export function play(offset = 0) {
     // a manual stop (load/seek/pause) never triggers the natural-end → playlist hook.
     _source.onended = () => {
         if (_loop) { play(0); }
-        else { _playing = false; if (_onEnded) _onEnded(); }
+        else { _playing = false; _ended = true; if (_onEnded) _onEnded(); }
     };
     _raf();
 }
@@ -185,6 +187,7 @@ export function resume() {
 }
 
 export function isPlaying() { return _playing; }
+export function isEnded()   { return _ended; }
 
 // Approximate playback position in seconds.
 export function getCurrentTime() {
