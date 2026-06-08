@@ -22,7 +22,7 @@ function extractExcerpt(content: string, maxLen = 120): string {
       continue
     }
     if (inCodeBlock) continue
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || /^[-=]{3,}$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<') || trimmed.startsWith('|')) continue
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || /^[-=]{3,}$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<') || trimmed.startsWith('|')) continue
     const plain = trimmed
       .replace(/\[([^\]]+)\]\((?:[^)(]|\([^)]*\))*\)/g, '$1')
       .replace(/[*_`]/g, '')
