@@ -253,6 +253,7 @@ function resetProject() {
   project.id = fresh.id
   project.diagrams = fresh.diagrams
   currentDiagramId.value = 'A0'
+  _idCounter = 1
 }
 
 export {

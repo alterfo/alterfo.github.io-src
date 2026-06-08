@@ -123,6 +123,7 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
+- IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs`
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
