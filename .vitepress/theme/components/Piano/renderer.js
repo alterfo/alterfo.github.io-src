@@ -141,14 +141,20 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   const rightNotes = measure.notes.filter(n => n.hand !== 'left')
   const leftNotes  = measure.notes.filter(n => n.hand === 'left')
 
+  // Map the flat measure noteIdx to per-voice indices so each stave highlights correctly.
+  const trebleNoteIdx  = isCurrent ? voiceNoteIdx(measure.notes, noteIdx, false) : -1
+  const bassNoteIdx    = isCurrent ? voiceNoteIdx(measure.notes, noteIdx, true) : -1
+  const trebleWrongIdx = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, false) : -1
+  const bassWrongIdx   = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, true) : -1
+
   const trebleStaveNotes = rightNotes.map((note, i) =>
-    buildStaveNote(note, isCurrent ? noteStyle(i, noteIdx, lookahead, wrongNoteIdx) : null, 'treble')
+    buildStaveNote(note, isCurrent ? noteStyle(i, trebleNoteIdx, lookahead, trebleWrongIdx) : null, 'treble')
   )
 
   // If no left-hand notes, pad bass voice with a whole-measure ghost note so VexFlow doesn't throw
   const bassStaveNotes = leftNotes.length > 0
     ? leftNotes.map((note, i) =>
-        buildStaveNote(note, isCurrent ? noteStyle(i, noteIdx, lookahead, wrongNoteIdx) : null, 'bass')
+        buildStaveNote(note, isCurrent ? noteStyle(i, bassNoteIdx, lookahead, bassWrongIdx) : null, 'bass')
       )
     : [new GhostNote({ duration: timeSignature[1] === 8 ? '8' : 'w' })]
 
@@ -169,16 +175,15 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   bassVoice.draw(ctx, bassStave)
 
   // Ghost notes: treble for midi >= 60, bass for midi < 60
-  if (isCurrent && pressedNotes.size > 0 && noteIdx >= 0) {
+  if (isCurrent && pressedNotes.size > 0) {
     const treblePressed = new Set([...pressedNotes].filter(m => m >= 60))
     const bassPressed   = new Set([...pressedNotes].filter(m => m < 60))
-    const currentTrebleNote = trebleStaveNotes[noteIdx]
-    const currentBassNote   = bassStaveNotes[noteIdx]
-    if (treblePressed.size > 0 && currentTrebleNote && noteIdx < trebleStaveNotes.length) {
+    const currentTrebleNote = trebleNoteIdx >= 0 ? trebleStaveNotes[trebleNoteIdx] : null
+    const currentBassNote   = bassNoteIdx >= 0 ? bassStaveNotes[bassNoteIdx] : null
+    if (treblePressed.size > 0 && currentTrebleNote) {
       drawGhostNotes(svgEl, trebleStave, currentTrebleNote.getAbsoluteX(), treblePressed)
     }
-    if (bassPressed.size > 0 && currentBassNote && noteIdx < bassStaveNotes.length) {
-      // Bass ghost notes use bass stave line positions
+    if (bassPressed.size > 0 && currentBassNote) {
       drawGhostNotesBass(svgEl, bassStave, currentBassNote.getAbsoluteX(), bassPressed)
     }
   }
@@ -202,6 +207,15 @@ function drawGhostNotesBass(svgEl, stave, currentNoteX, pressedNotes) {
     circle.setAttribute('stroke-width', '1.5')
     svgEl.appendChild(circle)
   })
+}
+
+// Map a flat measure noteIdx (over all notes) to an index within a single voice.
+// Returns -1 if the note at flatIdx belongs to the other voice or flatIdx is out of range.
+export function voiceNoteIdx(notes, flatIdx, isLeft) {
+  if (flatIdx < 0 || flatIdx >= notes.length) return -1
+  const targetIsLeft = notes[flatIdx].hand === 'left'
+  if (isLeft !== targetIsLeft) return -1
+  return notes.slice(0, flatIdx).filter(n => (n.hand === 'left') === isLeft).length
 }
 
 // ── Grand staff helper ────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { midiToVexKey, hasAccidental, midiToStaveLine, scoreDurationToVex, hasLeftHand, midiToBassStaveLine } from './renderer.js'
+import { midiToVexKey, hasAccidental, midiToStaveLine, scoreDurationToVex, hasLeftHand, midiToBassStaveLine, voiceNoteIdx } from './renderer.js'
 
 // ── midiToVexKey ──────────────────────────────────────────────────────────────
 test('midiToVexKey: C4=60 → c/4', () => assert.equal(midiToVexKey(60), 'c/4'))
@@ -66,6 +66,31 @@ test('midiToBassStaveLine: F3=53 → line 1', () => assert.equal(midiToBassStave
 test('midiToBassStaveLine: A3=57 → top line 0', () => assert.equal(midiToBassStaveLine(57), 0))
 test('midiToBassStaveLine: sharps share same line (G#2=44 → same as G2)', () =>
   assert.equal(midiToBassStaveLine(44), midiToBassStaveLine(43)))
+
+// ── voiceNoteIdx ─────────────────────────────────────────────────────────────
+// notes: 2 right (0,1), 2 left (2,3) in a mixed measure
+const mixedNotes = [
+  { midi: 64, hand: 'right' },
+  { midi: 67, hand: 'right' },
+  { midi: 48, hand: 'left' },
+  { midi: 52, hand: 'left' },
+]
+test('voiceNoteIdx: first right note → treble index 0', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 0, false), 0))
+test('voiceNoteIdx: second right note → treble index 1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 1, false), 1))
+test('voiceNoteIdx: first left note → bass index 0', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 2, true), 0))
+test('voiceNoteIdx: second left note → bass index 1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 3, true), 1))
+test('voiceNoteIdx: right note queried as left → -1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 0, true), -1))
+test('voiceNoteIdx: left note queried as right → -1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 2, false), -1))
+test('voiceNoteIdx: flatIdx -1 → -1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, -1, false), -1))
+test('voiceNoteIdx: flatIdx out of range → -1', () =>
+  assert.equal(voiceNoteIdx(mixedNotes, 99, false), -1))
 
 // ── scoreDurationToVex ────────────────────────────────────────────────────────
 test('scoreDurationToVex: plain durations unchanged', () => {
