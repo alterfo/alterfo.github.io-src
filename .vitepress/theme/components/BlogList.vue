@@ -13,7 +13,7 @@ const props = defineProps<{ posts: Post[] }>()
 const groupedPosts = computed(() => {
   const map = new Map<number, Post[]>()
   for (const p of props.posts) {
-    const year = new Date(p.date.time).getFullYear()
+    const year = new Date(p.date.time).getUTCFullYear()
     if (!map.has(year)) map.set(year, [])
     map.get(year)!.push(p)
   }
@@ -28,7 +28,7 @@ const groupedPosts = computed(() => {
       <h2 class="year-header">{{ year }}</h2>
       <article v-for="post in yearPosts" :key="post.url" class="post-article">
         <a :href="post.url" class="post-link">
-          <h3 class="post-title">{{ post.title }}</h3>
+          <span class="post-title">{{ post.title }}</span>
           <time class="post-date" :datetime="new Date(post.date.time).toISOString().slice(0, 10)">{{ post.date.string }}</time>
           <p v-if="post.excerpt" class="post-excerpt">{{ post.excerpt }}</p>
         </a>
