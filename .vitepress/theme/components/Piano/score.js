@@ -13,6 +13,10 @@ function rootToPitchClass(root) {
   return map[root] ?? 0
 }
 
+export function midiToNoteName(midi) {
+  return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1)
+}
+
 export function getScaleKeys(key) {
   const root = rootToPitchClass(key.root)
   const intervals = key.mode === 'minor' ? MINOR_INTERVALS : MAJOR_INTERVALS
