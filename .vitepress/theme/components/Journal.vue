@@ -238,7 +238,6 @@ async function onImportFileChange(e) {
 }
 
 async function doImport() {
-  console.log('[journal] doImport called', { hasPending: !!_pendingImportStr, hasKey: !!_key, phase: importPhase.value })
   if (!_pendingImportStr || !_key || importPhase.value === 'merging') return
   if (!importPassphrase.value.trim()) {
     importError.value = 'Введите пароль для импортируемого файла.'
@@ -247,25 +246,18 @@ async function doImport() {
   importPhase.value = 'merging'
   importError.value = ''
   try {
-    console.log('[journal] unpacking envelope…')
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
-    console.log('[journal] deriving key…', { iterations })
     const importKey = await deriveKey(importPassphrase.value, salt, iterations)
-    console.log('[journal] decrypting…')
     const importedVault = await decryptJSON(importKey, { iv, ciphertext })
-    console.log('[journal] decrypted, entries:', Object.keys(importedVault.entries ?? {}).length)
     if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
     const merged = mergeVaults(vault, importedVault)
-    console.log('[journal] merged, entries:', Object.keys(merged.entries ?? {}).length)
     Object.assign(vault, merged)
     todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
     await persistVault()
     importPassphrase.value = ''
     _pendingImportStr = null
     importPhase.value = 'idle'
-    console.log('[journal] import complete')
   } catch (err) {
-    console.error('[journal] import failed:', err)
     importError.value = 'Не удалось расшифровать — проверьте пароль.'
     importPhase.value = 'awaiting-passphrase'
   }
