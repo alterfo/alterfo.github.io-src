@@ -142,11 +142,13 @@ function removeBox(boxId, diagramId = null) {
   d.boundaryArrows = d.boundaryArrows.filter(a => a.boxId !== boxId)
 }
 
-function _isDescendant(candidateId, rootId) {
+function _isDescendant(candidateId, rootId, visited = new Set()) {
+  if (visited.has(candidateId)) return false
+  visited.add(candidateId)
   const d = project.diagrams[candidateId]
   if (!d) return false
   if (d.parentId === rootId) return true
-  return d.parentId ? _isDescendant(d.parentId, rootId) : false
+  return d.parentId ? _isDescendant(d.parentId, rootId, visited) : false
 }
 
 function removeDecomposition(boxId, diagramId = null) {
@@ -249,11 +251,11 @@ function getProjectSnapshot() {
 }
 
 function resetProject() {
+  _idCounter = 1
   const fresh = makeDefaultProject()
   project.id = fresh.id
   project.diagrams = fresh.diagrams
   currentDiagramId.value = 'A0'
-  _idCounter = 1
 }
 
 export {
