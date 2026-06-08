@@ -6,6 +6,8 @@
 
 import { WIDTH, HEIGHT } from './renderer.js';
 
+const _SHADER_VER = '20260608';
+
 const RD_ITERATIONS = 3;
 const UBO_BYTES     = 64;   // 16 × f32/u32 — see struct RDUniforms in shader
 
@@ -30,7 +32,7 @@ export function setRDParams({ feed, kill } = {}) {
 
 export async function initRDPipeline(device, texMgr, passMgr) {
     // --- shader ---
-    const src = await fetch('./shaders/rd_compute.wgsl').then(r => r.text());
+    const src = await fetch(`./shaders/rd_compute.wgsl?v=${_SHADER_VER}`).then(r => r.text());
     const module = device.createShaderModule({ label: 'rd_compute', code: src });
 
     // --- uniform buffer ---
