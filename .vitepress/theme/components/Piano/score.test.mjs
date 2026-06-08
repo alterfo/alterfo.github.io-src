@@ -18,6 +18,14 @@ describe('midiToNoteName', () => {
   it('MIDI 108 = C8 (highest piano key)', () => {
     assert.equal(midiToNoteName(108), 'C8')
   })
+
+  it('MIDI 61 = C#4 (black key accidental)', () => {
+    assert.equal(midiToNoteName(61), 'C#4')
+  })
+
+  it('MIDI 70 = A#4 (black key accidental)', () => {
+    assert.equal(midiToNoteName(70), 'A#4')
+  })
 })
 
 describe('getScaleKeys', () => {

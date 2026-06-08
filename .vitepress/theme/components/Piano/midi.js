@@ -24,7 +24,6 @@ export function useMidi() {
   const status = ref('checking')   // 'checking' | 'unsupported' | 'no-device' | 'connected'
   const deviceName = ref('')
   const pressedNotes = ref(new Set())  // Set of MIDI numbers currently held
-  const noteVelocities = ref(new Map())  // Map of MIDI number → velocity (0-127)
 
   let _midiAccess = null
   const _listeners = new Map()
@@ -36,17 +35,11 @@ export function useMidi() {
     const cmd = status_ & 0xf0
     if (cmd === 0x90 && velocity > 0) {
       pressedNotes.value = new Set([...pressedNotes.value, note])
-      const nextVel = new Map(noteVelocities.value)
-      nextVel.set(note, velocity)
-      noteVelocities.value = nextVel
       if (_onNoteOnCb) _onNoteOnCb(note, velocity)
     } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
       const next = new Set(pressedNotes.value)
       next.delete(note)
       pressedNotes.value = next
-      const nextVel = new Map(noteVelocities.value)
-      nextVel.delete(note)
-      noteVelocities.value = nextVel
       if (_onNoteOffCb) _onNoteOffCb(note)
     }
   }
@@ -84,10 +77,9 @@ export function useMidi() {
     _listeners.clear()
     _midiAccess = null
     pressedNotes.value = new Set()
-    noteVelocities.value = new Map()
     _onNoteOnCb = null
     _onNoteOffCb = null
   }
 
-  return { status, deviceName, pressedNotes, noteVelocities, onNoteOn, onNoteOff, init, dispose, _onMidiMessage }
+  return { status, deviceName, pressedNotes, onNoteOn, onNoteOff, init, dispose, _onMidiMessage }
 }

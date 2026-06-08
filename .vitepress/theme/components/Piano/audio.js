@@ -50,7 +50,7 @@ export function usePianoAudio() {
     const T = await _ensureTone()
     await T.start()
     const dest = _chain ? _chain[0] : await _buildChain(T)
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       _sampler = new T.Sampler({
         urls: {
           A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
@@ -66,6 +66,11 @@ export function usePianoAudio() {
           samplerLoading.value = false
           mode.value = 'sampler'
           resolve()
+        },
+        onerror: (err) => {
+          samplerLoading.value = false
+          _sampler = null
+          reject(err)
         },
       })
       _sampler.connect(dest)
@@ -106,6 +111,9 @@ export function usePianoAudio() {
     if (_synth) { _synth.dispose(); _synth = null }
     if (_sampler) { _sampler.dispose(); _sampler = null }
     if (_chain) { _chain.forEach(n => n.dispose()); _chain = null }
+    mode.value = 'synth'
+    samplerReady.value = false
+    samplerLoading.value = false
   }
 
   return { mode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, dispose }
