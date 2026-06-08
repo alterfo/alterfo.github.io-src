@@ -25,7 +25,11 @@ function extractExcerpt(content: string, maxLen = 120): string {
     if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ') || /^\d+\.\s/.test(trimmed) || /^\*+$/.test(trimmed) || /^[-=]{3,}$/.test(trimmed) || trimmed.startsWith('>') || trimmed.startsWith('![') || trimmed.startsWith('<') || trimmed.startsWith('|')) continue
     const plain = trimmed
       .replace(/\[([^\]]+)\]\((?:[^)(]|\([^)]*\))*\)/g, '$1')
-      .replace(/[*_`]/g, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
       .replace(/&nbsp;/g, ' ')
       .replace(/&mdash;/g, '—')
       .replace(/&ndash;/g, '–')

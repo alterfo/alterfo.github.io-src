@@ -66,6 +66,7 @@ export function usePianoAudio() {
       throw err
     }
     return new Promise((resolve, reject) => {
+      if (_disposed) { reject(new Error('disposed')); return }
       _sampler = new T.Sampler({
         urls: {
           A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
