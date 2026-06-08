@@ -1,7 +1,9 @@
 // ── VexFlow renderer for Piano teacher ────────────────────────────────────────
 // renderMeasure / renderPhrase are browser-only (VexFlow needs a DOM).
 // Pure helpers (midiToVexKey, midiToStaveLine, scoreDurationToVex) are tested.
-import { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } from 'vexflow'
+import { Renderer, Stave, StaveNote, StaveConnector, GhostNote, Voice, Formatter, Accidental } from 'vexflow'
+
+const BASS_STAVE_GAP = 65  // px from treble stave Y to bass stave Y in grand staff
 
 // ── Pure helpers (testable) ───────────────────────────────────────────────────
 
@@ -41,10 +43,10 @@ export function scoreDurationToVex(dur) {
 
 // ── Private render helpers ────────────────────────────────────────────────────
 
-function buildStaveNote(note, style) {
+function buildStaveNote(note, style, clef = 'treble') {
   const midiNums = Array.isArray(note.midi) ? note.midi : [note.midi]
   const keys = midiNums.map(midiToVexKey)
-  const sn = new StaveNote({ keys, duration: scoreDurationToVex(note.duration), clef: 'treble' })
+  const sn = new StaveNote({ keys, duration: scoreDurationToVex(note.duration), clef })
 
   midiNums.forEach((m, i) => {
     if (hasAccidental(m)) sn.addModifier(new Accidental('#'), i)
@@ -73,6 +75,123 @@ function drawGhostNotes(svgEl, stave, currentNoteX, pressedNotes) {
   const ns = 'http://www.w3.org/2000/svg'
   pressedNotes.forEach(midi => {
     const line = midiToStaveLine(midi)
+    const y = stave.getYForLine(line)
+    const circle = document.createElementNS(ns, 'circle')
+    circle.setAttribute('cx', currentNoteX)
+    circle.setAttribute('cy', y)
+    circle.setAttribute('r', 5.5)
+    circle.setAttribute('fill', 'rgba(25,118,210,0.35)')
+    circle.setAttribute('stroke', 'rgba(25,118,210,0.7)')
+    circle.setAttribute('stroke-width', '1.5')
+    svgEl.appendChild(circle)
+  })
+}
+
+// MIDI → bass clef staff line number for VexFlow's getYForLine()
+// Line 0 = top line (A3), line 4 = bottom line (G2); fractional = space.
+// Bass clef lines from top: A3(57), F3(53), D3(50), B2(47), G2(43)
+export function midiToBassStaveLine(midi) {
+  const pc = midi % 12
+  const octave = Math.floor(midi / 12) - 1
+  const diatonic = PITCH_TO_DIATONIC[pc]
+  const absPos = octave * 7 + diatonic
+  // G2 (midi 43): octave=2, diatonic=4, absPos=18 → bottom line = 4
+  const G2_ABS = 18
+  return 4 - (absPos - G2_ABS) * 0.5
+}
+
+// Render one measure for grand staff — called by renderPhrase when grandStaff=true.
+// Returns { trebleStave, bassStave, trebleStaveNotes, bassStaveNotes }
+function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
+  const {
+    width,
+    showClef = false,
+    showTime = false,
+    timeSignature = [4, 4],
+    cursor = {},
+    isCurrent = false,
+  } = options
+  const { noteIdx = -1, lookahead = 2, wrongNoteIdx = -1, pressedNotes = new Set() } = cursor
+
+  const yBass = yTreble + BASS_STAVE_GAP
+
+  const trebleStave = new Stave(x, yTreble, width)
+  const bassStave   = new Stave(x, yBass,   width)
+  if (showClef) {
+    trebleStave.addClef('treble')
+    bassStave.addClef('bass')
+  }
+  if (showTime && timeSignature) {
+    const tsSig = `${timeSignature[0]}/${timeSignature[1]}`
+    trebleStave.addTimeSignature(tsSig)
+    bassStave.addTimeSignature(tsSig)
+  }
+  trebleStave.setContext(ctx).draw()
+  bassStave.setContext(ctx).draw()
+
+  if (showClef) {
+    new StaveConnector(trebleStave, bassStave)
+      .setType(StaveConnector.type.BRACE)
+      .setContext(ctx).draw()
+    new StaveConnector(trebleStave, bassStave)
+      .setType(StaveConnector.type.SINGLE_LEFT)
+      .setContext(ctx).draw()
+  }
+
+  const rightNotes = measure.notes.filter(n => n.hand !== 'left')
+  const leftNotes  = measure.notes.filter(n => n.hand === 'left')
+
+  const trebleStaveNotes = rightNotes.map((note, i) =>
+    buildStaveNote(note, isCurrent ? noteStyle(i, noteIdx, lookahead, wrongNoteIdx) : null, 'treble')
+  )
+
+  // If no left-hand notes, pad bass voice with a whole-measure ghost note so VexFlow doesn't throw
+  const bassStaveNotes = leftNotes.length > 0
+    ? leftNotes.map((note, i) =>
+        buildStaveNote(note, isCurrent ? noteStyle(i, noteIdx, lookahead, wrongNoteIdx) : null, 'bass')
+      )
+    : [new GhostNote({ duration: timeSignature[1] === 8 ? '8' : 'w' })]
+
+  const trebleVoice = new Voice({ numBeats: timeSignature[0], beatValue: timeSignature[1] })
+  trebleVoice.setMode(Voice.Mode.SOFT)
+  trebleVoice.addTickables(trebleStaveNotes)
+
+  const bassVoice = new Voice({ numBeats: timeSignature[0], beatValue: timeSignature[1] })
+  bassVoice.setMode(Voice.Mode.SOFT)
+  bassVoice.addTickables(bassStaveNotes)
+
+  new Formatter()
+    .joinVoices([trebleVoice])
+    .joinVoices([bassVoice])
+    .format([trebleVoice, bassVoice], width - 30)
+
+  trebleVoice.draw(ctx, trebleStave)
+  bassVoice.draw(ctx, bassStave)
+
+  // Ghost notes: treble for midi >= 60, bass for midi < 60
+  if (isCurrent && pressedNotes.size > 0 && noteIdx >= 0) {
+    const treblePressed = new Set([...pressedNotes].filter(m => m >= 60))
+    const bassPressed   = new Set([...pressedNotes].filter(m => m < 60))
+    const currentTrebleNote = trebleStaveNotes[noteIdx]
+    const currentBassNote   = bassStaveNotes[noteIdx]
+    if (treblePressed.size > 0 && currentTrebleNote && noteIdx < trebleStaveNotes.length) {
+      drawGhostNotes(svgEl, trebleStave, currentTrebleNote.getAbsoluteX(), treblePressed)
+    }
+    if (bassPressed.size > 0 && currentBassNote && noteIdx < bassStaveNotes.length) {
+      // Bass ghost notes use bass stave line positions
+      drawGhostNotesBass(svgEl, bassStave, currentBassNote.getAbsoluteX(), bassPressed)
+    }
+  }
+
+  return { trebleStave, bassStave, trebleStaveNotes, bassStaveNotes }
+}
+
+// Draw ghost note heads for pressed MIDI notes on bass stave.
+function drawGhostNotesBass(svgEl, stave, currentNoteX, pressedNotes) {
+  if (!svgEl || !pressedNotes || pressedNotes.size === 0) return
+  const ns = 'http://www.w3.org/2000/svg'
+  pressedNotes.forEach(midi => {
+    const line = midiToBassStaveLine(midi)
     const y = stave.getYForLine(line)
     const circle = document.createElementNS(ns, 'circle')
     circle.setAttribute('cx', currentNoteX)
