@@ -1,6 +1,24 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores, DURATION_BEATS } from './score.js'
+import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores, DURATION_BEATS, midiToNoteName } from './score.js'
+
+describe('midiToNoteName', () => {
+  it('MIDI 60 = C4 (middle C)', () => {
+    assert.equal(midiToNoteName(60), 'C4')
+  })
+
+  it('MIDI 69 = A4 (concert A, 440 Hz)', () => {
+    assert.equal(midiToNoteName(69), 'A4')
+  })
+
+  it('MIDI 21 = A0 (lowest piano key)', () => {
+    assert.equal(midiToNoteName(21), 'A0')
+  })
+
+  it('MIDI 108 = C8 (highest piano key)', () => {
+    assert.equal(midiToNoteName(108), 'C8')
+  })
+})
 
 describe('getScaleKeys', () => {
   it('C major has 7 keys: C D E F G A B', () => {
