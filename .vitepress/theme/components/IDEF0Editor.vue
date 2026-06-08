@@ -64,6 +64,14 @@ function addBox() {
 function deleteSelectedBox() {
   if (!selectedBox.value) return
   const id = selectedBox.value.id
+  const box = selectedBox.value
+  if (box.childDiagramId) {
+    if (_isDescendantDiagram(currentDiagramId.value, box.childDiagramId)) {
+      navigateTo(getParentId(box.childDiagramId) ?? project.rootId ?? 'A0')
+    }
+    _removeSubtree(box.childDiagramId)
+    box.childDiagramId = null
+  }
   currentDiagram.value.arrows = currentDiagram.value.arrows.filter(
     a => a.sourceBoxId !== id && a.targetBoxId !== id
   )
