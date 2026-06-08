@@ -35,7 +35,7 @@ export function usePianoAudio() {
     if (_synth) return
     const T = await _ensureTone()
     await T.start()
-    const dest = await _buildChain(T)
+    const dest = _chain ? _chain[0] : await _buildChain(T)
     _synth = new T.PolySynth(T.Synth, {
       oscillator: { type: 'triangle8' },
       envelope: { attack: 0.005, decay: 0.4, sustain: 0.15, release: 1.5 },
@@ -60,7 +60,7 @@ export function usePianoAudio() {
           A5: 'A5.mp3', C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
           C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3', A7: 'A7.mp3', C8: 'C8.mp3',
         },
-        baseUrl: 'https://tonejs.github.io/audio/salamander/',
+        baseUrl: '/audio/salamander/',
         onload: () => {
           samplerReady.value = true
           samplerLoading.value = false

@@ -28,6 +28,11 @@ const { status: midiStatus, deviceName, pressedNotes, onNoteOn, onNoteOff, init:
 // Audio
 // ─────────────────────────────────────────────────────────────
 const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, dispose: disposeAudio } = usePianoAudio()
+const samplerError = ref(false)
+async function handleLoadSampler() {
+  samplerError.value = false
+  try { await loadSampler() } catch { samplerError.value = true }
+}
 onNoteOn((midi, vel) => playNote(midi, vel))
 onNoteOff(midi => releaseNote(midi))
 
@@ -377,8 +382,8 @@ onUnmounted(() => {
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
       </button>
 
-      <button @click="loadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn">
-        {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : 'HD звук' }}
+      <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn">
+        {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
       </button>
 
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
