@@ -176,12 +176,13 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - Interactive MIDI teacher at `/piano`: Web MIDI API (no polyfill, native), VexFlow 5 via npm (no CDN)
 - Modules in `.vitepress/theme/components/Piano/`:
   - `midi.js` — `useMidi()` composable: device list, reactive pressed-notes Set, noteOn/noteOff
-  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet in G, Ode to Joy, Rachmaninoff Sym. 2 Adagio), `getScaleKeys()`, `getActiveKey()`; all measures must sum to `timeSignature[0]` beats (validated by beat-sum test in `score.test.mjs`)
-  - `trainer.js` — `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` dispatchers; L1 repeats measure, L2 repeats phrase
+  - `audio.js` — `usePianoAudio()` composable: Tone.js PolySynth (triangle8) + optional Salamander HD sampler; EQ3→Compressor→Reverb→Limiter chain; `playNote(midi, vel)`, `releaseNote(midi)`, `loadSampler()`, `dispose()`
+  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet in G, Ode to Joy, Rachmaninoff Prelude in D major Op. 23 No. 4), `getScaleKeys()`, `getActiveKey()`; all measures must sum to `timeSignature[0]` beats (validated by beat-sum test in `score.test.mjs`)
+  - `trainer.js` — `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` dispatchers; L1 repeats measure, L2 repeats phrase; `triggerWrong()` calls `repeatSection()` for both levels and syncs all three cursor refs (phraseIdx, measureIdx, noteIdx)
   - `renderer.js` — VexFlow wrapper: `renderPhrase()`, current-note highlight, look-ahead (30% opacity), wrong-note flash (400 ms red overlay)
   - `keyboard.js` — SVG 88-key piano (A0–C8), `generateKeyRects()`, `keyColor()`
   - `db.js` — IndexedDB database `piano` / store `progress`, session stats (accuracy %, notesPlayed, longestStreak), debounced save 300 ms
-- Full UI: topbar (score dropdown, level toggle, tempo slider, hand toggle), VexFlow stave, keyboard strip, metronome (4 beat dots), status bar (measure/phrase, accuracy, streak)
+- Full UI: topbar (score dropdown, level toggle, tempo slider, hand toggle, HD audio toggle), VexFlow stave, keyboard strip, metronome (4 beat dots), status bar (measure/phrase, accuracy, streak)
 - Piano.vue registered as `defineAsyncComponent` — VexFlow only loads on `/piano`, not bundled in shared theme chunk
 - VexFlow isolated in its own build chunk (`~677 KB gzip`); Piano component itself ~7 KB gzip
 - Firefox note: Web MIDI API requires `dom.webmidi.enabled` flag or WebMIDIAPI shim; Safari unsupported (banner shown)
