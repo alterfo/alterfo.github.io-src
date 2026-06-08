@@ -165,7 +165,7 @@ function advanceNote(heldMs = Infinity) {
   const result = checkNote(_state, pressedNotes.value, heldMs, tempoFactor.value)
   if (result === 'waiting') return
   if (result === 'wrong') {
-    wrongCount.value = _state.stats.wrong
+    triggerWrong()
     return
   }
 

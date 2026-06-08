@@ -139,11 +139,16 @@ timbre_hue, timbre_sat, timbre_weight, _p3, _p4, _p5`. JS writer = `_drawArr` in
   /tmp/test_fft`. New DSP descriptors are pure functions of the magnitude spectrum →
   unit-testable with synthetic spectra (the primary automated test surface).
 - **JS tests** (no npm; plain `node --test`):
-  `node --test web/timbre_color.test.mjs` and `node --test web/nova_project.test.mjs`.
+  `node --test web/timbre_color.test.mjs`, `node --test web/nova_project.test.mjs`,
+  and `node --test web/format_time.test.mjs`.
   `.js` modules load as ESM via Node syntax detection.
 - **WGSL / visual**: no test harness (vanilla JS + WASM, no naga/tint in env, WebGPU
   not runnable in CI). Verified by proxy (build clean, syntax/UBO-layout consistency,
   JS mirror tests) + manual visual check in Chrome 113+.
 - Maintain `AudioFrame` ABI back-compat by appending fields only. Keep per-particle GPU
   cost flat (~4 trig ops) and per-frame CPU colour cost O(anchors).
+- **Shader cache-busting**: `particles.js`, `render.js`, `feedback.js`, and `rd.js` each
+  declare `const _SHADER_VER = '<date>'` appended as `?v=` to every `fetch('./shaders/*.wgsl')`
+  call. **Bump `_SHADER_VER` in all four files whenever any WGSL shader changes** — missing
+  one causes production browsers to serve stale shaders and silently fall back to Fluid mode.
 - Plan files live in `docs/plans/` (git-ignored, local only).
