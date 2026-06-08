@@ -152,6 +152,32 @@
     }
     #bpm-badge.visible { opacity: 1; }
 
+    /* ---- progress bar ---- */
+    #progress {
+      width: 200px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+    }
+    #progress-fill {
+      height: 100%;
+      background: #8b00ff;
+      border-radius: 3px;
+      width: 0%;
+      pointer-events: none;
+      transition: background 0.15s;
+    }
+    #progress:hover #progress-fill { background: #00ffcc; }
+    #time-label {
+      font-size: 0.65rem;
+      color: #888;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+
     /* ---- loop active state ---- */
     #btn-loop.active { border-color: #00ffcc; color: #00ffcc; }
 
@@ -295,6 +321,8 @@
       <button class="ctrl-btn" id="btn-prev" title="Previous track" style="display:none">⏮</button>
       <button class="ctrl-btn" id="btn-play" title="Play / Pause">▶</button>
       <button class="ctrl-btn" id="btn-next" title="Next track" style="display:none">⏭</button>
+      <div id="progress" title="Seek"><div id="progress-fill"></div></div>
+      <span id="time-label">0:00 / 0:00</span>
       <button class="ctrl-btn" id="btn-loop" title="Loop track">🔁</button>
       <button class="ctrl-btn" id="btn-rec"  title="Record">⏺</button>
     </div>
@@ -343,7 +371,9 @@
       initAudio, loadFile as audioLoadFile, connectStream,
       play, pause, resume, isPlaying, getAudioFrame,
       setLoop, isLoop, setOnTrackEnded,
+      getCurrentTime, getDuration, seekTo,
     } from './audio.js';
+    import { formatTime } from './format_time.js';
     import { initRenderer, startLoop, addFrameTick } from './renderer.js';
     import { initParticlePipeline, setParticleParams,
              setNovaParams, getNovaParams } from './particles.js';
@@ -624,7 +654,9 @@
         console.error('[renderer] WebGPU init failed:', e.message);
       }
 
-      /* ---- BPM badge updater (rAF loop) ---- */
+      /* ---- BPM badge + progress bar updater (rAF loop) ---- */
+      const progressFill = document.getElementById('progress-fill');
+      const timeLabel    = document.getElementById('time-label');
       let logCounter = 0;
       let _smoothBpm = 0;
       let _lastShownBpm = 0;
@@ -653,6 +685,13 @@
               'onset',  frame.onset.map(v => v.toFixed(0)).join('/'));
           }
         }
+        // Progress bar update
+        const dur = getDuration();
+        if (dur > 0) {
+          const cur = Math.min(Math.max(getCurrentTime(), 0), dur);
+          progressFill.style.width = (cur / dur * 100).toFixed(2) + '%';
+          timeLabel.textContent = formatTime(cur) + ' / ' + formatTime(dur);
+        }
         requestAnimationFrame(bpmTick);
       }
       requestAnimationFrame(bpmTick);
@@ -661,6 +700,16 @@
       document.querySelectorAll('.mode-btn').forEach(btn =>
         btn.addEventListener('click', () => setMode(btn.dataset.mode))
       );
+
+      /* ---- progress bar seek ---- */
+      const progressBar = document.getElementById('progress');
+      progressBar.addEventListener('click', e => {
+        const dur = getDuration();
+        if (dur === 0) return;
+        const rect = progressBar.getBoundingClientRect();
+        const fraction = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+        seekTo(fraction * dur);
+      });
 
       /* ---- file / folder loading + playlist ---- */
       const AUDIO_RE = /\.(mp3|flac|wav|ogg|oga|aac|m4a|opus|weba|webm)$/i;
