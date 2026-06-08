@@ -6,6 +6,8 @@
 
 import { WIDTH, HEIGHT } from './renderer.js';
 
+const _SHADER_VER = '20260608';
+
 const DECAY_NORMAL  = 0.96;   // long beam trails (stadium look)
 const DECAY_ON_BEAT = 0.78;   // moderate flush on beat — clears old trails without full reset
 
@@ -16,7 +18,7 @@ export function setFeedbackParams({ decayNormal } = {}) {
 }
 
 export async function initFeedbackPipeline(device, texMgr, passMgr) {
-    const fbSrc = await fetch('./shaders/feedback.wgsl').then(r => r.text());
+    const fbSrc = await fetch(`./shaders/feedback.wgsl?v=${_SHADER_VER}`).then(r => r.text());
     const fbMod = device.createShaderModule({ label: 'feedback', code: fbSrc });
 
     const wgX = Math.ceil(WIDTH  / 8);

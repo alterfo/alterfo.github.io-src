@@ -9,6 +9,8 @@
 import { SIM_WIDTH, SIM_HEIGHT, getRecommendedParticleCount, getGpuTier } from './renderer.js';
 import { createTimbreSmoother } from './timbre_color.js';
 
+const _SHADER_VER = '20260608';
+
 // Set at initParticlePipeline() time based on detected GPU tier.
 // Exported as let so callers (record.js etc.) can read the live value.
 export let PARTICLE_COUNT = 500_000;
@@ -90,7 +92,7 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     // UPDATE PIPELINE (compute)
     // =========================================================================
-    const updateSrc = await fetch('./shaders/particles_update.wgsl').then(r => r.text());
+    const updateSrc = await fetch(`./shaders/particles_update.wgsl?v=${_SHADER_VER}`).then(r => r.text());
     const updateMod = device.createShaderModule({ label: 'particles_update', code: updateSrc });
 
     const updateUbo = device.createBuffer({
@@ -126,7 +128,7 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
     // =========================================================================
     // DRAW PIPELINE (render → particleDraw rgba16float, additive blend)
     // =========================================================================
-    const drawSrc = await fetch('./shaders/particles_draw.wgsl').then(r => r.text());
+    const drawSrc = await fetch(`./shaders/particles_draw.wgsl?v=${_SHADER_VER}`).then(r => r.text());
     const drawMod = device.createShaderModule({ label: 'particles_draw', code: drawSrc });
 
     const drawUbo = device.createBuffer({

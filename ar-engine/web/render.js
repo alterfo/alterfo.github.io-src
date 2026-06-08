@@ -7,6 +7,8 @@
 
 import { WIDTH, HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT } from './renderer.js';
 
+const _SHADER_VER = '20260608';
+
 // UBO layout (96 bytes = 24 × f32/u32):
 //   [0] beat_pulse  [1] hue_shift  [2] blend_mode  [3] width
 //   [4] height      [5..7] padding
@@ -114,7 +116,7 @@ export function runRenderToTarget(encoder, targetView, width, height) {
 export async function initRenderPipeline(device, texMgr, passMgr) {
     _device = device;
 
-    const src = await fetch('./shaders/render.wgsl').then(r => r.text());
+    const src = await fetch(`./shaders/render.wgsl?v=${_SHADER_VER}`).then(r => r.text());
     const module = device.createShaderModule({ label: 'render', code: src });
 
     _uboBuf = device.createBuffer({
