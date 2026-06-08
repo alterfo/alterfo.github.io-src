@@ -6,35 +6,35 @@ function makeMidiMsg(cmd, note, velocity) {
   return { data: [cmd, note, velocity] }
 }
 
-describe('useMidi noteVelocities', () => {
-  it('stores velocity on note-on', () => {
-    const { noteVelocities, _onMidiMessage } = useMidi()
+describe('useMidi pressedNotes', () => {
+  it('adds note to pressedNotes on note-on', () => {
+    const { pressedNotes, _onMidiMessage } = useMidi()
     _onMidiMessage(makeMidiMsg(0x90, 60, 80))
-    assert.equal(noteVelocities.value.get(60), 80)
+    assert.ok(pressedNotes.value.has(60))
   })
 
-  it('removes velocity on note-off (0x80)', () => {
-    const { noteVelocities, _onMidiMessage } = useMidi()
+  it('removes note from pressedNotes on note-off (0x80)', () => {
+    const { pressedNotes, _onMidiMessage } = useMidi()
     _onMidiMessage(makeMidiMsg(0x90, 60, 80))
     _onMidiMessage(makeMidiMsg(0x80, 60, 0))
-    assert.equal(noteVelocities.value.has(60), false)
+    assert.equal(pressedNotes.value.has(60), false)
   })
 
-  it('removes velocity on note-on with velocity=0', () => {
-    const { noteVelocities, _onMidiMessage } = useMidi()
+  it('removes note from pressedNotes on note-on with velocity=0', () => {
+    const { pressedNotes, _onMidiMessage } = useMidi()
     _onMidiMessage(makeMidiMsg(0x90, 60, 80))
     _onMidiMessage(makeMidiMsg(0x90, 60, 0))
-    assert.equal(noteVelocities.value.has(60), false)
+    assert.equal(pressedNotes.value.has(60), false)
   })
 
   it('tracks multiple simultaneous notes', () => {
-    const { noteVelocities, _onMidiMessage } = useMidi()
+    const { pressedNotes, _onMidiMessage } = useMidi()
     _onMidiMessage(makeMidiMsg(0x90, 60, 100))
     _onMidiMessage(makeMidiMsg(0x90, 64, 90))
     _onMidiMessage(makeMidiMsg(0x90, 67, 80))
-    assert.equal(noteVelocities.value.get(60), 100)
-    assert.equal(noteVelocities.value.get(64), 90)
-    assert.equal(noteVelocities.value.get(67), 80)
+    assert.ok(pressedNotes.value.has(60))
+    assert.ok(pressedNotes.value.has(64))
+    assert.ok(pressedNotes.value.has(67))
   })
 })
 
