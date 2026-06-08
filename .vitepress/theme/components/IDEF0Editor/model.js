@@ -142,6 +142,26 @@ function removeBox(boxId, diagramId = null) {
   d.boundaryArrows = d.boundaryArrows.filter(a => a.boxId !== boxId)
 }
 
+function _isDescendant(candidateId, rootId) {
+  const d = project.diagrams[candidateId]
+  if (!d) return false
+  if (d.parentId === rootId) return true
+  return d.parentId ? _isDescendant(d.parentId, rootId) : false
+}
+
+function removeDecomposition(boxId, diagramId = null) {
+  const d = diagramId ? project.diagrams[diagramId] : currentDiagram.value
+  if (!d) return
+  const box = d.boxes.find(b => b.id === boxId)
+  if (!box?.childDiagramId) return
+  const childId = box.childDiagramId
+  if (currentDiagramId.value === childId || _isDescendant(currentDiagramId.value, childId)) {
+    currentDiagramId.value = d.id
+  }
+  _removeDiagramSubtree(childId)
+  box.childDiagramId = null
+}
+
 function getBox(boxId, diagramId = null) {
   const d = diagramId ? project.diagrams[diagramId] : currentDiagram.value
   if (!d) return null
@@ -245,6 +265,7 @@ export {
   // Box
   addBox,
   removeBox,
+  removeDecomposition,
   getBox,
   updateBox,
   // Arrow
