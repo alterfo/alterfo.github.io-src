@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMidi } from './Piano/midi.js'
-import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS } from './Piano/score.js'
+import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
@@ -50,6 +50,10 @@ const accuracy = computed(() => {
   const total = correctCount.value + wrongCount.value
   return total === 0 ? '—' : Math.round((correctCount.value / total) * 100) + '%'
 })
+
+const pressedNoteNames = computed(() =>
+  [...pressedNotes.value].sort((a, b) => a - b).map(midiToNoteName).join('  ')
+)
 
 // Position label (e.g. "Фраза 1 · Такт 2")
 const posLabel = computed(() => {
@@ -396,6 +400,8 @@ onUnmounted(() => {
         <span class="stat-val">{{ streak }}</span> серия
       </span>
 
+      <span v-if="pressedNoteNames" class="status-notes">{{ pressedNoteNames }}</span>
+
       <button class="repeat-btn" @click="doRepeat" title="Повторить текущий такт">↺ Повтор</button>
     </div>
 
@@ -616,6 +622,13 @@ onUnmounted(() => {
 
 .stat-item { color: #666; }
 .stat-val { color: #aaa; font-weight: 600; }
+
+.status-notes {
+  font-family: monospace;
+  color: #4a9eff;
+  min-width: 80px;
+  font-size: 0.85rem;
+}
 
 .repeat-btn {
   margin-left: auto;
