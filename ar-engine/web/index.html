@@ -369,7 +369,7 @@
   <script type="module">
     import {
       initAudio, loadFile as audioLoadFile, connectStream,
-      play, pause, resume, isPlaying, getAudioFrame,
+      play, pause, resume, isPlaying, isEnded, getAudioFrame,
       setLoop, isLoop, setOnTrackEnded,
       getCurrentTime, getDuration, seekTo,
     } from './audio.js';
@@ -849,6 +849,9 @@
         if (isPlaying()) {
           pause();
           btnPlay.textContent = '▶';
+        } else if (isEnded()) {
+          play(0);
+          btnPlay.textContent = '⏸';
         } else {
           resume();
           btnPlay.textContent = '⏸';
