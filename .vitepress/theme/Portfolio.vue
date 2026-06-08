@@ -69,6 +69,23 @@
                 <rect x="34" y="68" width="120" height="4" rx="2" fill="rgba(255,255,255,0.18)"/>
                 <text x="166" y="88" text-anchor="end" font-size="8" fill="rgba(255,100,136,0.6)" font-family="monospace">🔒 E2EE</text>
               </svg>
+              <!-- Piano -->
+              <svg v-else-if="p.id === 'piano'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <line v-for="y in [18,27,36,45,54]" :key="y" :x1="10" :y1="y" :x2="190" :y2="y" stroke="rgba(255,170,34,0.2)" stroke-width="1"/>
+                <rect x="10" y="60" width="14" height="34" rx="1" fill="rgba(255,255,255,0.85)" stroke="rgba(255,170,34,0.4)" stroke-width="0.5"/>
+                <rect x="26" y="60" width="14" height="34" rx="1" fill="rgba(255,255,255,0.85)" stroke="rgba(255,170,34,0.4)" stroke-width="0.5"/>
+                <rect x="42" y="60" width="14" height="34" rx="1" fill="rgba(74,158,255,0.85)" stroke="rgba(74,158,255,0.6)" stroke-width="0.5"/>
+                <rect x="58" y="60" width="14" height="34" rx="1" fill="rgba(255,255,255,0.85)" stroke="rgba(255,170,34,0.4)" stroke-width="0.5"/>
+                <rect x="74" y="60" width="14" height="34" rx="1" fill="rgba(200,200,200,0.4)" stroke="rgba(255,170,34,0.2)" stroke-width="0.5"/>
+                <rect x="90" y="60" width="14" height="34" rx="1" fill="rgba(255,255,255,0.85)" stroke="rgba(255,170,34,0.4)" stroke-width="0.5"/>
+                <rect x="106" y="60" width="14" height="34" rx="1" fill="rgba(255,255,255,0.85)" stroke="rgba(255,170,34,0.4)" stroke-width="0.5"/>
+                <rect x="32" y="60" width="9" height="21" rx="1" fill="#222" stroke="#111" stroke-width="0.5"/>
+                <rect x="64" y="60" width="9" height="21" rx="1" fill="#222" stroke="#111" stroke-width="0.5"/>
+                <rect x="97" y="60" width="9" height="21" rx="1" fill="#222" stroke="#111" stroke-width="0.5"/>
+                <text x="49" y="52" text-anchor="middle" fill="rgba(74,158,255,0.9)" font-size="8" font-family="monospace">C4</text>
+                <circle cx="49" cy="36" r="3" fill="rgba(255,170,34,0.7)"/>
+                <text x="140" y="80" text-anchor="middle" fill="rgba(255,170,34,0.5)" font-size="9" font-family="monospace">MIDI</text>
+              </svg>
               <!-- GitHub -->
               <svg v-else-if="p.id === 'github'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
                 <text x="10" y="16" font-size="9" fill="rgba(255,153,26,0.5)" font-family="monospace">$ git log --oneline</text>
@@ -204,6 +221,9 @@ const projects = [
   { id: 'journal', title: 'Дневник', href: '/journal',
     desc: 'Зашифрованный локальный дневник с целью 500 слов в день. E2EE, IndexedDB, P2P-синхронизация.',
     tag: 'Tool', color: '#ff6688', external: false },
+  { id: 'piano',   title: 'Piano Teacher', href: '/piano',
+    desc: 'MIDI-тренажёр: учи пьесы нота за нотой. Web MIDI API, VexFlow, IndexedDB.',
+    tag: 'Tool', color: '#ffaa22', external: false },
   { id: 'github',  title: 'GitHub', href: 'https://github.com/alterfo',
     desc: 'Open source проекты, эксперименты, инструменты.',
     tag: 'Profile', color: '#ff9933', external: true },
