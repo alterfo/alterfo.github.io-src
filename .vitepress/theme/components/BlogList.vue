@@ -90,6 +90,7 @@ const groupedPosts = computed(() => {
 }
 
 .post-title {
+  display: block;
   font-size: 1.1rem;
   font-weight: 600;
   color: rgba(230, 220, 255, 0.9);
