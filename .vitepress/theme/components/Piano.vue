@@ -90,11 +90,24 @@ function doCheckNote() {
     wrongNoteIdx.value = trainer.value.noteIdx
     stopCheckLoop()
     renderStave()
-    setTimeout(() => { wrongNoteIdx.value = -1; renderStave() }, 400)
+    setTimeout(() => {
+      wrongNoteIdx.value = -1
+      renderStave()
+      // Restart loop if the expected notes are still held after the flash
+      if (trainer.value && !trainer.value.complete) {
+        const curNote = getCurrentNote(trainer.value)
+        if (curNote) {
+          const expected = Array.isArray(curNote.midi) ? curNote.midi : [curNote.midi]
+          if (expected.every(m => pressedNotes.value.has(m))) {
+            noteStartTime = Date.now()
+            startCheckLoop()
+          }
+        }
+      }
+    }, 400)
     return
   }
   if (result === 'waiting') {
-    renderStave()
     return
   }
   // note-correct | measure-complete | phrase-complete | complete
@@ -128,20 +141,24 @@ let audioCtx = null
 
 const beatsPerMeasure = computed(() => currentScore.value.timeSignature?.[0] ?? 4)
 
+function _playMetronomeTick(isDownbeat) {
+  if (!audioCtx) return
+  const osc = audioCtx.createOscillator()
+  const gain = audioCtx.createGain()
+  osc.connect(gain); gain.connect(audioCtx.destination)
+  osc.frequency.value = isDownbeat ? 1000 : 700
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime)
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.07)
+  osc.start(); osc.stop(audioCtx.currentTime + 0.07)
+}
+
 function startMetronome() {
   const msPerBeat = 60000 / (currentScore.value.tempo * tempoFactor.value)
   beatIdx.value = 0
+  _playMetronomeTick(true)
   metronomeIntervalId = setInterval(() => {
     beatIdx.value = (beatIdx.value + 1) % beatsPerMeasure.value
-    if (audioCtx) {
-      const osc = audioCtx.createOscillator()
-      const gain = audioCtx.createGain()
-      osc.connect(gain); gain.connect(audioCtx.destination)
-      osc.frequency.value = beatIdx.value === 0 ? 1000 : 700
-      gain.gain.setValueAtTime(0.12, audioCtx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.07)
-      osc.start(); osc.stop(audioCtx.currentTime + 0.07)
-    }
+    _playMetronomeTick(beatIdx.value === 0)
   }, msPerBeat)
 }
 
