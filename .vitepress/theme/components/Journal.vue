@@ -448,7 +448,7 @@ onUnmounted(() => {
             <textarea
               v-model="todayText"
               class="journal-textarea"
-              placeholder="Напишите запись на сегодня…"
+              placeholder="Автор, жги!"
               @input="onTextInput"
               @keydown="onTextKeydown"
               spellcheck="true"
