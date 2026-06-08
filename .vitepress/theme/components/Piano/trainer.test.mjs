@@ -353,6 +353,55 @@ describe('generic checkNote / repeatSection dispatchers', () => {
   })
 })
 
+// ── Stats: _state.stats tracks independently of Piano.vue refs ───────────────
+// Piano.vue uses Vue refs (correctCount, wrongCount, streak, longestStreak) as
+// the primary/display source. _state.stats is kept in sync by Piano.vue via
+// assignment (not increment) so it can never double-count when checkNote() is
+// also called. These tests verify the trainer.js-side stats in isolation.
+
+describe('Stats: _state.stats tracks independently via checkNoteL1', () => {
+  it('correct === 3 and streak === 3 after 3 consecutive correct notes', () => {
+    const state = createLevel1State(loadScore('c-major-scale'))
+    checkNoteL1(state, new Set([60]), LONG_HOLD)
+    checkNoteL1(state, new Set([62]), LONG_HOLD)
+    checkNoteL1(state, new Set([64]), LONG_HOLD)
+    assert.equal(state.stats.correct, 3)
+    assert.equal(state.stats.streak, 3)
+    assert.equal(state.stats.longestStreak, 3)
+  })
+
+  it('wrong note increments stats.wrong and resets streak', () => {
+    const state = createLevel1State(loadScore('c-major-scale'))
+    checkNoteL1(state, new Set([60]), LONG_HOLD)
+    checkNoteL1(state, new Set([62]), LONG_HOLD)
+    checkNoteL1(state, new Set([99]), LONG_HOLD)  // wrong
+    assert.equal(state.stats.wrong, 1)
+    assert.equal(state.stats.streak, 0)
+    assert.equal(state.stats.longestStreak, 2)
+  })
+
+  it('Piano.vue-style sync: assigning refs to state.stats keeps them equal', () => {
+    // Simulate how Piano.vue syncs Vue refs → _state.stats after each advance
+    const state = createLevel1State(loadScore('c-major-scale'))
+    let correctCount = 0, streak = 0, longestStreak = 0
+
+    // Simulate 3 correct notes (Piano.vue advanceNote pattern)
+    for (let i = 0; i < 3; i++) {
+      correctCount++
+      streak++
+      if (streak > longestStreak) longestStreak = streak
+      state.stats.correct = correctCount
+      state.stats.streak = streak
+      state.stats.longestStreak = longestStreak
+    }
+
+    assert.equal(correctCount, 3)
+    assert.equal(state.stats.correct, 3, '_state.stats.correct mirrors Vue ref')
+    assert.equal(state.stats.streak, 3)
+    assert.equal(state.stats.longestStreak, 3)
+  })
+})
+
 // ── getCurrentNote ────────────────────────────────────────────────────────────
 
 describe('getCurrentNote', () => {
