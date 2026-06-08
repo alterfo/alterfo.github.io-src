@@ -133,7 +133,39 @@ function decompose() {
     if (!project.childMap[parentId]) project.childMap[parentId] = []
     if (!project.childMap[parentId].includes(childId)) project.childMap[parentId].push(childId)
   }
+  box.childDiagramId = childId
   navigateTo(childId)
+}
+
+function _removeSubtree(diagramId) {
+  for (const childId of (project.childMap[diagramId] ?? [])) {
+    _removeSubtree(childId)
+  }
+  delete project.childMap[diagramId]
+  delete project.diagrams[diagramId]
+  for (const [pid, children] of Object.entries(project.childMap)) {
+    const i = children.indexOf(diagramId)
+    if (i !== -1) children.splice(i, 1)
+  }
+}
+
+function _isDescendantDiagram(candidateId, rootId) {
+  if (candidateId === rootId) return true
+  const parent = getParentId(candidateId)
+  if (!parent) return false
+  return _isDescendantDiagram(parent, rootId)
+}
+
+function onRemoveDecomposition() {
+  if (!selectedBox.value?.childDiagramId) return
+  const box = selectedBox.value
+  const childId = box.childDiagramId
+  if (_isDescendantDiagram(currentDiagramId.value, childId)) {
+    navigateTo(getParentId(childId) ?? project.rootId ?? 'A0')
+  }
+  _removeSubtree(childId)
+  box.childDiagramId = null
+  schedSave()
 }
 
 const canGoUp = computed(() => {
@@ -909,6 +941,7 @@ onUnmounted(() => {
       <button class="tb-btn" @click="addBox">＋ Function</button>
       <div class="tb-sep"/>
       <button class="tb-btn" @click="decompose" :disabled="!selectedBox">⊕ Decompose</button>
+      <button class="tb-btn tb-btn-danger" @click="onRemoveDecomposition" :disabled="!selectedBox?.childDiagramId" title="Удалить декомпозицию">✕ Декомп.</button>
       <button class="tb-btn" @click="navigateUp" :disabled="!canGoUp">↑ Parent</button>
       <div class="tb-sep"/>
       <span class="tb-diag">{{ currentDiagramId }}</span>
@@ -1140,6 +1173,8 @@ onUnmounted(() => {
 .tb-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 .tb-btn-doc { background: #f0fdf4; border-color: #86efac; color: #166534; }
 .tb-btn-doc:hover:not(:disabled) { background: #dcfce7; border-color: #4ade80; }
+.tb-btn-danger { background: #fff1f2; border-color: #fca5a5; color: #b91c1c; }
+.tb-btn-danger:hover:not(:disabled) { background: #fee2e2; border-color: #f87171; }
 .tb-sep { width: 1px; height: 22px; background: #e5e7eb; margin: 0 2px; }
 .tb-diag { font-weight: 700; color: #1d4ed8; }
 .tb-title { color: #6b7280; font-size: 12px; }
