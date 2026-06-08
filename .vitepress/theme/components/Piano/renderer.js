@@ -63,7 +63,7 @@ function noteStyle(i, noteIdx, lookahead, wrongNoteIdx) {
   if (i === wrongNoteIdx) return { fillStyle: '#e53935', strokeStyle: '#e53935' }
   if (i === noteIdx) return { fillStyle: '#1976d2', strokeStyle: '#1976d2' }
   if (noteIdx >= 0 && i > noteIdx && i <= noteIdx + lookahead) {
-    return { fillStyle: 'rgba(0,0,0,0.3)', strokeStyle: 'rgba(0,0,0,0.3)' }
+    return { fillStyle: 'rgba(200,200,200,0.25)', strokeStyle: 'rgba(200,200,200,0.25)' }
   }
   return null
 }

@@ -584,14 +584,15 @@ onUnmounted(() => {
 .piano-stave-container :deep(svg) {
   width: 100% !important;
   height: auto !important;
-  color: #ddd;
 }
 
-/* VexFlow uses black strokes by default — invert for dark bg */
-.piano-stave-container :deep(path),
-.piano-stave-container :deep(rect),
-.piano-stave-container :deep(text) {
-  color: #ddd;
+/* VexFlow renders black by default; CSS fill/stroke overrides SVG presentation
+   attributes but NOT inline style="" (used by coloured notes: blue, red).
+   So this rule turns uncoloured notes/lines light without breaking highlights. */
+.piano-stave-container :deep(svg path),
+.piano-stave-container :deep(svg text) {
+  fill: #ddd;
+  stroke: #ddd;
 }
 
 /* ── Complete screen ─────────────────────────────────────────── */
