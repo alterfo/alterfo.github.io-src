@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMidi } from './Piano/midi.js'
+import { usePianoAudio } from './Piano/audio.js'
 import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
@@ -21,7 +22,14 @@ const tempoFactor = ref(1.0)  // 0.5 | 0.75 | 1.0
 // ─────────────────────────────────────────────────────────────
 // MIDI
 // ─────────────────────────────────────────────────────────────
-const { status: midiStatus, deviceName, pressedNotes, init: initMidi, dispose: disposeMidi } = useMidi()
+const { status: midiStatus, deviceName, pressedNotes, onNoteOn, onNoteOff, init: initMidi, dispose: disposeMidi } = useMidi()
+
+// ─────────────────────────────────────────────────────────────
+// Audio
+// ─────────────────────────────────────────────────────────────
+const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, dispose: disposeAudio } = usePianoAudio()
+onNoteOn((midi, vel) => playNote(midi, vel))
+onNoteOff(midi => releaseNote(midi))
 
 const midiLabel = computed(() => {
   if (midiStatus.value === 'unsupported') return 'MIDI: не поддерживается'
@@ -334,6 +342,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   disposeMidi()
+  disposeAudio()
   cancelAnimationFrame(_rafId)
   stopMetronome()
   clearTimeout(_wrongTimer)
@@ -366,6 +375,10 @@ onUnmounted(() => {
       <button :class="['metro-btn', { active: metronomeOn }]" @click="metronomeOn = !metronomeOn" title="Метроном">
         <span v-for="i in currentScore.timeSignature[0]" :key="i"
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
+      </button>
+
+      <button @click="loadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn">
+        {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : 'HD звук' }}
       </button>
 
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
@@ -521,6 +534,20 @@ onUnmounted(() => {
   background: #66aaff;
   transform: scale(1.35);
 }
+
+.tb-btn {
+  background: #252545;
+  color: #aaa;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.tb-btn:hover:not(:disabled) { background: #353565; color: #fff; }
+.tb-btn:disabled { opacity: 0.6; cursor: default; }
 
 .piano-midi-status {
   margin-left: auto;
