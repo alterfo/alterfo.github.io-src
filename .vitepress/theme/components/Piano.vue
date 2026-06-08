@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMidi } from './Piano/midi.js'
 import { usePianoAudio } from './Piano/audio.js'
 import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
-import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection } from './Piano/trainer.js'
+import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection, checkNote } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
 
