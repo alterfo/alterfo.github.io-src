@@ -21,6 +21,17 @@ export default defineConfig({
   title: 'Alterfo',
   description: 'Персональный сайт Олега Сидоркина',
   lang: 'ru-RU',
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('vexflow')) return 'vexflow'
+          },
+        },
+      },
+    },
+  },
   ignoreDeadLinks: [/^\/(reflection|stack-1|stack-2|stack-3)$/],
   srcExclude: [
     'blog/_posts/**',

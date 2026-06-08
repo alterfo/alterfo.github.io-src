@@ -2,9 +2,10 @@
 
 ## Project overview
 
-VitePress-based personal site with two fully client-side apps:
+VitePress-based personal site with three fully client-side apps:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day mechanic, file-based sync)
+- `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 
 ## Key paths
 
@@ -15,6 +16,9 @@ VitePress-based personal site with two fully client-side apps:
 - `.vitepress/theme/components/Journal.vue` — journal root component (`<ClientOnly>`): unlock screen, editor, sync UI
 - `.vitepress/theme/components/Journal/` — journal modules (see below)
 - `journal.md` — page that mounts the journal (`layout: false`)
+- `.vitepress/theme/components/Piano.vue` — piano teacher root component (async/`<ClientOnly>`): topbar, stave, keyboard, metronome
+- `.vitepress/theme/components/Piano/` — piano modules (see below)
+- `piano.md` — page that mounts the piano teacher
 
 ## IDEF0 Editor modules
 
@@ -95,9 +99,29 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - `Journal/vault.test.mjs` — `countWords`, `upsertEntry`, `computeStreak`, `mergeVaults`
 - `Journal/exporter.test.mjs` — encrypt→pack→unpack→decrypt→merge round-trip; tampered ciphertext rejects
 
+## Piano Teacher app
+
+### Piano modules
+
+| File | Purpose |
+|------|---------|
+| `Piano/midi.js` | `useMidi()` composable: `requestMIDIAccess`, reactive `pressedNotes` Set, `deviceName`, `status` |
+| `Piano/score.js` | Score JSON CRUD, built-in pieces, `getScaleKeys(key)`, `getNonScaleKeys()`, `getModulationAt()` |
+| `Piano/trainer.js` | `Level1State` (note-by-note), `Level2State` (measure-by-measure), `checkNote()`, `repeatSection()`, tempo factor |
+| `Piano/renderer.js` | VexFlow wrapper: `renderPhrase(container, phrase, cursor)`, highlight, look-ahead, wrong-note flash |
+| `Piano/keyboard.js` | SVG 88-key piano: `generateKeyRects()`, `highlightScale()`, `highlightPressed()`, `highlightExpected()` |
+| `Piano/db.js` | IndexedDB `piano-progress`: `loadProgress(scoreId)`, `saveProgress(scoreId, state)`, debounce 300 ms |
+
+### Piano bundle notes
+
+- `Piano.vue` is registered as `defineAsyncComponent` — VexFlow loads only on `/piano`
+- VexFlow is isolated via `manualChunks` in `config.mts` → separate `vexflow.[hash].js` chunk (~677 KB gzip)
+- Firefox: Web MIDI requires `dom.webmidi.enabled` flag; Safari: unsupported natively
+
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
+- Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs`
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`
@@ -140,3 +164,19 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - Cross-tab sync via localStorage events
 - Sync v1: encrypted file export/import (.journal files) with LWW merge on import
 - Unit tests for all pure logic (crypto, vault, exporter data layer)
+
+### Piano Teacher app (as of 2026-06-08)
+
+- Interactive MIDI teacher at `/piano`: Web MIDI API (no polyfill, native), VexFlow 5 via npm (no CDN)
+- Modules in `.vitepress/theme/components/Piano/`:
+  - `midi.js` — `useMidi()` composable: device list, reactive pressed-notes Set, noteOn/noteOff
+  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet), `getScaleKeys()`, `getModulationAt()`
+  - `trainer.js` — `Level1State` (note-by-note), `Level2State` (measure-by-measure), tempo factor slider (50/75/100%), `repeatSection()`
+  - `renderer.js` — VexFlow wrapper: `renderPhrase()`, current-note highlight, look-ahead (30% opacity), wrong-note flash (400 ms red overlay)
+  - `keyboard.js` — SVG 88-key piano (A0–C8), `highlightScale()` / `highlightPressed()` / `highlightExpected()`
+  - `db.js` — IndexedDB `piano-progress` store, session stats (accuracy %, notesPlayed, longestStreak), debounced save 300 ms
+- Full UI: topbar (score dropdown, level toggle, tempo slider, hand toggle), VexFlow stave, keyboard strip, metronome (4 beat dots), status bar (measure/phrase, accuracy, streak)
+- Piano.vue registered as `defineAsyncComponent` — VexFlow only loads on `/piano`, not bundled in shared theme chunk
+- VexFlow isolated in its own build chunk (`~677 KB gzip`); Piano component itself ~7 KB gzip
+- Firefox note: Web MIDI API requires `dom.webmidi.enabled` flag or WebMIDIAPI shim; Safari unsupported (banner shown)
+- Unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs`
