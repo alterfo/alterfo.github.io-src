@@ -130,7 +130,12 @@ export function seekTo(seconds) {
     const wasPlaying = _playing;
     _stopSource();
     _startOffset = offset;
-    if (wasPlaying) play(offset);
+    if (wasPlaying) {
+        play(offset);
+    } else {
+        // Reset _startTime so getCurrentTime() returns exactly offset while paused.
+        _startTime = _audioCtx?.currentTime ?? 0;
+    }
 }
 
 // Start playback from offset seconds. Connects AudioWorklet for sample capture.
