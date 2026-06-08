@@ -204,6 +204,12 @@ function drawGhostNotesBass(svgEl, stave, currentNoteX, pressedNotes) {
   })
 }
 
+// ── Grand staff helper ────────────────────────────────────────────────────────
+
+export function hasLeftHand(phrase) {
+  return phrase.measures.some(m => m.notes.some(n => n.hand === 'left'))
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -276,10 +282,12 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
   } = cursor
 
   const ts = score?.timeSignature ?? [4, 4]
+  const grandStaff = hasLeftHand(phrase)
   const measuresPerRow = 4
   const measureWidth = 220
   const firstMeasureExtra = 50   // room for clef
-  const rowHeight = 160
+  const singleRowHeight = 160
+  const rowHeight = grandStaff ? singleRowHeight + BASS_STAVE_GAP + 20 : singleRowHeight
   const totalMeasures = phrase.measures.length
   const totalRows = Math.ceil(totalMeasures / measuresPerRow)
   const totalWidth = firstMeasureExtra + measureWidth * Math.min(totalMeasures, measuresPerRow) + 20
@@ -289,6 +297,7 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
   const renderer = new Renderer(container, Renderer.Backends.SVG)
   renderer.resize(totalWidth, totalHeight)
   const ctx = renderer.getContext()
+  const svgEl = container.querySelector('svg')
 
   phrase.measures.forEach((measure, mIdx) => {
     const row = Math.floor(mIdx / measuresPerRow)
@@ -299,12 +308,24 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
       : 10 + firstMeasureExtra + col * measureWidth
     const y = row * rowHeight + 10
     const staveWidth = isFirstInRow ? measureWidth + firstMeasureExtra : measureWidth
+    const isCurrent = mIdx === measureIdx
+
+    if (grandStaff) {
+      renderGrandMeasure(ctx, svgEl, measure, x, y, {
+        width: staveWidth,
+        showClef: isFirstInRow,
+        showTime: false,
+        timeSignature: ts,
+        cursor: { noteIdx: isCurrent ? noteIdx : -1, lookahead, wrongNoteIdx: isCurrent ? wrongNoteIdx : -1, pressedNotes: isCurrent ? pressedNotes : new Set() },
+        isCurrent,
+      })
+      return
+    }
 
     const stave = new Stave(x, y, staveWidth)
     if (isFirstInRow) stave.addClef('treble')
     stave.setContext(ctx).draw()
 
-    const isCurrent = mIdx === measureIdx
     const staveNotes = measure.notes.map((note, i) =>
       buildStaveNote(
         note,
@@ -321,7 +342,7 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
     // Ghost overlay for current measure's current note
     if (isCurrent && pressedNotes.size > 0 && noteIdx >= 0 && noteIdx < staveNotes.length) {
       const nx = staveNotes[noteIdx].getAbsoluteX()
-      drawGhostNotes(container.querySelector('svg'), stave, nx, pressedNotes)
+      drawGhostNotes(svgEl, stave, nx, pressedNotes)
     }
   })
 }

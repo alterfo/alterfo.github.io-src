@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { midiToVexKey, hasAccidental, midiToStaveLine, scoreDurationToVex } from './renderer.js'
+import { midiToVexKey, hasAccidental, midiToStaveLine, scoreDurationToVex, hasLeftHand, midiToBassStaveLine } from './renderer.js'
 
 // ── midiToVexKey ──────────────────────────────────────────────────────────────
 test('midiToVexKey: C4=60 → c/4', () => assert.equal(midiToVexKey(60), 'c/4'))
@@ -38,6 +38,34 @@ test('midiToStaveLine: C4=60 → ledger below 5', () => assert.equal(midiToStave
 test('midiToStaveLine: D4=62 → space below 4.5', () => assert.equal(midiToStaveLine(62), 4.5))
 test('midiToStaveLine: sharps share same line as natural (C#4=61 → 5)', () =>
   assert.equal(midiToStaveLine(61), midiToStaveLine(60)))
+
+// ── hasLeftHand ───────────────────────────────────────────────────────────────
+test('hasLeftHand: returns false when no left-hand notes', () => {
+  const phrase = { measures: [{ notes: [{ midi: 60, hand: 'right' }, { midi: 62 }] }] }
+  assert.equal(hasLeftHand(phrase), false)
+})
+test('hasLeftHand: returns true when any note has hand: left', () => {
+  const phrase = {
+    measures: [
+      { notes: [{ midi: 60, hand: 'right' }] },
+      { notes: [{ midi: 38, hand: 'left' }] },
+    ],
+  }
+  assert.equal(hasLeftHand(phrase), true)
+})
+test('hasLeftHand: returns false for empty measures', () => {
+  assert.equal(hasLeftHand({ measures: [{ notes: [] }] }), false)
+})
+
+// ── midiToBassStaveLine ───────────────────────────────────────────────────────
+test('midiToBassStaveLine: G2=43 → bottom line 4', () => assert.equal(midiToBassStaveLine(43), 4))
+test('midiToBassStaveLine: A2=45 → space 3.5', () => assert.equal(midiToBassStaveLine(45), 3.5))
+test('midiToBassStaveLine: B2=47 → line 3', () => assert.equal(midiToBassStaveLine(47), 3))
+test('midiToBassStaveLine: D3=50 → line 2', () => assert.equal(midiToBassStaveLine(50), 2))
+test('midiToBassStaveLine: F3=53 → line 1', () => assert.equal(midiToBassStaveLine(53), 1))
+test('midiToBassStaveLine: A3=57 → top line 0', () => assert.equal(midiToBassStaveLine(57), 0))
+test('midiToBassStaveLine: sharps share same line (G#2=44 → same as G2)', () =>
+  assert.equal(midiToBassStaveLine(44), midiToBassStaveLine(43)))
 
 // ── scoreDurationToVex ────────────────────────────────────────────────────────
 test('scoreDurationToVex: plain durations unchanged', () => {
