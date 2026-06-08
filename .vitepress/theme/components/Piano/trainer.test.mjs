@@ -55,6 +55,24 @@ describe('noteThresholdMs', () => {
     const quarter = noteThresholdMs('q', 100, 1.0)
     assert.equal(unknown, quarter)
   })
+
+  it('dotted half note is 3x the quarter', () => {
+    const q = noteThresholdMs('q', 100, 1.0)
+    const dh = noteThresholdMs('h.', 100, 1.0)
+    assert.ok(Math.abs(dh - q * 3) < 0.001, `h. threshold ${dh} should be ~${q * 3}`)
+  })
+
+  it('dotted quarter note is 1.5x the quarter', () => {
+    const q = noteThresholdMs('q', 100, 1.0)
+    const dq = noteThresholdMs('q.', 100, 1.0)
+    assert.ok(Math.abs(dq - q * 1.5) < 0.001, `q. threshold ${dq} should be ~${q * 1.5}`)
+  })
+
+  it('dotted eighth note is 0.75x the quarter', () => {
+    const q = noteThresholdMs('q', 100, 1.0)
+    const de = noteThresholdMs('8.', 100, 1.0)
+    assert.ok(Math.abs(de - q * 0.75) < 0.001, `8. threshold ${de} should be ~${q * 0.75}`)
+  })
 })
 
 // ── Level 1 ───────────────────────────────────────────────────────────────────
@@ -351,5 +369,18 @@ describe('chord notes (midi as array)', () => {
   it('note-correct when full chord pressed', () => {
     const state = createLevel1State(chordScore)
     assert.equal(checkNoteL1(state, new Set([60, 64, 67]), LONG_HOLD), 'note-correct')
+  })
+
+  it('wrong when full chord pressed plus extra wrong key', () => {
+    const state = createLevel1State(chordScore)
+    // all expected notes [60,64,67] + wrong 61
+    assert.equal(checkNoteL1(state, new Set([60, 64, 67, 61]), LONG_HOLD), 'wrong')
+  })
+
+  it('wrong when single expected note pressed with extra wrong key', () => {
+    const score = loadScore('c-major-scale')
+    const state = createLevel1State(score)
+    // expected 60, also pressing 61
+    assert.equal(checkNoteL1(state, new Set([60, 61]), LONG_HOLD), 'wrong')
   })
 })

@@ -106,11 +106,11 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 | File | Purpose |
 |------|---------|
 | `Piano/midi.js` | `useMidi()` composable: `requestMIDIAccess`, reactive `pressedNotes` Set, `deviceName`, `status` |
-| `Piano/score.js` | Score JSON CRUD, built-in pieces, `getScaleKeys(key)`, `getNonScaleKeys()`, `getModulationAt()` |
-| `Piano/trainer.js` | `Level1State` (note-by-note), `Level2State` (measure-by-measure), `checkNote()`, `repeatSection()`, tempo factor |
+| `Piano/score.js` | Score JSON CRUD, built-in pieces, `getScaleKeys(key)`, `getNonScaleKeys()`, `getActiveKey(score, phraseIdx, measureIdx)` |
+| `Piano/trainer.js` | `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` generic dispatchers; `getCurrentNote()`; L1 repeats measure, L2 repeats phrase |
 | `Piano/renderer.js` | VexFlow wrapper: `renderPhrase(container, phrase, cursor)`, highlight, look-ahead, wrong-note flash |
-| `Piano/keyboard.js` | SVG 88-key piano: `generateKeyRects()`, `highlightScale()`, `highlightPressed()`, `highlightExpected()` |
-| `Piano/db.js` | IndexedDB `piano-progress`: `loadProgress(scoreId)`, `saveProgress(scoreId, state)`, debounce 300 ms |
+| `Piano/keyboard.js` | SVG 88-key piano: `generateKeyRects()`, `keyColor()`, `buildKeyLayout()` |
+| `Piano/db.js` | IndexedDB database `piano`, object store `progress`: `loadProgress(scoreId)`, `saveProgress(scoreId, state)`, debounce 300 ms |
 
 ### Piano bundle notes
 
@@ -170,11 +170,11 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - Interactive MIDI teacher at `/piano`: Web MIDI API (no polyfill, native), VexFlow 5 via npm (no CDN)
 - Modules in `.vitepress/theme/components/Piano/`:
   - `midi.js` — `useMidi()` composable: device list, reactive pressed-notes Set, noteOn/noteOff
-  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet), `getScaleKeys()`, `getModulationAt()`
-  - `trainer.js` — `Level1State` (note-by-note), `Level2State` (measure-by-measure), tempo factor slider (50/75/100%), `repeatSection()`
+  - `score.js` — Score JSON format (phrases/measures/notes), built-in pieces (C major scale, Twinkle, Minuet), `getScaleKeys()`, `getActiveKey()`
+  - `trainer.js` — `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` dispatchers; L1 repeats measure, L2 repeats phrase
   - `renderer.js` — VexFlow wrapper: `renderPhrase()`, current-note highlight, look-ahead (30% opacity), wrong-note flash (400 ms red overlay)
-  - `keyboard.js` — SVG 88-key piano (A0–C8), `highlightScale()` / `highlightPressed()` / `highlightExpected()`
-  - `db.js` — IndexedDB `piano-progress` store, session stats (accuracy %, notesPlayed, longestStreak), debounced save 300 ms
+  - `keyboard.js` — SVG 88-key piano (A0–C8), `generateKeyRects()`, `keyColor()`
+  - `db.js` — IndexedDB database `piano` / store `progress`, session stats (accuracy %, notesPlayed, longestStreak), debounced save 300 ms
 - Full UI: topbar (score dropdown, level toggle, tempo slider, hand toggle), VexFlow stave, keyboard strip, metronome (4 beat dots), status bar (measure/phrase, accuracy, streak)
 - Piano.vue registered as `defineAsyncComponent` — VexFlow only loads on `/piano`, not bundled in shared theme chunk
 - VexFlow isolated in its own build chunk (`~677 KB gzip`); Piano component itself ~7 KB gzip

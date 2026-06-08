@@ -57,6 +57,7 @@ test('buildKeyLayout: all 52 white keys have x positions that are multiples of w
   for (const k of whites) {
     assert.ok(k.x >= 0)
     assert.ok(k.x < totalWidth)
+    assert.equal(Math.round(k.x % ww), 0, `white key x=${k.x} is not a multiple of ww=${ww}`)
   }
 })
 
@@ -121,5 +122,5 @@ test('generateKeyRects: midi range covers FIRST_KEY to LAST_KEY', () => {
 })
 
 test('KEYBOARD_SVG_HEIGHT is greater than white key height', () => {
-  assert.ok(KEYBOARD_SVG_HEIGHT >= 120)
+  assert.ok(KEYBOARD_SVG_HEIGHT > 120)
 })

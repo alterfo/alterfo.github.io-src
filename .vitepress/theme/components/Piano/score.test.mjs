@@ -121,6 +121,7 @@ describe('loadScore / listScores', () => {
     for (const entry of listScores()) {
       assert.ok(entry.id)
       assert.ok(entry.title)
+      assert.ok('composer' in entry, 'composer field must be present')
       assert.ok(entry.key)
       assert.ok(entry.tempo > 0)
     }

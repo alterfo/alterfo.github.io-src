@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
 
 // MIDI note number → { name, octave, accidental }
 export function midiToNote(num) {

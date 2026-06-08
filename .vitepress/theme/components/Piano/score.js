@@ -38,8 +38,8 @@ export function getActiveKey(score, phraseIdx, measureIdx) {
   return active
 }
 
-// Duration in quarter-note fractions: w=4 h=2 q=1 8=0.5 16=0.25
-export const DURATION_BEATS = { w: 4, h: 2, q: 1, '8': 0.5, '16': 0.25 }
+// Duration in quarter-note fractions: w=4 h=2 q=1 8=0.5 16=0.25; dotted variants add 50%
+export const DURATION_BEATS = { w: 4, 'w.': 6, h: 2, 'h.': 3, q: 1, 'q.': 1.5, '8': 0.5, '8.': 0.75, '16': 0.25 }
 
 // ── Built-in scores ──────────────────────────────────────────────────────────
 

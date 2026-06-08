@@ -88,20 +88,6 @@ export function keyColor(midi, { scaleKeys = null, pressedNotes = new Set(), exp
   return { fill: '#fff', stroke: '#888', strokeWidth: 1 }
 }
 
-// ── Highlight helpers (return new Sets, pure) ─────────────────────────────────
-
-export function highlightScale(scaleKeys) {
-  return scaleKeys  // just pass through — used as argument to keyColor
-}
-
-export function highlightPressed(midiNotes) {
-  return new Set(midiNotes)
-}
-
-export function highlightExpected(midiNote) {
-  return midiNote ?? null
-}
-
 // ── SVG generation ────────────────────────────────────────────────────────────
 
 // Returns an array of SVG rect descriptor objects for all 88 keys.

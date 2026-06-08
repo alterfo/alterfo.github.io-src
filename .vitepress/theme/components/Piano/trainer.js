@@ -63,6 +63,10 @@ export function checkNoteL1(state, midiSet, heldMs, tempoFactor = 1.0) {
     }
     return 'waiting'
   }
+  if (hasWrongNote(note.midi, midiSet)) {
+    _updateStats(state.stats, false)
+    return 'wrong'
+  }
 
   const threshold = noteThresholdMs(note.duration, state.score.tempo, tempoFactor)
   if (heldMs < threshold) return 'waiting'
@@ -122,6 +126,10 @@ export function checkNoteL2(state, midiSet, heldMs, tempoFactor = 1.0) {
       return 'wrong'
     }
     return 'waiting'
+  }
+  if (hasWrongNote(note.midi, midiSet)) {
+    _updateStats(state.stats, false)
+    return 'wrong'
   }
 
   const threshold = noteThresholdMs(note.duration, state.score.tempo, tempoFactor)

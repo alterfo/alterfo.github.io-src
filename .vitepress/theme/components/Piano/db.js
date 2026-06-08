@@ -2,11 +2,11 @@ const DB_NAME = 'piano'
 const DB_VERSION = 1
 const STORE = 'progress'
 
-let _db = null
+let _dbPromise = null
 
 function openDB() {
-  if (_db) return Promise.resolve(_db)
-  return new Promise((resolve, reject) => {
+  if (_dbPromise) return _dbPromise
+  _dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = e => {
       const db = e.target.result
@@ -14,12 +14,10 @@ function openDB() {
         db.createObjectStore(STORE)
       }
     }
-    req.onsuccess = e => {
-      _db = e.target.result
-      resolve(_db)
-    }
-    req.onerror = e => reject(e.target.error)
+    req.onsuccess = e => resolve(e.target.result)
+    req.onerror = e => { _dbPromise = null; reject(e.target.error) }
   })
+  return _dbPromise
 }
 
 // Compute derived stats: accuracy %, notesPlayed, longestStreak

@@ -171,12 +171,11 @@ const activeKey = computed(() => {
 })
 
 const keyRects = computed(() => {
-  const expectedMidi = (() => {
-    if (!trainer.value) return null
+  let expectedMidi = null
+  if (trainer.value) {
     const note = getCurrentNote(trainer.value)
-    if (!note) return null
-    return Array.isArray(note.midi) ? note.midi[0] : note.midi
-  })()
+    if (note) expectedMidi = Array.isArray(note.midi) ? note.midi[0] : note.midi
+  }
   return generateKeyRects(keyboardWidth.value, {
     scaleKeys: getScaleKeys(activeKey.value),
     pressedNotes: pressedNotes.value,
@@ -189,7 +188,7 @@ const modulationBadge = computed(() => {
   const score = currentScore.value
   if (!score.modulations?.length || !trainer.value) return null
   const key = getActiveKey(score, trainer.value.phraseIdx, trainer.value.measureIdx)
-  if (key === score.key) return null
+  if (key.root === score.key.root && key.mode === score.key.mode) return null
   return `${key.root} ${key.mode === 'minor' ? 'минор' : 'мажор'}`
 })
 
@@ -236,8 +235,8 @@ function onRestart() {
 watch(selectedScoreId, id => initTrainer(id, selectedLevel.value))
 watch(selectedLevel, level => initTrainer(selectedScoreId.value, level))
 
-watch(metronomeOn, on => {
-  if (metronomeIntervalId) { stopMetronome(); if (on) startMetronome() }
+watch(tempoFactor, () => {
+  if (metronomeOn.value) { stopMetronome(); startMetronome() }
 })
 
 // ── Lifecycle ─────────────────────────────────────────────────────
