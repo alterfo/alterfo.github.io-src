@@ -499,6 +499,9 @@ onUnmounted(() => {
               v-for="[date, entry] in pastEntries"
               :key="date"
               class="journal-past-entry"
+              :class="{ 'journal-past-entry--active': viewDate === date }"
+              title="Открыть полную запись"
+              @click="openEntry(date)"
             >
               <div class="journal-past-meta">
                 <span class="journal-past-date">{{ date }}</span>
@@ -963,6 +966,14 @@ onUnmounted(() => {
   border: 1px solid #333;
   border-radius: 8px;
   padding: 12px 14px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.journal-past-entry:hover {
+  background: #2a2a2a;
+}
+.journal-past-entry--active {
+  border-color: #555;
 }
 .journal-past-meta {
   display: flex;
