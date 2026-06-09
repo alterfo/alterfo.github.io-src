@@ -170,9 +170,10 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   bassVoice.setMode(Voice.Mode.SOFT)
   bassVoice.addTickables(bassStaveNotes)
 
+  // Join both voices together so notes at the same tick share one context →
+  // same-beat treble and bass notes get the exact same x (chord-aligned).
   new Formatter()
-    .joinVoices([trebleVoice])
-    .joinVoices([bassVoice])
+    .joinVoices([trebleVoice, bassVoice])
     .format([trebleVoice, bassVoice], width - 30)
 
   trebleVoice.draw(ctx, trebleStave)
