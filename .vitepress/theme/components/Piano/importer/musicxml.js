@@ -203,8 +203,12 @@ export function parseMusicXML(xmlString) {
     }
   }
 
-  // Group measures into phrases of 4.
-  const measureNotes = [...measureMap.values()]
+  // Group measures into phrases of 4. Drop fully-rest (empty) measures: a measure
+  // with notes: [] makes the trainer's _getNote return null, which it treats as
+  // "piece complete" — so a single rest-only bar would end the lesson early. The
+  // ABC and MIDI importers likewise never emit empty measures; this keeps all three
+  // consistent (the Score shape models played notes only, not rests-as-time).
+  const measureNotes = [...measureMap.values()].filter(notes => notes.length)
   const phrases = []
   const PER_PHRASE = 4
   for (let i = 0; i < measureNotes.length; i += PER_PHRASE) {

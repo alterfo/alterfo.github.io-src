@@ -150,6 +150,31 @@ describe('Piano/importer/musicxml.js', () => {
     assert.deepEqual(s.phrases[0].measures[0].notes[0].midi, [66, 69])
   })
 
+  it('drops fully-rest measures so the trainer does not end the lesson early', () => {
+    // A 3-bar piece whose middle bar is entirely rests. The empty bar must be
+    // omitted (notes: [] makes the trainer treat it as "piece complete").
+    const xml = `<score-partwise>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+          <note><pitch><step>C</step><octave>4</octave></pitch><duration>16</duration><type>whole</type><staff>1</staff></note>
+        </measure>
+        <measure number="2">
+          <note><rest/><duration>16</duration><type>whole</type><staff>1</staff></note>
+        </measure>
+        <measure number="3">
+          <note><pitch><step>E</step><octave>4</octave></pitch><duration>16</duration><type>whole</type><staff>1</staff></note>
+        </measure>
+      </part>
+    </score-partwise>`
+    const s = parseMusicXML(xml)
+    const measures = s.phrases.flatMap(p => p.measures)
+    assert.equal(measures.length, 2, 'the rest-only bar must be dropped')
+    assert.ok(measures.every(m => m.notes.length > 0), 'no measure may be empty')
+    assert.equal(measures[0].notes[0].midi, 60) // C4
+    assert.equal(measures[1].notes[0].midi, 64) // E4
+  })
+
   it('skips a note with a missing <octave> instead of emitting midi NaN', () => {
     const xml = SAMPLE.replace(
       '<pitch><step>A</step><octave>4</octave></pitch>\n        <duration>16</duration><type>whole</type><staff>1</staff>',
