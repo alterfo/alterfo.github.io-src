@@ -49,16 +49,26 @@ export function useMidi() {
 
   function _bindInputs() {
     if (!_midiAccess) return
-    let found = false
+    // Bind any new inputs not yet registered
     for (const input of _midiAccess.inputs.values()) {
       if (!_listeners.has(input.id)) {
         input.onmidimessage = _onMidiMessage
         _listeners.set(input.id, input)
-        if (!found) { deviceName.value = input.name; found = true }
       }
     }
-    status.value = found ? 'connected' : 'no-device'
-    if (!found) deviceName.value = ''
+    // Remove inputs that disappeared (e.g. device unplugged)
+    for (const [id, input] of _listeners.entries()) {
+      if (!_midiAccess.inputs.has(id)) {
+        input.onmidimessage = null
+        _listeners.delete(id)
+      }
+    }
+    // Status based on total connected inputs, not only newly added ones.
+    // The old "found" approach reset to 'no-device' whenever onstatechange fired
+    // for an already-registered device.
+    const count = _midiAccess.inputs.size
+    status.value = count > 0 ? 'connected' : 'no-device'
+    deviceName.value = count > 0 ? (_midiAccess.inputs.values().next().value?.name ?? '') : ''
   }
 
   async function init() {

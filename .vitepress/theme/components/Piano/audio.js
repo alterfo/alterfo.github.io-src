@@ -24,8 +24,10 @@ export function usePianoAudio() {
 
   async function _buildChain(T) {
     const eq = new T.EQ3({ low: -3, mid: 0, high: 3 })
-    const comp = new T.Compressor({ threshold: -24, ratio: 3, attack: 0.003, release: 0.25, knee: 6 })
-    const reverb = new T.Reverb({ decay: 2.0, preDelay: 0.02, wet: 0.22 })
+    // Softer compressor: -24dB/-3 caused gain pumping on reverb tails → audible hum
+    const comp = new T.Compressor({ threshold: -18, ratio: 2, attack: 0.02, release: 0.3, knee: 10 })
+    // Shorter/dryer reverb: 2.0s/0.22 wet fed into the compressor and produced artefacts
+    const reverb = new T.Reverb({ decay: 1.2, preDelay: 0.015, wet: 0.12 })
     const limiter = new T.Limiter(-2)
     eq.chain(comp, reverb, limiter, T.getDestination())
     try {
@@ -54,8 +56,9 @@ export function usePianoAudio() {
     await T.start()
     const dest = await _getOrBuildChain(T)
     if (_synth) return  // another concurrent call already built the synth
+    // triangle (not triangle8): 8-harmonic partial synthesis produces a higher noise floor
     _synth = new T.PolySynth(T.Synth, {
-      oscillator: { type: 'triangle8' },
+      oscillator: { type: 'triangle' },
       envelope: { attack: 0.005, decay: 0.4, sustain: 0.15, release: 1.5 },
       volume: -8,
     })
@@ -89,6 +92,8 @@ export function usePianoAudio() {
         baseUrl: '/audio/salamander/',
         onload: () => {
           if (_disposed) { samplerLoading.value = false; reject(new Error('disposed')); return }
+          // Silence the synth before switching mode so stuck notes don't drone through the chain
+          if (_synth) _synth.releaseAll()
           samplerReady.value = true
           samplerLoading.value = false
           mode.value = 'sampler'
@@ -136,6 +141,16 @@ export function usePianoAudio() {
     }
   }
 
+  // Must be called from a user gesture (click/keydown) so AudioContext can start.
+  // Web MIDI events are NOT considered user gestures by Chrome/Firefox for AudioContext.
+  async function unlockAudio() {
+    if (_disposed) return
+    try {
+      const T = await _ensureTone()
+      await T.start()
+    } catch { /* ignore — may fail if already running */ }
+  }
+
   function dispose() {
     _disposed = true
     _chainPromise = null
@@ -147,5 +162,5 @@ export function usePianoAudio() {
     samplerLoading.value = false
   }
 
-  return { mode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, dispose }
+  return { mode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, unlockAudio, dispose }
 }

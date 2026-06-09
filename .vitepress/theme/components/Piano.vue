@@ -27,7 +27,7 @@ const { status: midiStatus, deviceName, pressedNotes, onNoteOn, onNoteOff, init:
 // ─────────────────────────────────────────────────────────────
 // Audio
 // ─────────────────────────────────────────────────────────────
-const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, dispose: disposeAudio } = usePianoAudio()
+const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, unlockAudio, dispose: disposeAudio } = usePianoAudio()
 const samplerError = ref(false)
 async function handleLoadSampler() {
   samplerError.value = false
@@ -337,6 +337,8 @@ function doRepeat() {
 // ─────────────────────────────────────────────────────────────
 // Lifecycle
 // ─────────────────────────────────────────────────────────────
+let _unlockListener = null
+
 onMounted(async () => {
   const mod = await import('./Piano/renderer.js')
   _renderPhrase = mod.renderPhrase
@@ -345,6 +347,17 @@ onMounted(async () => {
   _rafId = requestAnimationFrame(rafTick)
   updateKeyboardWidth()
   window.addEventListener('resize', updateKeyboardWidth)
+  // AudioContext requires a user gesture (click/keydown) to start.
+  // MIDI events are not considered gestures, so without this the synth stays silent
+  // until the user clicks something (e.g. the HD button).
+  _unlockListener = () => {
+    unlockAudio()
+    window.removeEventListener('click', _unlockListener)
+    window.removeEventListener('keydown', _unlockListener)
+    _unlockListener = null
+  }
+  window.addEventListener('click', _unlockListener)
+  window.addEventListener('keydown', _unlockListener)
 })
 
 onUnmounted(() => {
@@ -354,6 +367,10 @@ onUnmounted(() => {
   stopMetronome()
   clearTimeout(_wrongTimer)
   window.removeEventListener('resize', updateKeyboardWidth)
+  if (_unlockListener) {
+    window.removeEventListener('click', _unlockListener)
+    window.removeEventListener('keydown', _unlockListener)
+  }
 })
 </script>
 
