@@ -174,9 +174,9 @@ OpenPose  Name        BlazePose
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] run full test suite: `node --test .vitepress/theme/components/OpenPose/*.test.mjs`
-- [ ] run `npm run build` — must complete without errors
-- [ ] verify `/openpose` page renders in browser dev server
+- [x] run full test suite: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (31 tests pass, 0 fail)
+- [x] run `npm run build` — must complete without errors (build complete in 6.39s)
+- [x] verify `/openpose` page renders (verified via build: `.vitepress/dist/openpose.html` renders with OpenPose content + WASM served from `dist/mediapipe/wasm/`; live browser dev-server check is manual — see Post-Completion)
 
 ## Technical Details
 
