@@ -339,26 +339,43 @@ function advanceNote(heldMs = Infinity) {
 // ─────────────────────────────────────────────────────────────
 const staveContainer = ref(null)
 
-function renderStave() {
+// OSMD.load() is async; guard concurrent renders with a dirty-flag queue so
+// rapid cursor advances collapse into a single render instead of overlapping.
+let _renderPending = false
+let _renderDirty = false
+
+async function renderStave() {
   if (!_renderPhrase || !staveContainer.value || !_state) return
-  const phrase = currentScore.value.phrases[phraseIdx.value]
-  if (!phrase) return
-  try {
-    _renderPhrase(staveContainer.value, phrase, {
-      measureIdx: measureIdx.value,
-      noteIdx: noHints.value ? -1 : noteIdx.value,
-      lookahead: noHints.value ? 0 : 2,
-      wrongNoteIdx: noHints.value ? -1 : wrongFlashNote.value,
-      pressedNotes: pressedNotes.value,
-    }, currentScore.value)
-  } catch (e) {
-    console.warn('[piano] renderPhrase:', e)
+
+  if (_renderPending) {
+    _renderDirty = true
+    return
   }
+
+  do {
+    _renderDirty = false
+    _renderPending = true
+    const phrase = currentScore.value.phrases[phraseIdx.value]
+    if (phrase) {
+      try {
+        await _renderPhrase(staveContainer.value, phrase, {
+          measureIdx: measureIdx.value,
+          noteIdx: noHints.value ? -1 : noteIdx.value,
+          lookahead: noHints.value ? 0 : 2,
+          wrongNoteIdx: noHints.value ? -1 : wrongFlashNote.value,
+          pressedNotes: pressedNotes.value,
+        }, currentScore.value)
+      } catch (e) {
+        console.warn('[piano] renderPhrase:', e)
+      }
+    }
+    _renderPending = false
+  } while (_renderDirty)
 }
 
-// Re-render when cursor or flash changes; also on pressed notes (ghost overlay)
+// Re-render when cursor or wrong-note flash changes.
+// (Pressed-notes ghost overlay is not supported in OSMD renderer.)
 watch([phraseIdx, measureIdx, noteIdx, wrongFlashNote], () => nextTick(renderStave))
-watch(pressedNotes, () => nextTick(renderStave))
 
 // ─────────────────────────────────────────────────────────────
 // SVG Keyboard
@@ -918,19 +935,10 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* VexFlow injects an SVG — make it responsive */
+/* OSMD injects an SVG — make it responsive */
 .piano-stave-container :deep(svg) {
   width: 100% !important;
   height: auto !important;
-}
-
-/* VexFlow renders black by default; CSS fill/stroke overrides SVG presentation
-   attributes but NOT inline style="" (used by coloured notes: blue, red).
-   So this rule turns uncoloured notes/lines light without breaking highlights. */
-.piano-stave-container :deep(svg path),
-.piano-stave-container :deep(svg text) {
-  fill: #ddd;
-  stroke: #ddd;
 }
 
 /* ── Complete screen ─────────────────────────────────────────── */

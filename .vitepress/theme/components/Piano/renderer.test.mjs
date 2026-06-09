@@ -1,101 +1,190 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { midiToVexKey, hasAccidental, midiToStaveLine, scoreDurationToVex, hasLeftHand, midiToBassStaveLine, voiceNoteIdx } from './renderer.js'
+import { phraseToMusicXML, midiPitchXML, FIFTHS_MAP } from './musicxml.js'
 
-// ── midiToVexKey ──────────────────────────────────────────────────────────────
-test('midiToVexKey: C4=60 → c/4', () => assert.equal(midiToVexKey(60), 'c/4'))
-test('midiToVexKey: D4=62 → d/4', () => assert.equal(midiToVexKey(62), 'd/4'))
-test('midiToVexKey: C#4=61 → c#/4', () => assert.equal(midiToVexKey(61), 'c#/4'))
-test('midiToVexKey: A4=69 → a/4', () => assert.equal(midiToVexKey(69), 'a/4'))
-test('midiToVexKey: C5=72 → c/5', () => assert.equal(midiToVexKey(72), 'c/5'))
-test('midiToVexKey: A0=21 → a/0', () => assert.equal(midiToVexKey(21), 'a/0'))
-test('midiToVexKey: C8=108 → c/8', () => assert.equal(midiToVexKey(108), 'c/8'))
+// ── midiPitchXML ──────────────────────────────────────────────────────────────
+test('midiPitchXML: C4 (60) in C major', () =>
+  assert.equal(midiPitchXML(60, 0), '<pitch><step>C</step><octave>4</octave></pitch>'))
 
-// ── hasAccidental ─────────────────────────────────────────────────────────────
-test('hasAccidental: natural notes return false', () => {
-  // C D E F G A B (midi 60 61 62 63 64 65 66 67 68 69 70 71)
-  for (const midi of [60, 62, 64, 65, 67, 69, 71]) {
-    assert.equal(hasAccidental(midi), false, `midi ${midi}`)
+test('midiPitchXML: D5 (74) in D major (fifths=2) — no alter', () =>
+  assert.equal(midiPitchXML(74, 2), '<pitch><step>D</step><octave>5</octave></pitch>'))
+
+test('midiPitchXML: F#4 (66) in D major (fifths=2) — sharp alter', () =>
+  assert.equal(midiPitchXML(66, 2), '<pitch><step>F</step><alter>1</alter><octave>4</octave></pitch>'))
+
+test('midiPitchXML: Bb3 (58) in F major (fifths=-1) — flat alter', () =>
+  assert.equal(midiPitchXML(58, -1), '<pitch><step>B</step><alter>-1</alter><octave>3</octave></pitch>'))
+
+test('midiPitchXML: G#4 (68) in sharp key — uses G# spelling', () =>
+  assert.ok(midiPitchXML(68, 2).includes('<step>G</step><alter>1</alter>')))
+
+test('midiPitchXML: Ab4 (68) in flat key — uses Ab spelling', () =>
+  assert.ok(midiPitchXML(68, -1).includes('<step>A</step><alter>-1</alter>')))
+
+// ── FIFTHS_MAP ────────────────────────────────────────────────────────────────
+test('FIFTHS_MAP: D major = 2 sharps', () => assert.equal(FIFTHS_MAP['D'], 2))
+test('FIFTHS_MAP: G major = 1 sharp', () => assert.equal(FIFTHS_MAP['G'], 1))
+test('FIFTHS_MAP: C major = 0', () => assert.equal(FIFTHS_MAP['C'], 0))
+test('FIFTHS_MAP: F major = -1', () => assert.equal(FIFTHS_MAP['F'], -1))
+test('FIFTHS_MAP: Bb = -2', () => assert.equal(FIFTHS_MAP['Bb'], -2))
+
+// ── phraseToMusicXML ──────────────────────────────────────────────────────────
+
+const simpleSinglePhrase = {
+  id: 'p1',
+  measures: [
+    {
+      id: 'm1',
+      notes: [
+        { midi: 60, duration: 'q', hand: 'right' },
+        { midi: 62, duration: 'q', hand: 'right' },
+        { midi: 64, duration: 'q', hand: 'right' },
+        { midi: 65, duration: 'q', hand: 'right' },
+      ],
+    },
+  ],
+}
+const simpleScore = {
+  id: 'test',
+  title: 'Test',
+  key: { root: 'C', mode: 'major' },
+  timeSignature: [4, 4],
+  tempo: 100,
+  phrases: [simpleSinglePhrase],
+  modulations: [],
+}
+
+test('phraseToMusicXML: produces valid XML declaration', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.startsWith('<?xml version="1.0"'))
+})
+
+test('phraseToMusicXML: contains score-partwise', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.includes('<score-partwise'))
+})
+
+test('phraseToMusicXML: contains part P1', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.includes('<part id="P1">'))
+})
+
+test('phraseToMusicXML: C major → fifths 0', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.includes('<fifths>0</fifths>'))
+})
+
+test('phraseToMusicXML: D major → fifths 2', () => {
+  const score = { ...simpleScore, key: { root: 'D', mode: 'major' } }
+  const xml = phraseToMusicXML(simpleSinglePhrase, score, 0)
+  assert.ok(xml.includes('<fifths>2</fifths>'))
+})
+
+test('phraseToMusicXML: single staff — no staves element', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(!xml.includes('<staves>'))
+})
+
+test('phraseToMusicXML: grand staff — contains staves element', () => {
+  const grandPhrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { midi: 64, duration: 'q', hand: 'right' },
+        { midi: 48, duration: 'q', hand: 'left' },
+      ],
+    }],
   }
+  const grandScore = { ...simpleScore, phrases: [grandPhrase] }
+  const xml = phraseToMusicXML(grandPhrase, grandScore, 0)
+  assert.ok(xml.includes('<staves>2</staves>'))
 })
-test('hasAccidental: sharps return true', () => {
-  for (const midi of [61, 63, 66, 68, 70]) {
-    assert.equal(hasAccidental(midi), true, `midi ${midi}`)
+
+test('phraseToMusicXML: grand staff — contains backup element', () => {
+  const grandPhrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { midi: 64, duration: 'q', hand: 'right' },
+        { midi: 48, duration: 'q', hand: 'left' },
+      ],
+    }],
   }
+  const grandScore = { ...simpleScore, phrases: [grandPhrase] }
+  const xml = phraseToMusicXML(grandPhrase, grandScore, 0)
+  assert.ok(xml.includes('<backup>'))
 })
 
-// ── midiToStaveLine ───────────────────────────────────────────────────────────
-test('midiToStaveLine: E4=64 → bottom line 4', () => assert.equal(midiToStaveLine(64), 4))
-test('midiToStaveLine: F4=65 → bottom space 3.5', () => assert.equal(midiToStaveLine(65), 3.5))
-test('midiToStaveLine: G4=67 → line 3', () => assert.equal(midiToStaveLine(67), 3))
-test('midiToStaveLine: A4=69 → space 2.5', () => assert.equal(midiToStaveLine(69), 2.5))
-test('midiToStaveLine: B4=71 → middle line 2', () => assert.equal(midiToStaveLine(71), 2))
-test('midiToStaveLine: C5=72 → space 1.5', () => assert.equal(midiToStaveLine(72), 1.5))
-test('midiToStaveLine: D5=74 → line 1', () => assert.equal(midiToStaveLine(74), 1))
-test('midiToStaveLine: E5=76 → space 0.5', () => assert.equal(midiToStaveLine(76), 0.5))
-test('midiToStaveLine: F5=77 → top line 0', () => assert.equal(midiToStaveLine(77), 0))
-test('midiToStaveLine: C4=60 → ledger below 5', () => assert.equal(midiToStaveLine(60), 5))
-test('midiToStaveLine: D4=62 → space below 4.5', () => assert.equal(midiToStaveLine(62), 4.5))
-test('midiToStaveLine: sharps share same line as natural (C#4=61 → 5)', () =>
-  assert.equal(midiToStaveLine(61), midiToStaveLine(60)))
-
-// ── hasLeftHand ───────────────────────────────────────────────────────────────
-test('hasLeftHand: returns false when no left-hand notes', () => {
-  const phrase = { measures: [{ notes: [{ midi: 60, hand: 'right' }, { midi: 62 }] }] }
-  assert.equal(hasLeftHand(phrase), false)
+test('phraseToMusicXML: cursor colors current note blue', () => {
+  const cursor = { measureIdx: 0, noteIdx: 1, lookahead: 0, wrongNoteIdx: -1 }
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0, cursor)
+  assert.ok(xml.includes('color="#1976d2"'))
 })
-test('hasLeftHand: returns true when any note has hand: left', () => {
+
+test('phraseToMusicXML: cursor colors wrong note red', () => {
+  const cursor = { measureIdx: 0, noteIdx: 1, lookahead: 0, wrongNoteIdx: 1 }
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0, cursor)
+  assert.ok(xml.includes('color="#e53935"'))
+})
+
+test('phraseToMusicXML: cursor colors lookahead note gray', () => {
+  const cursor = { measureIdx: 0, noteIdx: 0, lookahead: 2, wrongNoteIdx: -1 }
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0, cursor)
+  assert.ok(xml.includes('color="#888888"'))
+})
+
+test('phraseToMusicXML: noteIdx -1 means no cursor color applied', () => {
+  const cursor = { measureIdx: 0, noteIdx: -1, lookahead: 0, wrongNoteIdx: -1 }
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0, cursor)
+  assert.ok(!xml.includes('color='))
+})
+
+test('phraseToMusicXML: chord note — second midi as chord element', () => {
+  const chordPhrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [{ midi: [74, 66], duration: 'h', hand: 'right' }],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [2, 4], phrases: [chordPhrase] }
+  const xml = phraseToMusicXML(chordPhrase, score, 0)
+  assert.ok(xml.includes('<chord/>'))
+})
+
+test('phraseToMusicXML: dotted half — contains dot element', () => {
   const phrase = {
-    measures: [
-      { notes: [{ midi: 60, hand: 'right' }] },
-      { notes: [{ midi: 38, hand: 'left' }] },
-    ],
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [{ midi: 69, duration: 'h.', hand: 'right' }, { midi: 68, duration: 'q', hand: 'right' }],
+    }],
   }
-  assert.equal(hasLeftHand(phrase), true)
-})
-test('hasLeftHand: returns false for empty measures', () => {
-  assert.equal(hasLeftHand({ measures: [{ notes: [] }] }), false)
+  const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.ok(xml.includes('<dot/>'))
 })
 
-// ── midiToBassStaveLine ───────────────────────────────────────────────────────
-test('midiToBassStaveLine: G2=43 → bottom line 4', () => assert.equal(midiToBassStaveLine(43), 4))
-test('midiToBassStaveLine: A2=45 → space 3.5', () => assert.equal(midiToBassStaveLine(45), 3.5))
-test('midiToBassStaveLine: B2=47 → line 3', () => assert.equal(midiToBassStaveLine(47), 3))
-test('midiToBassStaveLine: D3=50 → line 2', () => assert.equal(midiToBassStaveLine(50), 2))
-test('midiToBassStaveLine: F3=53 → line 1', () => assert.equal(midiToBassStaveLine(53), 1))
-test('midiToBassStaveLine: A3=57 → top line 0', () => assert.equal(midiToBassStaveLine(57), 0))
-test('midiToBassStaveLine: sharps share same line (G#2=44 → same as G2)', () =>
-  assert.equal(midiToBassStaveLine(44), midiToBassStaveLine(43)))
-
-// ── voiceNoteIdx ─────────────────────────────────────────────────────────────
-// notes: 2 right (0,1), 2 left (2,3) in a mixed measure
-const mixedNotes = [
-  { midi: 64, hand: 'right' },
-  { midi: 67, hand: 'right' },
-  { midi: 48, hand: 'left' },
-  { midi: 52, hand: 'left' },
-]
-test('voiceNoteIdx: first right note → treble index 0', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 0, false), 0))
-test('voiceNoteIdx: second right note → treble index 1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 1, false), 1))
-test('voiceNoteIdx: first left note → bass index 0', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 2, true), 0))
-test('voiceNoteIdx: second left note → bass index 1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 3, true), 1))
-test('voiceNoteIdx: right note queried as left → -1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 0, true), -1))
-test('voiceNoteIdx: left note queried as right → -1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 2, false), -1))
-test('voiceNoteIdx: flatIdx -1 → -1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, -1, false), -1))
-test('voiceNoteIdx: flatIdx out of range → -1', () =>
-  assert.equal(voiceNoteIdx(mixedNotes, 99, false), -1))
-
-// ── scoreDurationToVex ────────────────────────────────────────────────────────
-test('scoreDurationToVex: plain durations unchanged', () => {
-  for (const d of ['w', 'h', 'q', '8', '16']) assert.equal(scoreDurationToVex(d), d)
+test('phraseToMusicXML: 4/4 time signature in XML', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.includes('<beats>4</beats><beat-type>4</beat-type>'))
 })
-test('scoreDurationToVex: dotted h. → hd', () => assert.equal(scoreDurationToVex('h.'), 'hd'))
-test('scoreDurationToVex: dotted q. → qd', () => assert.equal(scoreDurationToVex('q.'), 'qd'))
-test('scoreDurationToVex: dotted 8. → 8d', () => assert.equal(scoreDurationToVex('8.'), '8d'))
+
+test('phraseToMusicXML: 3/4 time signature in XML', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { midi: 60, duration: 'q', hand: 'right' },
+        { midi: 62, duration: 'q', hand: 'right' },
+        { midi: 64, duration: 'q', hand: 'right' },
+      ],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.ok(xml.includes('<beats>3</beats><beat-type>4</beat-type>'))
+})

@@ -26,7 +26,7 @@ export default defineConfig({
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('vexflow')) return 'vexflow'
+            if (id.includes('opensheetmusicdisplay')) return 'osmd'
           },
         },
       },
