@@ -37,6 +37,21 @@ const pastEntries = computed(() =>
     .sort(([a], [b]) => b.localeCompare(a))
 )
 
+// ---- Past-entry viewer ----
+// null = today's editor; iso-string = read-only viewer for that date
+const viewDate = ref(null)
+const viewEntry = computed(() => viewDate.value ? vault.entries[viewDate.value] : null)
+
+function openEntry(iso) {
+  if (iso === todayISO.value) { viewDate.value = null; return }  // today → editor
+  if (!vault.entries[iso]) return                                // no entry → no-op
+  viewDate.value = iso
+}
+
+function closeViewer() {
+  viewDate.value = null
+}
+
 // ---- Calendar ----
 const calOffset = ref(0)  // 0 = current month, -1 = previous, etc.
 
@@ -372,7 +387,8 @@ onUnmounted(() => {
             v-for="day in calDays"
             :key="day.iso"
             class="cal-chip"
-            :class="calDayClass(day)"
+            :class="[calDayClass(day), { 'cal-selected': viewDate === day.iso }]"
+            @click="openEntry(day.iso)"
           >
             <span class="cal-chip-n">{{ day.n }}</span>
             <span class="cal-chip-w">{{ day.words >= 0 ? day.words : '·' }}</span>
@@ -422,44 +438,59 @@ onUnmounted(() => {
         <!-- Main editor -->
         <main class="journal-main">
 
-          <!-- Top bar -->
-          <div class="journal-topbar">
-            <span class="journal-today-date">{{ todayISO }}</span>
-            <span class="journal-save-status" :class="'save-' + saveStatus">
-              <template v-if="saveStatus === 'saving'">сохранение…</template>
-              <template v-else-if="saveStatus === 'saved'">сохранено ✓</template>
-            </span>
-            <span class="journal-word-count" :class="{ 'wc-met': isGoalMet }">
-              {{ wordCount }} / 500 слов
-            </span>
-          </div>
+          <!-- Editor (today) -->
+          <template v-if="!viewDate">
+            <!-- Top bar -->
+            <div class="journal-topbar">
+              <span class="journal-today-date">{{ todayISO }}</span>
+              <span class="journal-save-status" :class="'save-' + saveStatus">
+                <template v-if="saveStatus === 'saving'">сохранение…</template>
+                <template v-else-if="saveStatus === 'saved'">сохранено ✓</template>
+              </span>
+              <span class="journal-word-count" :class="{ 'wc-met': isGoalMet }">
+                {{ wordCount }} / 500 слов
+              </span>
+            </div>
 
-          <!-- Progress bar -->
-          <div class="journal-progress-track">
-            <div
-              class="journal-progress-fill"
-              :class="{ 'pf-met': isGoalMet }"
-              :style="{ width: progress + '%' }"
-            ></div>
-          </div>
+            <!-- Progress bar -->
+            <div class="journal-progress-track">
+              <div
+                class="journal-progress-fill"
+                :class="{ 'pf-met': isGoalMet }"
+                :style="{ width: progress + '%' }"
+              ></div>
+            </div>
 
-          <!-- Lined-paper auto-grow textarea -->
-          <div class="grow-wrap" :data-replicated-value="todayText">
-            <textarea
-              v-model="todayText"
-              class="journal-textarea"
-              placeholder="Автор, жги!"
-              @input="onTextInput"
-              @keydown="onTextKeydown"
-              spellcheck="true"
-              autocorrect="on"
-              rows="1"
-            ></textarea>
-          </div>
+            <!-- Lined-paper auto-grow textarea -->
+            <div class="grow-wrap" :data-replicated-value="todayText">
+              <textarea
+                v-model="todayText"
+                class="journal-textarea"
+                placeholder="Автор, жги!"
+                @input="onTextInput"
+                @keydown="onTextKeydown"
+                spellcheck="true"
+                autocorrect="on"
+                rows="1"
+              ></textarea>
+            </div>
 
-          <div v-if="isGoalMet" class="journal-goal-banner">
-            Цель 500 слов на сегодня достигнута.
-          </div>
+            <div v-if="isGoalMet" class="journal-goal-banner">
+              Цель 500 слов на сегодня достигнута.
+            </div>
+          </template>
+
+          <!-- Read-only viewer (past entry) -->
+          <template v-else>
+            <div class="journal-viewer">
+              <div class="journal-viewer-topbar">
+                <button class="journal-viewer-back" @click="closeViewer">← Сегодня</button>
+                <span class="journal-viewer-date">{{ viewDate }}</span>
+                <span class="journal-viewer-words">{{ viewEntry?.words ?? 0 }} слов</span>
+              </div>
+              <div class="journal-viewer-text">{{ viewEntry?.text ?? '' }}</div>
+            </div>
+          </template>
 
           <!-- Past entries -->
           <div v-if="pastEntries.length" class="journal-past">
@@ -468,6 +499,9 @@ onUnmounted(() => {
               v-for="[date, entry] in pastEntries"
               :key="date"
               class="journal-past-entry"
+              :class="{ 'journal-past-entry--active': viewDate === date }"
+              title="Открыть полную запись"
+              @click="openEntry(date)"
             >
               <div class="journal-past-meta">
                 <span class="journal-past-date">{{ date }}</span>
@@ -652,6 +686,21 @@ onUnmounted(() => {
 .cal-chip.cal-goal .cal-chip-n { color: #ff9999; }
 .cal-chip.cal-goal .cal-chip-w { color: #dd6666; }
 
+.cal-chip.cal-goal,
+.cal-chip.cal-partial,
+.cal-chip.cal-zero {
+  cursor: pointer;
+}
+.cal-chip.cal-goal:hover,
+.cal-chip.cal-partial:hover,
+.cal-chip.cal-zero:hover {
+  opacity: 0.75;
+}
+.cal-chip.cal-selected {
+  outline: 2px solid #888;
+  outline-offset: 1px;
+}
+
 /* ══════════════════════════════════════════════
    Layout: body row (sidebar + main)
 ══════════════════════════════════════════════ */
@@ -764,6 +813,31 @@ onUnmounted(() => {
   gap: 12px;
   margin-bottom: 10px;
   padding: 16px 16px 0;
+}
+.journal-viewer { padding: 16px; }
+.journal-viewer-topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.journal-viewer-back {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+}
+.journal-viewer-back:hover { color: #ccc; }
+.journal-viewer-date { font-size: 15px; font-weight: 600; color: #aaa; }
+.journal-viewer-words { font-size: 11px; color: #666; }
+.journal-viewer-text {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .journal-today-date {
   font-size: 17px;
@@ -892,6 +966,14 @@ onUnmounted(() => {
   border: 1px solid #333;
   border-radius: 8px;
   padding: 12px 14px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.journal-past-entry:hover {
+  background: #2a2a2a;
+}
+.journal-past-entry--active {
+  border-color: #555;
 }
 .journal-past-meta {
   display: flex;
