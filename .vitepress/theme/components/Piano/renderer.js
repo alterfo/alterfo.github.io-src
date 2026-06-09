@@ -147,9 +147,13 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   const trebleWrongIdx = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, false) : -1
   const bassWrongIdx   = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, true) : -1
 
-  const trebleStaveNotes = rightNotes.map((note, i) =>
-    buildStaveNote(note, isCurrent ? noteStyle(i, trebleNoteIdx, lookahead, trebleWrongIdx) : null, 'treble')
-  )
+  // If no right-hand notes (e.g. an imported bar where the treble rests), pad the
+  // treble voice with a whole-measure ghost note so VexFlow doesn't throw on an empty voice
+  const trebleStaveNotes = rightNotes.length > 0
+    ? rightNotes.map((note, i) =>
+        buildStaveNote(note, isCurrent ? noteStyle(i, trebleNoteIdx, lookahead, trebleWrongIdx) : null, 'treble')
+      )
+    : [new GhostNote({ duration: timeSignature[1] === 8 ? '8' : 'w' })]
 
   // If no left-hand notes, pad bass voice with a whole-measure ghost note so VexFlow doesn't throw
   const bassStaveNotes = leftNotes.length > 0
@@ -175,16 +179,17 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   bassVoice.draw(ctx, bassStave)
 
   // Ghost notes: treble for midi >= 60, bass for midi < 60
+  // Use either stave's current note x as fallback so ghost notes always appear
+  // even when the cursor is on the opposite voice.
   if (isCurrent && pressedNotes.size > 0) {
     const treblePressed = new Set([...pressedNotes].filter(m => m >= 60))
     const bassPressed   = new Set([...pressedNotes].filter(m => m < 60))
     const currentTrebleNote = trebleNoteIdx >= 0 ? trebleStaveNotes[trebleNoteIdx] : null
     const currentBassNote   = bassNoteIdx >= 0 ? bassStaveNotes[bassNoteIdx] : null
-    if (treblePressed.size > 0 && currentTrebleNote) {
-      drawGhostNotes(svgEl, trebleStave, currentTrebleNote.getAbsoluteX(), treblePressed)
-    }
-    if (bassPressed.size > 0 && currentBassNote) {
-      drawGhostNotesBass(svgEl, bassStave, currentBassNote.getAbsoluteX(), bassPressed)
+    const noteX = (currentTrebleNote ?? currentBassNote)?.getAbsoluteX()
+    if (noteX !== undefined) {
+      if (treblePressed.size > 0) drawGhostNotes(svgEl, trebleStave, noteX, treblePressed)
+      if (bassPressed.size > 0) drawGhostNotesBass(svgEl, bassStave, noteX, bassPressed)
     }
   }
 

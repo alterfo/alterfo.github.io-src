@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMidi } from './Piano/midi.js'
 import { usePianoAudio } from './Piano/audio.js'
 import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
+import { loadUserScores, saveUserScore, deleteUserScore } from './Piano/userScores.js'
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection, checkNote } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
@@ -13,9 +14,134 @@ let _renderPhrase = null
 // ─────────────────────────────────────────────────────────────
 // Score & level
 // ─────────────────────────────────────────────────────────────
-const scores = listScores()
-const selectedScoreId = ref(scores[0]?.id ?? '')
-const currentScore = computed(() => loadScore(selectedScoreId.value))
+const builtinScores = listScores()              // metadata: { id, title, composer, key, tempo } — без phrases
+const userScores = ref(loadUserScores())        // полные Score объекты
+const scores = computed(() => [...builtinScores, ...userScores.value])
+const selectedScoreId = ref(builtinScores[0]?.id ?? '')
+watch(selectedScoreId, id => { try { localStorage.setItem('piano:selectedScoreId', id) } catch {} })
+// currentScore: сперва ищем среди user-scores (полные), иначе loadScore (встроенные)
+const currentScore = computed(() => {
+  const u = userScores.value.find(s => s.id === selectedScoreId.value)
+  return u ?? loadScore(selectedScoreId.value)
+})
+
+function addImportedScore(score) {
+  userScores.value = saveUserScore(score)   // saveUserScore возвращает новый массив → реактивность
+  selectedScoreId.value = score.id          // переключиться на импортированную пьесу
+}
+
+function deleteImportedScore(id) {
+  userScores.value = deleteUserScore(id)
+  if (selectedScoreId.value === id) selectedScoreId.value = builtinScores[0].id
+}
+
+// ─────────────────────────────────────────────────────────────
+// Import (MusicXML / ABC / MIDI)
+// ─────────────────────────────────────────────────────────────
+const importInput = ref(null)
+const importError = ref('')
+const showAbcModal = ref(false)
+const abcText = ref('')
+const abcPreview = ref(null)   // parsed score preview before confirm
+
+// MIDI time-signature dialog
+const showTimeSigDialog = ref(false)
+const pendingMidiBuf = ref(null)
+const selectedTimeSig = ref([4, 4])
+
+function triggerImport() {
+  importError.value = ''
+  importInput.value?.click()
+}
+
+function measureCount(score) {
+  return score.phrases.reduce((sum, p) => sum + p.measures.length, 0)
+}
+
+// Parsers (and the heavy @tonejs/midi) are loaded on demand so they stay out of
+// the shared bundle — mirrors the dynamic import of the VexFlow renderer.
+async function onImportFile(event) {
+  importError.value = ''
+  const file = event.target.files?.[0]
+  if (!file) return
+  const name = file.name.toLowerCase()
+  try {
+    if (name.endsWith('.mxl')) {
+      // .mxl is a zip container, not text — we only parse uncompressed MusicXML.
+      throw new Error('сжатый MusicXML (.mxl) не поддерживается — экспортируйте несжатый .xml')
+    } else if (name.endsWith('.xml')) {
+      const { parseMusicXML } = await import('./Piano/importer/musicxml.js')
+      addImportedScore(parseMusicXML(await file.text()))
+    } else if (name.endsWith('.abc') || name.endsWith('.txt')) {
+      const { parseABC } = await import('./Piano/importer/abc.js')
+      addImportedScore(parseABC(await file.text()))
+    } else if (name.endsWith('.mid') || name.endsWith('.midi')) {
+      const { parseMIDIFile } = await import('./Piano/importer/midifile.js')
+      const buf = await file.arrayBuffer()
+      const { score, needsTimeSig, detectedTs } = parseMIDIFile(buf)
+      if (needsTimeSig) {
+        pendingMidiBuf.value = buf
+        selectedTimeSig.value = detectedTs ?? [4, 4]
+        showTimeSigDialog.value = true
+      } else {
+        addImportedScore(score)
+      }
+    } else {
+      importError.value = 'Неподдерживаемый формат файла'
+    }
+  } catch (e) {
+    importError.value = 'Ошибка импорта: ' + (e?.message ?? e)
+  } finally {
+    // allow re-importing the same file (change event won't fire otherwise)
+    event.target.value = ''
+  }
+}
+
+async function confirmMidiTimeSig() {
+  if (!pendingMidiBuf.value) return
+  try {
+    const { parseMIDIFile } = await import('./Piano/importer/midifile.js')
+    const { score } = parseMIDIFile(pendingMidiBuf.value, { timeSignature: selectedTimeSig.value })
+    addImportedScore(score)
+    showTimeSigDialog.value = false
+    pendingMidiBuf.value = null
+  } catch (e) {
+    importError.value = 'Ошибка импорта: ' + (e?.message ?? e)
+  }
+}
+
+async function previewAbc() {
+  importError.value = ''
+  try {
+    const { parseABC } = await import('./Piano/importer/abc.js')
+    abcPreview.value = parseABC(abcText.value)
+  } catch (e) {
+    abcPreview.value = null
+    importError.value = 'Ошибка ABC: ' + (e?.message ?? e)
+  }
+}
+
+async function confirmAbcImport() {
+  importError.value = ''
+  try {
+    const { parseABC } = await import('./Piano/importer/abc.js')
+    // Always re-parse the current textarea — abcPreview may be stale if the user
+    // edited the text after clicking «Предпросмотр» (no watcher invalidates it).
+    const score = parseABC(abcText.value)
+    addImportedScore(score)
+    showAbcModal.value = false
+    abcText.value = ''
+    abcPreview.value = null
+  } catch (e) {
+    importError.value = 'Ошибка ABC: ' + (e?.message ?? e)
+  }
+}
+
+function cancelAbcModal() {
+  showAbcModal.value = false
+  abcPreview.value = null
+}
+
 const level = ref(1)          // 1 = note-by-note, 2 = measure-by-measure
 const tempoFactor = ref(1.0)  // 0.5 | 0.75 | 1.0
 
@@ -343,6 +469,11 @@ onMounted(async () => {
   const mod = await import('./Piano/renderer.js')
   _renderPhrase = mod.renderPhrase
   await initMidi()
+  // Restore previously selected score
+  try {
+    const saved = localStorage.getItem('piano:selectedScoreId')
+    if (saved && scores.value.find(s => s.id === saved)) selectedScoreId.value = saved
+  } catch {}
   initTrainer()
   _rafId = requestAnimationFrame(rafTick)
   updateKeyboardWidth()
@@ -380,8 +511,20 @@ onUnmounted(() => {
     <!-- ── Topbar ───────────────────────────────────────────── -->
     <div class="piano-topbar">
       <select v-model="selectedScoreId" class="piano-select">
-        <option v-for="s in scores" :key="s.id" :value="s.id">{{ s.title }}</option>
+        <option v-for="s in scores" :key="s.id" :value="s.id">
+          {{ s.userImported ? '🎵 ' : '' }}{{ s.title }}
+        </option>
       </select>
+
+      <button
+        v-if="userScores.find(s => s.id === selectedScoreId)"
+        class="tb-btn" title="Удалить импортированную пьесу"
+        @click="deleteImportedScore(selectedScoreId)">✕</button>
+
+      <button class="tb-btn" @click="triggerImport" title="Импортировать пьесу (MusicXML / MIDI / ABC)">⬆ Импорт</button>
+      <input ref="importInput" type="file" accept=".xml,.mid,.midi,.abc,.txt"
+             style="display:none" @change="onImportFile" />
+      <button class="tb-btn" @click="showAbcModal = true" title="Ввести ABC-нотацию текстом">ABC</button>
 
       <div class="piano-level-toggle">
         <button :class="['level-btn', { active: level === 1 }]" @click="level = 1" title="Нота за нотой">Нота</button>
@@ -401,11 +544,57 @@ onUnmounted(() => {
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
       </button>
 
-      <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn">
+      <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn"
+        :title="samplerError ? 'HD недоступен: поместите Salamander Grand Piano mp3 в public/audio/salamander/' : 'Загрузить HD Salamander Grand Piano (требует файлы в /audio/salamander/)'">
         {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
       </button>
 
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
+    </div>
+
+    <!-- ── Import error banner ──────────────────────────────── -->
+    <div v-if="importError" class="piano-import-error">
+      {{ importError }}
+      <button class="import-error-close" @click="importError = ''">✕</button>
+    </div>
+
+    <!-- ── MIDI time-signature dialog ───────────────────────── -->
+    <div v-if="showTimeSigDialog" class="piano-modal-overlay">
+      <div class="timesig-dialog">
+        <p>Тактовый размер не найден в MIDI-файле. Выберите:</p>
+        <div class="timesig-options">
+          <button v-for="ts in [[2,4],[3,4],[4,4],[6,8]]" :key="ts.join('/')"
+            :class="['ts-btn', { active: selectedTimeSig[0] === ts[0] && selectedTimeSig[1] === ts[1] }]"
+            @click="selectedTimeSig = ts">
+            {{ ts[0] }}/{{ ts[1] }}
+          </button>
+        </div>
+        <div class="modal-actions">
+          <button class="tb-btn primary" @click="confirmMidiTimeSig">Импортировать</button>
+          <button class="tb-btn" @click="showTimeSigDialog = false; pendingMidiBuf = null">Отмена</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ABC input modal ──────────────────────────────────── -->
+    <div v-if="showAbcModal" class="piano-modal-overlay">
+      <div class="abc-modal">
+        <h3>Импорт ABC-нотации</h3>
+        <textarea
+          v-model="abcText"
+          class="abc-textarea"
+          spellcheck="false"
+          placeholder="X:1&#10;T:My Song&#10;M:4/4&#10;L:1/4&#10;K:D&#10;|D E F G|A B c d|"></textarea>
+        <div v-if="abcPreview" class="abc-preview">
+          «{{ abcPreview.title }}» · тактов: {{ measureCount(abcPreview) }}
+        </div>
+        <div v-if="importError" class="abc-error">{{ importError }}</div>
+        <div class="modal-actions">
+          <button class="tb-btn" @click="previewAbc">Предпросмотр</button>
+          <button class="tb-btn primary" @click="confirmAbcImport">Импортировать</button>
+          <button class="tb-btn" @click="cancelAbcModal">Отмена</button>
+        </div>
+      </div>
     </div>
 
     <!-- ── Stave area ───────────────────────────────────────── -->
@@ -477,6 +666,7 @@ onUnmounted(() => {
 .piano-app {
   display: flex;
   flex-direction: column;
+  position: relative;
   height: 100%;
   background: #1a1a2e;
   color: #ddd;
@@ -572,6 +762,101 @@ onUnmounted(() => {
 }
 .tb-btn:hover:not(:disabled) { background: #353565; color: #fff; }
 .tb-btn:disabled { opacity: 0.6; cursor: default; }
+.tb-btn.primary { background: #4040aa; color: #fff; border-color: #6060cc; }
+.tb-btn.primary:hover:not(:disabled) { background: #5555cc; }
+
+/* ── Import error banner ─────────────────────────────────────── */
+.piano-import-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: #3a1a1a;
+  color: #ff8888;
+  border-bottom: 1px solid #663333;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.import-error-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #ff8888;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ── Modals (ABC input, MIDI time-sig) ───────────────────────── */
+.piano-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.abc-modal,
+.timesig-dialog {
+  background: #1e1e3a;
+  border: 1px solid #3a3a5a;
+  border-radius: 8px;
+  padding: 20px;
+  width: min(520px, 90vw);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.abc-modal h3 { margin: 0 0 12px; color: #fff; font-size: 15px; }
+.abc-textarea {
+  width: 100%;
+  min-height: 180px;
+  background: #12122a;
+  color: #ddd;
+  border: 1px solid #3a3a5a;
+  border-radius: 5px;
+  padding: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.abc-preview {
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #1e2e1e;
+  color: #77cc77;
+  border: 1px solid #336633;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.abc-error {
+  margin-top: 10px;
+  color: #ff8888;
+  font-size: 12px;
+}
+.timesig-dialog p { margin: 0 0 14px; color: #ddd; font-size: 13px; }
+.timesig-options {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ts-btn {
+  flex: 1;
+  background: #252545;
+  color: #aaa;
+  border: 1px solid #3a3a5a;
+  border-radius: 5px;
+  padding: 10px 0;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.ts-btn.active { background: #4040aa; color: #fff; border-color: #6060cc; }
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
 
 .piano-midi-status {
   margin-left: auto;

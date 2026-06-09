@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores, DURATION_BEATS, midiToNoteName } from './score.js'
+import { getScaleKeys, getNonScaleKeys, getActiveKey, loadScore, listScores, DURATION_BEATS, midiToNoteName, beatsToDurationCode, makeUserScoreId } from './score.js'
 
 describe('midiToNoteName', () => {
   it('MIDI 60 = C4 (middle C)', () => {
@@ -251,5 +251,30 @@ describe('loadScore / listScores', () => {
         assert.ok(hasLeft,  `rachmaninoff-prelude-d measure ${measure.id} missing left-hand notes`)
       }
     }
+  })
+})
+
+describe('beatsToDurationCode', () => {
+  it('snaps exact beat counts to their codes', () => {
+    assert.equal(beatsToDurationCode(4), 'w')
+    assert.equal(beatsToDurationCode(2), 'h')
+    assert.equal(beatsToDurationCode(1), 'q')
+    assert.equal(beatsToDurationCode(0.5), '8')
+    assert.equal(beatsToDurationCode(0.25), '16')
+  })
+
+  it('snaps an in-between value to the nearest code', () => {
+    assert.equal(beatsToDurationCode(1.4), 'q.') // 1.5 is closer than 1
+  })
+})
+
+describe('makeUserScoreId', () => {
+  it('produces distinct ids on consecutive calls (no same-tick collisions)', () => {
+    const ids = new Set([makeUserScoreId(), makeUserScoreId(), makeUserScoreId()])
+    assert.equal(ids.size, 3)
+  })
+
+  it('prefixes ids with "user-"', () => {
+    assert.ok(makeUserScoreId().startsWith('user-'))
   })
 })

@@ -45,6 +45,26 @@ export function getActiveKey(score, phraseIdx, measureIdx) {
 // Duration in quarter-note fractions: w=4 h=2 q=1 8=0.5 16=0.25; dotted variants add 50%
 export const DURATION_BEATS = { w: 4, 'w.': 6, h: 2, 'h.': 3, q: 1, 'q.': 1.5, '8': 0.5, '8.': 0.75, '16': 0.25 }
 
+// Snap a beat count (in quarter notes) to the nearest VexFlow duration code.
+// Shared by the MusicXML / ABC / MIDI importers.
+export function beatsToDurationCode(beats) {
+  let best = 'q'
+  let bestDiff = Infinity
+  for (const [code, b] of Object.entries(DURATION_BEATS)) {
+    const d = Math.abs(beats - b)
+    if (d < bestDiff) { bestDiff = d; best = code }
+  }
+  return best
+}
+
+// Collision-resistant id for a user-imported score. A module-level counter (shared
+// across all three importers, which import this same module instance) guarantees
+// uniqueness even for several imports within the same millisecond.
+let _userScoreSeq = 0
+export function makeUserScoreId() {
+  return `user-${Date.now()}-${++_userScoreSeq}`
+}
+
 // ── Built-in scores ──────────────────────────────────────────────────────────
 
 const C_MAJOR_SCALE = {

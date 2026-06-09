@@ -78,6 +78,19 @@ export function usePianoAudio() {
       samplerLoading.value = false
       throw err
     }
+    // Preflight: verify at least one sample file is reachable before constructing
+    // the Sampler. Tone.js may call onload even when all fetches 404, leaving
+    // mode='sampler' but with empty buffers (silent notes).
+    try {
+      const probe = await fetch('/audio/salamander/A0.mp3', { method: 'HEAD' })
+      if (!probe.ok) {
+        samplerLoading.value = false
+        throw new Error('Файлы Salamander не найдены в /audio/salamander/. Скачайте Salamander Grand Piano mp3 и поместите в public/audio/salamander/')
+      }
+    } catch (e) {
+      if (e.message.includes('Salamander')) { throw e }
+      // Network/CORS error on preflight — proceed and let Sampler handle it
+    }
     return new Promise((resolve, reject) => {
       if (_disposed) { samplerLoading.value = false; reject(new Error('disposed')); return }
       _sampler = new T.Sampler({
