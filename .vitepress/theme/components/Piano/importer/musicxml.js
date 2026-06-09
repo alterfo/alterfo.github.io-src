@@ -135,13 +135,19 @@ function parseTimeSig(root) {
 }
 
 function parseTempo(root) {
+  // A tempo of 0 (or NaN/Infinity from a malformed file) would make the lesson
+  // un-advanceable downstream (60 / tempo → Infinity threshold), so reject it and
+  // fall back — mirrors the ABC importer's `|| 120` guard.
   for (const s of findAll(root, 'sound')) {
-    if (s.attrs.tempo) return Math.round(parseFloat(s.attrs.tempo))
+    if (s.attrs.tempo) {
+      const v = Math.round(parseFloat(s.attrs.tempo))
+      if (Number.isFinite(v) && v > 0) return v
+    }
   }
   const pm = findAll(root, 'per-minute')[0]
   if (pm) {
-    const v = parseFloat(text(pm))
-    if (v) return Math.round(v)
+    const v = Math.round(parseFloat(text(pm)))
+    if (Number.isFinite(v) && v > 0) return v
   }
   return 100
 }

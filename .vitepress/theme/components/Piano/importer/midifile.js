@@ -103,6 +103,12 @@ export function buildScoreFromMidi(midi, options = {}) {
 
   if (!measures.length) throw new Error('MIDI: ноты не найдены')
 
+  // A tempo of 0 or Infinity (a malformed set-tempo of 0 µs/quarter yields bpm
+  // Infinity) would make the lesson un-advanceable downstream (60 / tempo →
+  // Infinity threshold) — clamp to a sane fallback, matching the ABC importer.
+  const rawBpm = Math.round(header.tempos?.[0]?.bpm ?? 120)
+  const tempo = Number.isFinite(rawBpm) && rawBpm > 0 ? rawBpm : 120
+
   // Group measures into phrases of 4.
   const phrases = []
   const PER_PHRASE = 4
@@ -117,7 +123,7 @@ export function buildScoreFromMidi(midi, options = {}) {
     id: makeUserScoreId(),
     title: header.name || 'Импортированная пьеса',
     composer: '',
-    tempo: Math.round(header.tempos?.[0]?.bpm ?? 120),
+    tempo,
     key: keyFromMidi(midi),
     timeSignature: ts,
     modulations: [],
