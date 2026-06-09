@@ -129,6 +129,24 @@ describe('Piano/importer/musicxml.js', () => {
     assert.throws(() => parseMusicXML('<score-partwise><part id="P1"></part></score-partwise>'))
   })
 
+  it('throws when the first part is all rests (no pitched notes survive)', () => {
+    // <note> elements exist (so the early guard passes) but every one is a <rest>.
+    // Without the post-filter guard this returns phrases: [] and the trainer treats
+    // it as an instantly-complete blank piece.
+    const xml = `<score-partwise>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>4</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+          <note><rest/><duration>16</duration><type>whole</type><staff>1</staff></note>
+        </measure>
+        <measure number="2">
+          <note><rest/><duration>16</duration><type>whole</type><staff>1</staff></note>
+        </measure>
+      </part>
+    </score-partwise>`
+    assert.throws(() => parseMusicXML(xml))
+  })
+
   it('handles minor keys via relative-minor table (0 fifths minor → A minor)', () => {
     const xml = SAMPLE.replace('<fifths>2</fifths><mode>major</mode>', '<fifths>0</fifths><mode>minor</mode>')
     const s = parseMusicXML(xml)

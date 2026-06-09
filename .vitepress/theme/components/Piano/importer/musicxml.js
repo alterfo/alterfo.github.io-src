@@ -209,6 +209,12 @@ export function parseMusicXML(xmlString) {
   // ABC and MIDI importers likewise never emit empty measures; this keeps all three
   // consistent (the Score shape models played notes only, not rests-as-time).
   const measureNotes = [...measureMap.values()].filter(notes => notes.length)
+  // The line-166 guard only proves *some* <note> exists anywhere in the tree —
+  // including <rest> notes and notes in parts we don't read. If the first part is
+  // all rests (or has no pitched notes), measureNotes is empty and we'd silently
+  // emit phrases: [] — which the trainer treats as "piece instantly complete" with
+  // a blank stave. Throw instead, matching the ABC / MIDI importers.
+  if (!measureNotes.length) throw new Error('MusicXML: ноты не найдены')
   const phrases = []
   const PER_PHRASE = 4
   for (let i = 0; i < measureNotes.length; i += PER_PHRASE) {
