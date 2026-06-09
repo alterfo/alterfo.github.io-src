@@ -163,10 +163,6 @@ async function handleLoadSampler() {
 onNoteOn((midi, vel) => playNote(midi, vel))
 onNoteOff(midi => releaseNote(midi))
 
-// When all MIDI keys are released, ensure no synth voices are stuck.
-// Covers the case where triggerRelease was missed (race with async init).
-watch(pressedNotes, notes => { if (notes.size === 0) releaseAll() })
-
 const midiLabel = computed(() => {
   if (midiStatus.value === 'unsupported') return 'MIDI: не поддерживается'
   if (midiStatus.value === 'no-device') return 'MIDI: нет устройств'
@@ -469,7 +465,7 @@ function initTrainer() {
   if (metronomeOn.value) startMetronome()
 }
 
-watch([selectedScoreId, level], initTrainer)
+watch([selectedScoreId, level], () => { releaseAll(); initTrainer() })
 
 function doRepeat() {
   if (!_state || isComplete.value) return
@@ -503,6 +499,8 @@ onMounted(async () => {
   // MIDI events are not considered gestures, so without this the synth stays silent
   // until the user clicks something (e.g. the HD button).
   _unlockListener = () => {
+    // unlockAudio starts the AudioContext AND pre-builds the signal chain so that
+    // subsequent HD-sampler load does not cause a reverb-IR construction pop/hum.
     unlockAudio()
     window.removeEventListener('click', _unlockListener)
     window.removeEventListener('keydown', _unlockListener)
@@ -510,6 +508,12 @@ onMounted(async () => {
   }
   window.addEventListener('click', _unlockListener)
   window.addEventListener('keydown', _unlockListener)
+  // Release any stuck synth voices when the browser tab loses focus
+  // (MIDI NoteOff events are not delivered while a tab is hidden).
+  window.addEventListener('blur', releaseAll)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseAll()
+  })
 })
 
 onUnmounted(() => {
@@ -519,6 +523,7 @@ onUnmounted(() => {
   stopMetronome()
   clearTimeout(_wrongTimer)
   window.removeEventListener('resize', updateKeyboardWidth)
+  window.removeEventListener('blur', releaseAll)
   if (_unlockListener) {
     window.removeEventListener('click', _unlockListener)
     window.removeEventListener('keydown', _unlockListener)
