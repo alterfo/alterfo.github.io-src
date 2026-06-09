@@ -438,44 +438,59 @@ onUnmounted(() => {
         <!-- Main editor -->
         <main class="journal-main">
 
-          <!-- Top bar -->
-          <div class="journal-topbar">
-            <span class="journal-today-date">{{ todayISO }}</span>
-            <span class="journal-save-status" :class="'save-' + saveStatus">
-              <template v-if="saveStatus === 'saving'">сохранение…</template>
-              <template v-else-if="saveStatus === 'saved'">сохранено ✓</template>
-            </span>
-            <span class="journal-word-count" :class="{ 'wc-met': isGoalMet }">
-              {{ wordCount }} / 500 слов
-            </span>
-          </div>
+          <!-- Editor (today) -->
+          <template v-if="!viewDate">
+            <!-- Top bar -->
+            <div class="journal-topbar">
+              <span class="journal-today-date">{{ todayISO }}</span>
+              <span class="journal-save-status" :class="'save-' + saveStatus">
+                <template v-if="saveStatus === 'saving'">сохранение…</template>
+                <template v-else-if="saveStatus === 'saved'">сохранено ✓</template>
+              </span>
+              <span class="journal-word-count" :class="{ 'wc-met': isGoalMet }">
+                {{ wordCount }} / 500 слов
+              </span>
+            </div>
 
-          <!-- Progress bar -->
-          <div class="journal-progress-track">
-            <div
-              class="journal-progress-fill"
-              :class="{ 'pf-met': isGoalMet }"
-              :style="{ width: progress + '%' }"
-            ></div>
-          </div>
+            <!-- Progress bar -->
+            <div class="journal-progress-track">
+              <div
+                class="journal-progress-fill"
+                :class="{ 'pf-met': isGoalMet }"
+                :style="{ width: progress + '%' }"
+              ></div>
+            </div>
 
-          <!-- Lined-paper auto-grow textarea -->
-          <div class="grow-wrap" :data-replicated-value="todayText">
-            <textarea
-              v-model="todayText"
-              class="journal-textarea"
-              placeholder="Автор, жги!"
-              @input="onTextInput"
-              @keydown="onTextKeydown"
-              spellcheck="true"
-              autocorrect="on"
-              rows="1"
-            ></textarea>
-          </div>
+            <!-- Lined-paper auto-grow textarea -->
+            <div class="grow-wrap" :data-replicated-value="todayText">
+              <textarea
+                v-model="todayText"
+                class="journal-textarea"
+                placeholder="Автор, жги!"
+                @input="onTextInput"
+                @keydown="onTextKeydown"
+                spellcheck="true"
+                autocorrect="on"
+                rows="1"
+              ></textarea>
+            </div>
 
-          <div v-if="isGoalMet" class="journal-goal-banner">
-            Цель 500 слов на сегодня достигнута.
-          </div>
+            <div v-if="isGoalMet" class="journal-goal-banner">
+              Цель 500 слов на сегодня достигнута.
+            </div>
+          </template>
+
+          <!-- Read-only viewer (past entry) -->
+          <template v-else>
+            <div class="journal-viewer">
+              <div class="journal-viewer-topbar">
+                <button class="journal-viewer-back" @click="closeViewer">← Сегодня</button>
+                <span class="journal-viewer-date">{{ viewDate }}</span>
+                <span class="journal-viewer-words">{{ viewEntry?.words ?? 0 }} слов</span>
+              </div>
+              <div class="journal-viewer-text">{{ viewEntry?.text ?? '' }}</div>
+            </div>
+          </template>
 
           <!-- Past entries -->
           <div v-if="pastEntries.length" class="journal-past">
@@ -795,6 +810,31 @@ onUnmounted(() => {
   gap: 12px;
   margin-bottom: 10px;
   padding: 16px 16px 0;
+}
+.journal-viewer { padding: 16px; }
+.journal-viewer-topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.journal-viewer-back {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+}
+.journal-viewer-back:hover { color: #ccc; }
+.journal-viewer-date { font-size: 15px; font-weight: 600; color: #aaa; }
+.journal-viewer-words { font-size: 11px; color: #666; }
+.journal-viewer-text {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .journal-today-date {
   font-size: 17px;
