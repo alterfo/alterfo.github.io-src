@@ -43,15 +43,19 @@ export function scoreDurationToVex(dur) {
 
 // ── Private render helpers ────────────────────────────────────────────────────
 
+// Convert score key to VexFlow key spec string, e.g. { root:'D', mode:'major' } → 'D',
+// { root:'B', mode:'minor' } → 'Bm'.  Fallback: 'C'.
+function scoreKeyToVexSpec(key) {
+  if (!key?.root) return 'C'
+  return key.mode === 'minor' ? `${key.root}m` : key.root
+}
+
 function buildStaveNote(note, style, clef = 'treble') {
   const midiNums = Array.isArray(note.midi) ? note.midi : [note.midi]
   const keys = midiNums.map(midiToVexKey)
   const sn = new StaveNote({ keys, duration: scoreDurationToVex(note.duration), clef })
-
-  midiNums.forEach((m, i) => {
-    if (hasAccidental(m)) sn.addModifier(new Accidental('#'), i)
-  })
-
+  // Accidentals are NOT added here — Accidental.applyAccidentals() handles them
+  // automatically per key signature after voices are built.
   if (style && (style.fillStyle || style.strokeStyle)) {
     sn.setStyle(style)
     sn.setStemStyle(style)
@@ -108,18 +112,20 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
     showClef = false,
     showTime = false,
     timeSignature = [4, 4],
+    key = null,
     cursor = {},
     isCurrent = false,
   } = options
   const { noteIdx = -1, lookahead = 2, wrongNoteIdx = -1, pressedNotes = new Set() } = cursor
+  const keySpec = scoreKeyToVexSpec(key)
 
   const yBass = yTreble + BASS_STAVE_GAP
 
   const trebleStave = new Stave(x, yTreble, width)
   const bassStave   = new Stave(x, yBass,   width)
   if (showClef) {
-    trebleStave.addClef('treble')
-    bassStave.addClef('bass')
+    trebleStave.addClef('treble').addKeySignature(keySpec)
+    bassStave.addClef('bass').addKeySignature(keySpec)
   }
   if (showTime && timeSignature) {
     const tsSig = `${timeSignature[0]}/${timeSignature[1]}`
@@ -169,6 +175,11 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   const bassVoice = new Voice({ numBeats: timeSignature[0], beatValue: timeSignature[1] })
   bassVoice.setMode(Voice.Mode.SOFT)
   bassVoice.addTickables(bassStaveNotes)
+
+  // Let VexFlow decide which accidentals to show given the key signature.
+  // This suppresses redundant sharps (e.g. F# / C# already in D major key sig)
+  // and adds naturals for chromatically altered notes.
+  Accidental.applyAccidentals([trebleVoice, bassVoice], keySpec)
 
   new Formatter()
     .joinVoices([trebleVoice])
@@ -329,12 +340,15 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
     const staveWidth = isFirstInRow ? measureWidth + firstMeasureExtra : measureWidth
     const isCurrent = mIdx === measureIdx
 
+    const keySpec = scoreKeyToVexSpec(score?.key)
+
     if (grandStaff) {
       renderGrandMeasure(ctx, svgEl, measure, x, y, {
         width: staveWidth,
         showClef: isFirstInRow,
         showTime: false,
         timeSignature: ts,
+        key: score?.key ?? null,
         cursor: { noteIdx: isCurrent ? noteIdx : -1, lookahead, wrongNoteIdx: isCurrent ? wrongNoteIdx : -1, pressedNotes: isCurrent ? pressedNotes : new Set() },
         isCurrent,
       })
@@ -342,7 +356,10 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
     }
 
     const stave = new Stave(x, y, staveWidth)
-    if (isFirstInRow) stave.addClef('treble')
+    if (isFirstInRow) {
+      stave.addClef('treble')
+      if (keySpec !== 'C') stave.addKeySignature(keySpec)
+    }
     stave.setContext(ctx).draw()
 
     const staveNotes = measure.notes.map((note, i) =>
@@ -355,6 +372,7 @@ export function renderPhrase(container, phrase, cursor = {}, score = null) {
     const voice = new Voice({ numBeats: ts[0], beatValue: ts[1] })
     voice.setMode(Voice.Mode.SOFT)
     voice.addTickables(staveNotes)
+    Accidental.applyAccidentals([voice], keySpec)
     new Formatter().joinVoices([voice]).format([voice], staveWidth - 20)
     voice.draw(ctx, stave)
 
