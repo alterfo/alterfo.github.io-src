@@ -100,13 +100,13 @@ OpenPose  Name        BlazePose
 
 ### Task 3: Canvas renderer (`OpenPose/renderer.js`)
 
-- [ ] implement `renderSkeleton(ctx, skeleton, colorOverride, lineWidth=4, dotRadius=6)` — draws 17 limb lines using `LIMB_COLORS`; low-confidence keypoints (`< 0.3`) skip connection rendering; draws joint circles at each point; `colorOverride` (array `[R,G,B]`) overrides all limb colors (used for second person at reduced saturation)
-- [ ] implement `renderSkeletonOnCanvas(canvas, imageBitmap, skeletons)` — clears canvas, draws `imageBitmap` scaled to fit canvas, then renders `skeletons[0]` with normal LIMB_COLORS and `skeletons[1]` (if present) with same LIMB_COLORS at 70% alpha; returns canvas for chaining
-- [ ] implement `renderSkeletonOnBlack(width, height, skeletons)` — creates an `OffscreenCanvas` (or regular `<canvas>`) `width × height`, fills black, renders all skeletons with LIMB_COLORS at full opacity; returns the canvas element (for PNG export)
-- [ ] write `OpenPose/renderer.test.mjs` (canvas mocked via a minimal stub since no DOM in node):
+- [x] implement `renderSkeleton(ctx, skeleton, colorOverride, lineWidth=4, dotRadius=6)` — draws 17 limb lines using `LIMB_COLORS`; low-confidence keypoints (`< 0.3`) skip connection rendering; draws joint circles at each point; `colorOverride` (array `[R,G,B]`) overrides all limb colors (used for second person at reduced saturation)
+- [x] implement `renderSkeletonOnCanvas(canvas, imageBitmap, skeletons)` — clears canvas, draws `imageBitmap` scaled to fit canvas, then renders `skeletons[0]` with normal LIMB_COLORS and `skeletons[1]` (if present) with same LIMB_COLORS at 70% alpha; returns canvas for chaining
+- [x] implement `renderSkeletonOnBlack(width, height, skeletons)` — creates an `OffscreenCanvas` (or regular `<canvas>`) `width × height`, fills black, renders all skeletons with LIMB_COLORS at full opacity; returns the canvas element (for PNG export)
+- [x] write `OpenPose/renderer.test.mjs` (canvas mocked via a minimal stub since no DOM in node):
   - test that `renderSkeleton` does not throw given a valid 18-point skeleton and a mock `ctx` with jest-style no-op methods
   - test that keypoints with confidence < 0.3 cause their connections to be skipped (mock ctx records `moveTo`/`lineTo` calls, verify count)
-- [ ] run `node --test .vitepress/theme/components/OpenPose/renderer.test.mjs` — must pass before task 4
+- [x] run `node --test .vitepress/theme/components/OpenPose/renderer.test.mjs` — must pass before task 4
 
 ### Task 4: MediaPipe model wrapper (`OpenPose/model.js`)
 
