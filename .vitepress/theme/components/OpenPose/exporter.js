@@ -64,6 +64,8 @@ function canvasToBlob(canvas) {
 }
 
 // Shared: download a Blob under `filename` via a transient <a>, then revoke.
+// The revoke is deferred: revoking the object URL synchronously after click()
+// can abort the download in Firefox/Safari before the blob has been fetched.
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -71,6 +73,6 @@ function triggerDownload(blob, filename) {
   a.download = filename
   document.body.appendChild(a)
   a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
