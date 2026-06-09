@@ -150,3 +150,54 @@ export function emptySkeleton(cx, cy, scale = 80) {
     confidence: 1,
   }))
 }
+
+// Place keypoints that the model missed (confidence < 0.1) at anatomically
+// reasonable estimated positions based on what was detected.
+// Modifies skeleton in place and marks snapped points with confidence = 0.1
+// so they stay below CONFIDENCE_THRESHOLD and won't draw skeleton lines, but
+// are visible and draggable in the editor overlay.
+//
+// fallbackCx/fallbackCy: canvas-centre fallback when no detected anchor exists.
+// fallbackScale: px-per-unit when no shoulder width can be computed.
+export function snapMissingKeypoints(skeleton, fallbackCx = 0, fallbackCy = 0, fallbackScale = 80) {
+  if (!skeleton?.length) return skeleton
+
+  // Anchor: Neck preferred; otherwise centroid of all high-confidence points.
+  const neck = skeleton[NECK_INDEX]
+  let anchorX = fallbackCx
+  let anchorY = fallbackCy
+  if (neck?.confidence >= 0.2) {
+    anchorX = neck.x
+    anchorY = neck.y
+  } else {
+    const hi = skeleton.filter(p => p?.confidence >= 0.2)
+    if (hi.length > 0) {
+      anchorX = hi.reduce((s, p) => s + p.x, 0) / hi.length
+      anchorY = hi.reduce((s, p) => s + p.y, 0) / hi.length
+    }
+  }
+
+  // Scale: shoulder half-width is 1 unit in TPOSE_OFFSETS.
+  let scale = fallbackScale
+  const rs = skeleton[2], ls = skeleton[5]
+  if (rs?.confidence >= 0.2 && ls?.confidence >= 0.2) {
+    const d = Math.hypot(ls.x - rs.x, ls.y - rs.y)
+    if (d > 10) scale = d / 2
+  }
+
+  // Neck sits at TPOSE_OFFSETS[NECK_INDEX] = [0, -1.5].
+  // Each keypoint's T-pose offset from neck:
+  //   dx = TPOSE_OFFSETS[i][0] - 0   (neck.x component is 0)
+  //   dy = TPOSE_OFFSETS[i][1] + 1.5 (neck.y component is -1.5)
+  const [, neckTY] = TPOSE_OFFSETS[NECK_INDEX] // [0, -1.5]
+  for (let i = 0; i < skeleton.length; i++) {
+    if (skeleton[i].confidence >= 0.1) continue
+    const [tx, ty] = TPOSE_OFFSETS[i]
+    skeleton[i] = {
+      x: anchorX + tx * scale,
+      y: anchorY + (ty - neckTY) * scale,
+      confidence: 0.1, // estimated — below CONFIDENCE_THRESHOLD, so no skeleton lines drawn
+    }
+  }
+  return skeleton
+}

@@ -10,6 +10,7 @@
 
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw } from 'vue'
 import { usePoseDetection } from './OpenPose/model.js'
+import { snapMissingKeypoints } from './OpenPose/skeleton.js'
 import { renderSkeletonOnCanvas, renderSkeletonOnBlack } from './OpenPose/renderer.js'
 import { useSkeletonEditor, addPerson, removePerson, MAX_PERSONS } from './OpenPose/editor.js'
 import { toOpenPoseJSON, downloadJSON, downloadPNG } from './OpenPose/exporter.js'
@@ -77,7 +78,10 @@ async function processQueue() {
       try {
         const bmp = await createImageBitmap(entry.file)
         entry.imageBitmap = markRaw(bmp)
-        entry.skeletons = await model.detectPoses(bmp)
+        const skels = await model.detectPoses(bmp)
+        const scale = bmp.width / 8
+        for (const s of skels) snapMissingKeypoints(s, bmp.width / 2, bmp.height / 2, scale)
+        entry.skeletons = skels
         entry.status = 'done'
       } catch (e) {
         entry.status = 'error'
@@ -146,7 +150,10 @@ function onRemovePerson() {
 async function onRedetect() {
   const entry = selectedEntry.value
   if (!entry || !entry.imageBitmap || model.status.value !== 'ready') return
-  entry.skeletons = await model.detectPoses(entry.imageBitmap)
+  const skels = await model.detectPoses(entry.imageBitmap)
+  const { width, height } = entry.imageBitmap
+  for (const s of skels) snapMissingKeypoints(s, width / 2, height / 2, width / 8)
+  entry.skeletons = skels
   nextTick(renderSelected)
 }
 

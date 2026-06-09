@@ -6,7 +6,7 @@
 //     exactly over the preview canvas; drag a circle → update the keypoint and
 //     re-render the canvas live.
 
-import { emptySkeleton } from './skeleton.js'
+import { emptySkeleton, OPENPOSE_KEYPOINTS } from './skeleton.js'
 import { CONFIDENCE_THRESHOLD } from './renderer.js'
 
 // At most two people per image (BlazePose numPoses = 2).
@@ -126,19 +126,29 @@ export function useSkeletonEditor(canvasEl, getSkeletons, onUpdate) {
       const skel = skeletons[p]
       for (let i = 0; i < skel.length; i++) {
         const kp = skel[i]
-        const low = kp.confidence < CONFIDENCE_THRESHOLD
+        // Three confidence states:
+        //   detected  (>= 0.3): filled circle — model is confident
+        //   estimated (0.05–0.3): hollow orange — snapped to anatomical estimate
+        //   unknown   (< 0.05):  hollow red    — model found nothing, drag from scratch
+        const detected = kp.confidence >= CONFIDENCE_THRESHOLD
+        const estimated = !detected && kp.confidence >= 0.05
+        const strokeColor = detected ? color : (estimated ? '#ffa726' : '#ff5252')
         const c = document.createElementNS(SVG_NS, 'circle')
         c.setAttribute('cx', kp.x)
         c.setAttribute('cy', kp.y)
         c.setAttribute('r', r)
-        c.setAttribute('stroke', color)
+        c.setAttribute('stroke', strokeColor)
         c.setAttribute('stroke-width', sw)
-        c.setAttribute('fill', low ? 'transparent' : color)
-        c.setAttribute('fill-opacity', low ? '0' : '0.85')
-        c.style.pointerEvents = 'all' // grabbable even when hollow
+        c.setAttribute('fill', detected ? color : 'none')
+        c.setAttribute('fill-opacity', detected ? '0.85' : '0')
+        c.style.pointerEvents = 'all'
         c.style.cursor = 'grab'
         c.dataset.person = String(p)
         c.dataset.index = String(i)
+        // Tooltip with keypoint name — visible on hover in all browsers
+        const title = document.createElementNS(SVG_NS, 'title')
+        title.textContent = OPENPOSE_KEYPOINTS[i] || String(i)
+        c.appendChild(title)
         svg.appendChild(c)
       }
     }
