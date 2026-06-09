@@ -144,6 +144,7 @@ function cancelAbcModal() {
 
 const level = ref(1)          // 1 = note-by-note, 2 = measure-by-measure
 const tempoFactor = ref(1.0)  // 0.5 | 0.75 | 1.0
+const noHints = ref(false)    // hide notation, show only position cursor
 
 // ─────────────────────────────────────────────────────────────
 // MIDI
@@ -394,6 +395,20 @@ const keyLabel = computed(() => {
   return `${k.root} ${k.mode === 'minor' ? 'min' : 'maj'}`
 })
 
+// Progress cursor data for no-hints mode: one segment per measure in current phrase.
+// Each segment carries a 0..1 fill indicating note progress within that measure.
+const cursorSegments = computed(() => {
+  const phrase = currentScore.value.phrases[phraseIdx.value]
+  if (!phrase) return []
+  return phrase.measures.map((m, i) => {
+    const total = m.notes.length
+    let fill = 0
+    if (i < measureIdx.value) fill = 1
+    else if (i === measureIdx.value) fill = total > 0 ? noteIdx.value / total : 0
+    return { active: i === measureIdx.value, fill }
+  })
+})
+
 function updateKeyboardWidth() {
   if (keyboardEl.value) keyboardWidth.value = keyboardEl.value.clientWidth || 800
 }
@@ -546,6 +561,10 @@ onUnmounted(() => {
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
       </button>
 
+      <button :class="['tb-btn', { active: noHints }]" @click="noHints = !noHints" title="Режим без нотных подсказок">
+        {{ noHints ? '♩ Ноты' : '♩ Без нот' }}
+      </button>
+
       <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn"
         :title="samplerError ? 'HD недоступен: поместите Salamander Grand Piano mp3 в public/audio/salamander/' : 'Загрузить HD Salamander Grand Piano (требует файлы в /audio/salamander/)'">
         {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
@@ -599,7 +618,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- ── Stave area ───────────────────────────────────────── -->
+    <!-- ── Stave area / no-hints cursor ────────────────────── -->
     <div class="piano-stave-wrap">
       <div v-if="isComplete" class="piano-complete">
         <div class="complete-icon">🎉</div>
@@ -607,7 +626,21 @@ onUnmounted(() => {
         <div class="complete-stats">Точность: {{ accuracy }} · Лучшая серия: {{ longestStreak }}</div>
         <button class="restart-btn" @click="initTrainer">Заново</button>
       </div>
-      <div v-else ref="staveContainer" class="piano-stave-container"></div>
+      <template v-else>
+        <div v-show="!noHints" ref="staveContainer" class="piano-stave-container"></div>
+        <div v-show="noHints" class="piano-cursor-wrap">
+          <div class="piano-cursor-bar">
+            <div
+              v-for="(seg, i) in cursorSegments"
+              :key="i"
+              :class="['cursor-seg', { 'cursor-seg--active': seg.active }]"
+            >
+              <div class="cursor-seg-fill" :style="{ width: seg.fill * 100 + '%' }"></div>
+            </div>
+          </div>
+          <div class="piano-cursor-label">{{ posLabel }}</div>
+        </div>
+      </template>
     </div>
 
     <!-- ── Status bar ───────────────────────────────────────── -->
@@ -1006,5 +1039,51 @@ onUnmounted(() => {
   color: #ff7744;
   font-family: monospace;
   letter-spacing: 0.08em;
+}
+
+/* ── No-hints cursor ─────────────────────────────────────────── */
+.piano-cursor-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px 20px;
+  gap: 14px;
+}
+.piano-cursor-bar {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 800px;
+  height: 28px;
+}
+.cursor-seg {
+  flex: 1;
+  background: #1e1e3a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.cursor-seg--active {
+  border-color: #4a7eff;
+  box-shadow: 0 0 6px rgba(74, 126, 255, 0.4);
+}
+.cursor-seg-fill {
+  height: 100%;
+  background: #1e4aff;
+  opacity: 0.7;
+  transition: width 0.1s linear;
+}
+.cursor-seg--active .cursor-seg-fill {
+  background: #4a7eff;
+  opacity: 1;
+}
+.piano-cursor-label {
+  font-size: 13px;
+  color: #555;
+  letter-spacing: 0.04em;
 }
 </style>
