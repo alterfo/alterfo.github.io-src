@@ -427,9 +427,9 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p1',
       measures: [
         { id: 'm1', notes: [
-          { midi: 74, duration: 'h',  hand: 'right' }, // D5   (2)
-          { midi: 73, duration: 'q',  hand: 'right' }, // C#5  (1)
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4   (1) → RH total 4
+          { midi: [74,66], duration: 'h',  hand: 'right' }, // D5+F#4  (2)
+          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1)
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -440,8 +440,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm2', notes: [
-          { midi: 69, duration: 'h.', hand: 'right' }, // A4   (3)
-          { midi: 68, duration: 'q',  hand: 'right' }, // G#4  (1) → RH total 4
+          { midi: [69,61], duration: 'h.', hand: 'right' }, // A4+C#4  (3)
+          { midi: [68,59], duration: 'q',  hand: 'right' }, // G#4+B3  (1) → RH total 4
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -452,10 +452,10 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 52, duration: '8',  hand: 'left'  }, // E3   → LH total 4
         ]},
         { id: 'm3', notes: [
-          { midi: 66, duration: 'q',  hand: 'right' }, // F#4
-          { midi: 67, duration: 'q',  hand: 'right' }, // G4
-          { midi: 69, duration: 'q',  hand: 'right' }, // A4
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4   → RH total 4
+          { midi: [66,57], duration: 'q',  hand: 'right' }, // F#4+A3
+          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -466,8 +466,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm4', notes: [
-          { midi: 73, duration: 'h.', hand: 'right' }, // C#5  (3)
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   (1) → RH total 4
+          { midi: [73,64], duration: 'h.', hand: 'right' }, // C#5+E4  (3)
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
           { midi: 49, duration: '8',  hand: 'left'  }, // C#3
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
@@ -484,9 +484,9 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p2',
       measures: [
         { id: 'm5', notes: [
-          { midi: 76, duration: 'h',  hand: 'right' }, // E5   (2)
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   (1)
-          { midi: 73, duration: 'q',  hand: 'right' }, // C#5  (1) → RH total 4
+          { midi: [76,67], duration: 'h',  hand: 'right' }, // E5+G4   (2)
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1)
+          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1) → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -497,8 +497,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm6', notes: [
-          { midi: 71, duration: 'h.', hand: 'right' }, // B4   (3)
-          { midi: 69, duration: 'q',  hand: 'right' }, // A4   (1) → RH total 4
+          { midi: [71,62], duration: 'h.', hand: 'right' }, // B4+D4   (3)
+          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4  (1) → RH total 4
           { midi: 43, duration: '8',  hand: 'left'  }, // G2
           { midi: 47, duration: '8',  hand: 'left'  }, // B2
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
@@ -509,10 +509,10 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 47, duration: '8',  hand: 'left'  }, // B2   → LH total 4
         ]},
         { id: 'm7', notes: [
-          { midi: 67, duration: 'q',  hand: 'right' }, // G4
-          { midi: 69, duration: 'q',  hand: 'right' }, // A4
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4
-          { midi: 73, duration: 'q',  hand: 'right' }, // C#5  → RH total 4
+          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4
+          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  → RH total 4
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
           { midi: 49, duration: '8',  hand: 'left'  }, // C#3
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
@@ -523,7 +523,7 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 49, duration: '8',  hand: 'left'  }, // C#3  → LH total 4
         ]},
         { id: 'm8', notes: [
-          { midi: 74, duration: 'w',  hand: 'right' }, // D5   whole → RH total 4
+          { midi: [74,66], duration: 'w',  hand: 'right' }, // D5+F#4  whole → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -540,9 +540,9 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p3',
       measures: [
         { id: 'm9', notes: [
-          { midi: 78, duration: 'h',  hand: 'right' }, // F#5  (2)
-          { midi: 76, duration: 'q',  hand: 'right' }, // E5   (1)
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   (1) → RH total 4
+          { midi: [78,69], duration: 'h',  hand: 'right' }, // F#5+A4  (2)
+          { midi: [76,67], duration: 'q',  hand: 'right' }, // E5+G4   (1)
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
           { midi: 47, duration: '8',  hand: 'left'  }, // B2
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
@@ -553,8 +553,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 50, duration: '8',  hand: 'left'  }, // D3   → LH total 4
         ]},
         { id: 'm10', notes: [
-          { midi: 73, duration: 'h.', hand: 'right' }, // C#5  (3)
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4   (1) → RH total 4
+          { midi: [73,64], duration: 'h.', hand: 'right' }, // C#5+E4  (3)
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
           { midi: 44, duration: '8',  hand: 'left'  }, // G#2
           { midi: 47, duration: '8',  hand: 'left'  }, // B2
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
@@ -565,10 +565,10 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 47, duration: '8',  hand: 'left'  }, // B2   → LH total 4
         ]},
         { id: 'm11', notes: [
-          { midi: 69, duration: 'q',  hand: 'right' }, // A4
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4
-          { midi: 73, duration: 'q',  hand: 'right' }, // C#5
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   → RH total 4
+          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4
+          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -579,8 +579,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm12', notes: [
-          { midi: 76, duration: 'h.', hand: 'right' }, // E5   (3)
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   (1) → RH total 4
+          { midi: [76,67], duration: 'h.', hand: 'right' }, // E5+G4   (3)
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -597,9 +597,9 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p4',
       measures: [
         { id: 'm13', notes: [
-          { midi: 74, duration: 'h',  hand: 'right' }, // D5   (2)
-          { midi: 73, duration: 'q',  hand: 'right' }, // C#5  (1)
-          { midi: 71, duration: 'q',  hand: 'right' }, // B4   (1) → RH total 4
+          { midi: [74,66], duration: 'h',  hand: 'right' }, // D5+F#4  (2)
+          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1)
+          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -610,8 +610,8 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm14', notes: [
-          { midi: 69, duration: 'h.', hand: 'right' }, // A4   (3)
-          { midi: 67, duration: 'q',  hand: 'right' }, // G4   (1) → RH total 4
+          { midi: [69,61], duration: 'h.', hand: 'right' }, // A4+C#4  (3)
+          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3   (1) → RH total 4
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
           { midi: 49, duration: '8',  hand: 'left'  }, // C#3
           { midi: 52, duration: '8',  hand: 'left'  }, // E3
@@ -622,10 +622,10 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 49, duration: '8',  hand: 'left'  }, // C#3  → LH total 4
         ]},
         { id: 'm15', notes: [
-          { midi: 66, duration: 'q',  hand: 'right' }, // F#4
-          { midi: 67, duration: 'q',  hand: 'right' }, // G4
-          { midi: 69, duration: 'q',  hand: 'right' }, // A4
-          { midi: 74, duration: 'q',  hand: 'right' }, // D5   → RH total 4
+          { midi: [66,57], duration: 'q',  hand: 'right' }, // F#4+A3
+          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
+          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -636,7 +636,7 @@ const RACHMANINOFF_PRELUDE_D = {
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
         ]},
         { id: 'm16', notes: [
-          { midi: 74, duration: 'w',  hand: 'right' }, // D5   whole → RH total 4
+          { midi: [74,66], duration: 'w',  hand: 'right' }, // D5+F#4  whole → RH total 4
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 54, duration: '8',  hand: 'left'  }, // F#3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
