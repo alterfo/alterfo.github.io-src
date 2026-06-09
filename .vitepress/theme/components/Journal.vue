@@ -387,7 +387,8 @@ onUnmounted(() => {
             v-for="day in calDays"
             :key="day.iso"
             class="cal-chip"
-            :class="calDayClass(day)"
+            :class="[calDayClass(day), { 'cal-selected': viewDate === day.iso }]"
+            @click="openEntry(day.iso)"
           >
             <span class="cal-chip-n">{{ day.n }}</span>
             <span class="cal-chip-w">{{ day.words >= 0 ? day.words : '·' }}</span>
@@ -666,6 +667,21 @@ onUnmounted(() => {
 .cal-chip.cal-goal     { background: #3a1e1e; }
 .cal-chip.cal-goal .cal-chip-n { color: #ff9999; }
 .cal-chip.cal-goal .cal-chip-w { color: #dd6666; }
+
+.cal-chip.cal-goal,
+.cal-chip.cal-partial,
+.cal-chip.cal-zero {
+  cursor: pointer;
+}
+.cal-chip.cal-goal:hover,
+.cal-chip.cal-partial:hover,
+.cal-chip.cal-zero:hover {
+  opacity: 0.75;
+}
+.cal-chip.cal-selected {
+  outline: 2px solid #888;
+  outline-offset: 1px;
+}
 
 /* ══════════════════════════════════════════════
    Layout: body row (sidebar + main)
