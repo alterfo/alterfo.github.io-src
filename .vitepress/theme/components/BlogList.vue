@@ -47,7 +47,7 @@ const groupedPosts = computed(() => {
 .blog-heading {
   font-size: 1.6rem;
   font-weight: 700;
-  color: rgba(230, 220, 255, 0.9);
+  color: var(--ds-text);
   margin-bottom: 2.5rem;
   border: none;
 }
@@ -62,11 +62,11 @@ const groupedPosts = computed(() => {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: rgba(200, 180, 255, 0.35);
+  color: var(--ds-text-dim);
   margin: 0 0 0.75rem;
   padding: 0 0 0.5rem 0.75rem;
   border: none;
-  border-left: 2px solid rgba(200, 180, 255, 0.2);
+  border-left: 2px solid var(--ds-text-dim);
 }
 
 .post-article {
@@ -76,31 +76,31 @@ const groupedPosts = computed(() => {
 .post-link {
   display: block;
   padding: 1rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--ds-border);
   text-decoration: none;
   transition: border-color 0.2s;
 }
 
 .post-link:hover {
-  border-bottom-color: rgba(179, 77, 255, 0.5);
+  border-bottom-color: color-mix(in srgb, var(--ds-violet) 50%, transparent);
 }
 
 .post-link:hover .post-title {
-  color: rgba(230, 220, 255, 1);
+  color: var(--ds-text-strong);
 }
 
 .post-title {
   display: block;
   font-size: 1.1rem;
   font-weight: 600;
-  color: rgba(230, 220, 255, 0.9);
+  color: var(--ds-text);
   margin: 0 0 0.3rem;
   transition: color 0.2s;
 }
 
 .post-date {
   font-size: 0.78rem;
-  color: rgba(200, 180, 255, 0.35);
+  color: var(--ds-text-dim);
   display: block;
   margin-bottom: 0.35rem;
 }
@@ -108,7 +108,7 @@ const groupedPosts = computed(() => {
 .post-excerpt {
   display: block;
   font-size: 0.85rem;
-  color: rgba(200, 180, 255, 0.45);
+  color: var(--ds-text-muted);
   line-height: 1.5;
   margin: 0;
 }

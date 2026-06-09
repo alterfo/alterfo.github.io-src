@@ -28,4 +28,7 @@
   /* Spacing / radii / glow */
   --ds-radius: 8px;
   --ds-glow-violet: 0 0 40px rgba(179, 77, 255, 0.6);
+
+  /* Neutral separator (used by BlogList post divider, Portfolio card borders) */
+  --ds-border: rgba(255, 255, 255, 0.08);
 }
