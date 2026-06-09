@@ -315,6 +315,15 @@ function advanceNote(heldMs = Infinity) {
     isComplete.value = true
   }
 
+  // If the newly expected notes are already held (two-hand playing), start the hold timer
+  // immediately — the watch won't fire again because pressedNotes didn't change.
+  if (!isComplete.value) {
+    const next = getExpectedMidis()
+    if (next.length > 0 && next.every(m => pressedNotes.value.has(m))) {
+      correctHoldStart = Date.now()
+    }
+  }
+
   nextTick(renderStave)
   saveProgress(selectedScoreId.value, {
     level: level.value,
