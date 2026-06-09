@@ -156,11 +156,11 @@ watch(animateHeader, val => {
 <style>
 .site-header {
   position: relative;
-  background: #111;
+  background: var(--ds-void);
   background-size: cover;
   background-position: center center;
   z-index: 1;
-  color: #fff;
+  color: var(--ds-text-strong);
 }
 
 .site-header canvas {
@@ -194,7 +194,7 @@ watch(animateHeader, val => {
 }
 
 .site-header .page-title {
-  color: white;
+  color: var(--ds-text-strong);
   font-size: calc(1.3em + 3vw);
   letter-spacing: -1px;
   line-height: 1.2;
@@ -225,7 +225,7 @@ watch(animateHeader, val => {
 }
 
 .site-header .main-title a {
-  color: #fdfdfd;
+  color: var(--ds-text-strong);
   text-decoration: none;
 }
 

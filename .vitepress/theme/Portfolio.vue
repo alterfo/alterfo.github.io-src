@@ -322,8 +322,8 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 100vh;
   background: transparent;
-  color: #e0e0ff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--ds-text);
+  font-family: var(--ds-font-body);
   z-index: 1;
 }
 
@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
 .projects, .expertise, .bio, .staff-divider, .site-footer {
   position: relative;
   z-index: 1;
-  background: rgba(10, 0, 32, 0.75);
+  background: var(--ds-surface);
 }
 
 /* ── Full-page canvas background ─────────────────────────────── */
@@ -397,12 +397,12 @@ onBeforeUnmount(() => {
 }
 
 .hero-name {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--ds-font-display);
   font-size: 1.65rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ds-text-strong);
   margin: 0;
-  text-shadow: 0 0 40px rgba(179, 77, 255, 0.6);
+  text-shadow: var(--ds-glow-violet);
   white-space: nowrap;
 }
 
@@ -410,7 +410,7 @@ onBeforeUnmount(() => {
   font-size: 0.75rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(200, 180, 255, 0.55);
+  color: var(--ds-text-muted);
   margin: 0;
   font-weight: 400;
   white-space: nowrap;
@@ -443,7 +443,7 @@ onBeforeUnmount(() => {
 .bio-accent {
   color: rgba(200, 180, 255, 0.9) !important;
   font-style: italic;
-  border-left: 2px solid rgba(179, 77, 255, 0.6);
+  border-left: 2px solid color-mix(in srgb, var(--ds-violet) 60%, transparent);
   padding-left: 1rem;
   margin-top: 1.25rem !important;
 }
@@ -464,10 +464,10 @@ onBeforeUnmount(() => {
 }
 
 .section-title {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--ds-font-display);
   font-size: clamp(1.4rem, 3.5vw, 2rem);
   font-weight: 700;
-  color: #fff;
+  color: var(--ds-text-strong);
   margin: 0 0 2rem;
   letter-spacing: -0.01em;
 }
@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
 .title-mono {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 0.75em;
-  color: rgba(179, 77, 255, 0.8);
+  color: color-mix(in srgb, var(--ds-violet) 80%, transparent);
   font-style: normal;
 }
 
@@ -493,7 +493,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--ds-border);
   border-radius: 10px;
   overflow: hidden;
   text-decoration: none;
@@ -557,15 +557,15 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
-  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--ds-text-strong);
+  font-family: var(--ds-font-display);
   line-height: 1.2;
 }
 
 .card-desc {
   margin: 0;
   font-size: 0.85rem;
-  color: rgba(200, 180, 255, 0.55);
+  color: var(--ds-text-muted);
   line-height: 1.55;
 }
 
@@ -590,16 +590,16 @@ onBeforeUnmount(() => {
 }
 
 .exp-divider {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ds-border);
   height: 100%;
   min-height: 180px;
 }
 
 .exp-heading {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--ds-font-display);
   font-size: 1.3rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ds-text-strong);
   margin: 0 0 1.1rem;
   display: flex;
   align-items: center;
@@ -608,7 +608,7 @@ onBeforeUnmount(() => {
 
 .exp-icon {
   font-size: 1.5rem;
-  color: rgba(179, 77, 255, 0.85);
+  color: color-mix(in srgb, var(--ds-violet) 85%, transparent);
   font-style: normal;
   font-family: 'Times New Roman', Georgia, serif;
   line-height: 1;
@@ -618,7 +618,7 @@ onBeforeUnmount(() => {
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 1rem;
   letter-spacing: -0.05em;
-  color: rgba(26, 204, 255, 0.85);
+  color: color-mix(in srgb, var(--ds-cyan) 85%, transparent);
 }
 
 .exp-list {
@@ -642,14 +642,14 @@ onBeforeUnmount(() => {
   content: '—';
   position: absolute;
   left: 0;
-  color: rgba(179, 77, 255, 0.45);
+  color: color-mix(in srgb, var(--ds-violet) 45%, transparent);
   font-size: 0.75em;
   top: 0.15em;
 }
 
 /* ── Footer ──────────────────────────────────────────────────── */
 .site-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--ds-border);
   padding: 1.5rem;
   text-align: center;
   font-size: 0.8rem;
