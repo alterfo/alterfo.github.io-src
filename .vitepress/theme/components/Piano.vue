@@ -18,6 +18,7 @@ const builtinScores = listScores()              // metadata: { id, title, compos
 const userScores = ref(loadUserScores())        // полные Score объекты
 const scores = computed(() => [...builtinScores, ...userScores.value])
 const selectedScoreId = ref(builtinScores[0]?.id ?? '')
+watch(selectedScoreId, id => { try { localStorage.setItem('piano:selectedScoreId', id) } catch {} })
 // currentScore: сперва ищем среди user-scores (полные), иначе loadScore (встроенные)
 const currentScore = computed(() => {
   const u = userScores.value.find(s => s.id === selectedScoreId.value)
@@ -468,6 +469,11 @@ onMounted(async () => {
   const mod = await import('./Piano/renderer.js')
   _renderPhrase = mod.renderPhrase
   await initMidi()
+  // Restore previously selected score
+  try {
+    const saved = localStorage.getItem('piano:selectedScoreId')
+    if (saved && scores.value.find(s => s.id === saved)) selectedScoreId.value = saved
+  } catch {}
   initTrainer()
   _rafId = requestAnimationFrame(rafTick)
   updateKeyboardWidth()
@@ -538,7 +544,8 @@ onUnmounted(() => {
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
       </button>
 
-      <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn">
+      <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn"
+        :title="samplerError ? 'HD недоступен: поместите Salamander Grand Piano mp3 в public/audio/salamander/' : 'Загрузить HD Salamander Grand Piano (требует файлы в /audio/salamander/)'">
         {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
       </button>
 

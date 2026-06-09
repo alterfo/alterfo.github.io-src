@@ -179,16 +179,17 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   bassVoice.draw(ctx, bassStave)
 
   // Ghost notes: treble for midi >= 60, bass for midi < 60
+  // Use either stave's current note x as fallback so ghost notes always appear
+  // even when the cursor is on the opposite voice.
   if (isCurrent && pressedNotes.size > 0) {
     const treblePressed = new Set([...pressedNotes].filter(m => m >= 60))
     const bassPressed   = new Set([...pressedNotes].filter(m => m < 60))
     const currentTrebleNote = trebleNoteIdx >= 0 ? trebleStaveNotes[trebleNoteIdx] : null
     const currentBassNote   = bassNoteIdx >= 0 ? bassStaveNotes[bassNoteIdx] : null
-    if (treblePressed.size > 0 && currentTrebleNote) {
-      drawGhostNotes(svgEl, trebleStave, currentTrebleNote.getAbsoluteX(), treblePressed)
-    }
-    if (bassPressed.size > 0 && currentBassNote) {
-      drawGhostNotesBass(svgEl, bassStave, currentBassNote.getAbsoluteX(), bassPressed)
+    const noteX = (currentTrebleNote ?? currentBassNote)?.getAbsoluteX()
+    if (noteX !== undefined) {
+      if (treblePressed.size > 0) drawGhostNotes(svgEl, trebleStave, noteX, treblePressed)
+      if (bassPressed.size > 0) drawGhostNotesBass(svgEl, bassStave, noteX, bassPressed)
     }
   }
 
