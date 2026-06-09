@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
@@ -15,6 +15,7 @@ const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
 const hasVault = ref(false)
 const passphraseInput = ref('')
 const error = ref('')
+const lockReason = ref('')     // non-empty when locked due to inactivity
 
 const vault = reactive({ version: 1, entries: {}, createdAt: '' })
 
@@ -36,6 +37,51 @@ const pastEntries = computed(() =>
     .filter(([date]) => date !== todayISO.value)
     .sort(([a], [b]) => b.localeCompare(a))
 )
+
+// ---- Password strength (shown only when creating a new vault) ----
+const passwordStrength = computed(() => {
+  const p = passphraseInput.value
+  if (!p) return null
+  if (p.length < 8) return 'weak'
+  const variety = [/[a-z]/, /[A-Z]/, /\d/, /[^a-zA-Z0-9]/].filter(r => r.test(p)).length
+  if (p.length >= 14 && variety >= 3) return 'strong'
+  if (p.length >= 10 && variety >= 2) return 'medium'
+  return 'weak'
+})
+const passwordStrengthLabel = computed(() => ({
+  weak:   'Слабый — добавьте цифры, заглавные буквы и длину',
+  medium: 'Средний — добавьте спецсимволы или увеличьте длину',
+  strong: 'Надёжный',
+}[passwordStrength.value] || ''))
+
+// ---- Auto-lock after 5 minutes of inactivity ----
+const IDLE_MS = 5 * 60 * 1000
+const IDLE_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'click']
+let _idleTimer = null
+
+function resetIdleTimer() {
+  if (phase.value !== 'unlocked') return
+  clearTimeout(_idleTimer)
+  _idleTimer = setTimeout(() => lockVault('Заблокировано из-за 5 минут бездействия'), IDLE_MS)
+}
+
+async function lockVault(reason = '') {
+  lockReason.value = reason
+  clearTimeout(_saveTimer)
+  clearTimeout(_idleTimer)
+  try { await persistVault() } catch { /* best-effort flush */ }
+  _key = null
+  _salt = null
+  viewDate.value = null
+  todayText.value = ''
+  Object.assign(vault, { version: 1, entries: {}, createdAt: '' })
+  phase.value = 'locked'
+}
+
+watch(phase, (p) => {
+  if (p === 'unlocked') { resetIdleTimer() }
+  else { clearTimeout(_idleTimer) }
+})
 
 // ---- Past-entry viewer ----
 // null = today's editor; iso-string = read-only viewer for that date
@@ -294,6 +340,7 @@ onMounted(async () => {
   phase.value = 'locked'
 
   scheduleDayRollover()
+  IDLE_EVENTS.forEach(e => document.addEventListener(e, resetIdleTimer, { passive: true }))
 
   _cleanupSync = initCrossTabSync(async () => {
     if (!_key) return
@@ -325,6 +372,8 @@ onUnmounted(() => {
   clearTimeout(_saveTimer)
   clearTimeout(_dayTimer)
   clearTimeout(_statusTimer)
+  clearTimeout(_idleTimer)
+  IDLE_EVENTS.forEach(e => document.removeEventListener(e, resetIdleTimer))
   _key = null
   _salt = null
   _pendingImportStr = null
@@ -366,10 +415,14 @@ onUnmounted(() => {
           :autocomplete="hasVault ? 'current-password' : 'new-password'"
           @keydown="onPassphraseKeydown"
         />
+        <div v-if="!hasVault && passwordStrength" class="journal-pw-strength" :class="'pw-' + passwordStrength">
+          {{ passwordStrengthLabel }}
+        </div>
         <div class="journal-lock-actions">
           <button v-if="hasVault" class="journal-btn journal-btn-primary" @click="unlock">Открыть</button>
           <button v-else class="journal-btn journal-btn-primary" @click="createVault">Создать</button>
         </div>
+        <p v-if="lockReason && !error" class="journal-lock-reason">{{ lockReason }}</p>
         <p v-if="error" class="journal-error">{{ error }}</p>
       </div>
     </div>
@@ -407,6 +460,9 @@ onUnmounted(() => {
             <div class="journal-streak-count">{{ streak }}</div>
             <div class="journal-streak-label">дней подряд</div>
           </div>
+
+          <!-- Lock -->
+          <button class="journal-btn journal-btn-lock" @click="lockVault()">🔒 Заблокировать</button>
 
           <!-- Sync -->
           <div class="journal-sync-section">
@@ -591,6 +647,24 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.journal-lock-reason {
+  margin-top: 14px;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.journal-pw-strength {
+  margin-top: 8px;
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+.pw-weak   { background: rgba(255,80,80,0.12); color: #ff8080; border: 1px solid rgba(255,80,80,0.3); }
+.pw-medium { background: rgba(255,190,50,0.12); color: #ffcc55; border: 1px solid rgba(255,190,50,0.3); }
+.pw-strong { background: rgba(80,200,100,0.12); color: #77cc77; border: 1px solid rgba(80,200,100,0.3); }
+
 /* ══════════════════════════════════════════════
    Layout
 ══════════════════════════════════════════════ */
@@ -761,6 +835,20 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 5px;
 }
+.journal-btn-lock {
+  background: #2a2a3a;
+  color: #888;
+  font-size: 11px;
+  padding: 7px 10px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s;
+}
+.journal-btn-lock:hover { background: #3a2a2a; color: #cc8888; border-color: #664444; }
+
 .journal-btn-sync {
   background: #333;
   color: #aaa;
