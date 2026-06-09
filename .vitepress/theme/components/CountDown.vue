@@ -35,7 +35,8 @@
   
   <script>
   import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
-  
+  import { computeRemaining, ringOffset } from './countdown.js'
+
   export default {
     name: 'CountDown',
     props: {
@@ -85,64 +86,42 @@
       let interval = null
       
       const calculateRemainingTime = () => {
-        const now = new Date()
-        const timeDiff = targetDate.value.getTime() - now.getTime()
-        
-        if (timeDiff <= 0) {
-          remainingTime.value = { days: 0, hours: 0, minutes: 0, seconds: 0 }
-          if (isRunning.value) {
-            emit('finished')
-            clearInterval(interval)
-            isRunning.value = false
-          }
-          return
-        }
-        
-        const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24))
-        const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-        const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
-        const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000)
-        
+        const { days, hours, minutes, seconds, finished } = computeRemaining(
+          startDateObj.value.getTime(),
+          props.countdownDays,
+          Date.now()
+        )
         remainingTime.value = { days, hours, minutes, seconds }
+        if (finished && isRunning.value) {
+          emit('finished')
+          clearInterval(interval)
+          isRunning.value = false
+        }
       }
       
       const timeUnits = computed(() => {
-        // For days: progress through the total countdown period (1000 days)
-        const daysProgress = remainingTime.value.days / props.countdownDays
-        const daysOffset = circumference * (1 - daysProgress)
-        
-        // For hours: progress through 24 hours
-        const hoursProgress = remainingTime.value.hours / 24
-        const hoursOffset = circumference * (1 - hoursProgress)
-        
-        // For minutes: progress through 60 minutes
-        const minutesProgress = remainingTime.value.minutes / 60
-        const minutesOffset = circumference * (1 - minutesProgress)
-        
-        // For seconds: progress through 60 seconds
-        const secondsProgress = remainingTime.value.seconds / 60
-        const secondsOffset = circumference * (1 - secondsProgress)
-        
+        const { days, hours, minutes, seconds } = remainingTime.value
         return [
           {
             label: 'Days',
-            value: remainingTime.value.days.toString(),
-            dashOffset: daysOffset
+            value: days.toString(),
+            // progress through the total countdown period (e.g. 1000 days)
+            dashOffset: ringOffset(days, props.countdownDays, circumference)
           },
           {
             label: 'Hours',
-            value: remainingTime.value.hours.toString().padStart(2, '0'),
-            dashOffset: hoursOffset
+            value: hours.toString().padStart(2, '0'),
+            dashOffset: ringOffset(hours, 24, circumference)
           },
           {
             label: 'Minutes',
-            value: remainingTime.value.minutes.toString().padStart(2, '0'),
-            dashOffset: minutesOffset
+            value: minutes.toString().padStart(2, '0'),
+            dashOffset: ringOffset(minutes, 60, circumference)
           },
           {
             label: 'Seconds',
-            value: remainingTime.value.seconds.toString().padStart(2, '0'),
-            dashOffset: secondsOffset
+            value: seconds.toString().padStart(2, '0'),
+            dashOffset: ringOffset(seconds, 60, circumference)
           }
         ]
       })
