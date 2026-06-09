@@ -11,6 +11,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw } from 'vue'
 import { usePoseDetection } from './OpenPose/model.js'
 import { renderSkeletonOnCanvas } from './OpenPose/renderer.js'
+import { useSkeletonEditor, addPerson, removePerson, MAX_PERSONS } from './OpenPose/editor.js'
 
 const model = usePoseDetection()
 
@@ -93,19 +94,59 @@ async function processQueue() {
 // ─────────────────────────────────────────────────────────────
 const canvasEl = ref(null)
 
+// Draggable-circle overlay; created on mount, reads the selected entry's skeletons.
+let editor = null
+
+function getSelectedSkeletons() {
+  return selectedEntry.value?.skeletons || []
+}
+
 function renderSelected() {
   const entry = selectedEntry.value
   const canvas = canvasEl.value
-  if (!canvas || !entry || !entry.imageBitmap) return
+  if (!canvas || !entry || !entry.imageBitmap) {
+    editor?.hide()
+    return
+  }
   // Canvas internal size = source image size so skeleton pixel coords line up;
   // CSS scales it to fit the main area (object-fit: contain).
   if (canvas.width !== entry.imageBitmap.width) canvas.width = entry.imageBitmap.width
   if (canvas.height !== entry.imageBitmap.height) canvas.height = entry.imageBitmap.height
   renderSkeletonOnCanvas(canvas, entry.imageBitmap, entry.skeletons)
+  // Rebuild the draggable handles over the freshly drawn canvas.
+  editor?.render()
 }
 
 function selectEntry(id) {
   selectedId.value = id
+}
+
+// ─────────────────────────────────────────────────────────────
+// Editing toolbar
+// ─────────────────────────────────────────────────────────────
+const canEdit = computed(() => !!(selectedEntry.value && selectedEntry.value.imageBitmap))
+const personCount = computed(() => selectedEntry.value?.skeletons.length ?? 0)
+
+function onAddPerson() {
+  const entry = selectedEntry.value
+  const canvas = canvasEl.value
+  if (!entry || !canvas) return
+  entry.skeletons = addPerson(entry.skeletons, canvas.width / 2, canvas.height / 2, 80)
+  nextTick(renderSelected)
+}
+
+function onRemovePerson() {
+  const entry = selectedEntry.value
+  if (!entry) return
+  entry.skeletons = removePerson(entry.skeletons)
+  nextTick(renderSelected)
+}
+
+async function onRedetect() {
+  const entry = selectedEntry.value
+  if (!entry || !entry.imageBitmap || model.status.value !== 'ready') return
+  entry.skeletons = await model.detectPoses(entry.imageBitmap)
+  nextTick(renderSelected)
 }
 
 // Re-render when the selection changes or the selected skeletons are edited.
@@ -168,6 +209,9 @@ function badge(status) {
 // ─────────────────────────────────────────────────────────────
 onMounted(() => {
   model.initModel()
+  // Canvas is kept in the DOM via v-show, so its ref is available now.
+  editor = useSkeletonEditor(canvasEl, getSelectedSkeletons, renderSelected)
+  nextTick(renderSelected)
 })
 
 // When the model finishes loading, drain whatever is already queued.
@@ -176,6 +220,8 @@ watch(model.status, (s) => {
 })
 
 onUnmounted(() => {
+  editor?.destroy()
+  editor = null
   for (const entry of queue.value) {
     if (entry.imageBitmap && typeof entry.imageBitmap.close === 'function') {
       try { entry.imageBitmap.close() } catch { /* ignore */ }
@@ -253,7 +299,7 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Bottom toolbar (info now; edit/export buttons added in later tasks) -->
+    <!-- Bottom toolbar: info + editing actions (export buttons added in Task 7) -->
     <div class="op-toolbar">
       <template v-if="selectedEntry">
         <span class="op-toolbar-name">{{ selectedEntry.name }}</span>
@@ -261,8 +307,24 @@ onUnmounted(() => {
           {{ selectedEntry.imageBitmap.width }}×{{ selectedEntry.imageBitmap.height }}
         </span>
         <span class="op-toolbar-persons">
-          Людей: {{ selectedEntry.skeletons.length }}
+          Людей: {{ personCount }}
         </span>
+        <span class="op-toolbar-spacer" />
+        <button
+          class="op-btn op-btn-sm"
+          :disabled="!canEdit || personCount >= MAX_PERSONS"
+          @click="onAddPerson"
+        >＋ Человек</button>
+        <button
+          class="op-btn op-btn-sm"
+          :disabled="!canEdit || personCount === 0"
+          @click="onRemovePerson"
+        >− Человек</button>
+        <button
+          class="op-btn op-btn-sm"
+          :disabled="!canEdit || model.status.value !== 'ready'"
+          @click="onRedetect"
+        >↻ Заново</button>
       </template>
       <span v-else class="op-toolbar-name">Нет выбранного изображения</span>
     </div>
@@ -436,6 +498,16 @@ onUnmounted(() => {
 }
 .op-toolbar-name { color: #ccc; }
 .op-toolbar-dim, .op-toolbar-persons { color: #888; }
+.op-toolbar-spacer { flex: 1; }
+.op-btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.op-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.op-btn:disabled:hover { background: #2a2a4a; }
 
 /* Spinner */
 .op-spinner {

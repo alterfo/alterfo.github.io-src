@@ -130,17 +130,17 @@ OpenPose  Name        BlazePose
 
 ### Task 6: Interactive skeleton editor (`OpenPose/editor.js` + toolbar)
 
-- [ ] implement `useSkeletonEditor(canvasEl, getSkeletons, onUpdate)` composable — creates a transparent SVG overlay absolutely positioned over the canvas; renders a draggable `<circle r="8">` at each keypoint; on `pointerdown` + `pointermove` updates `skeleton[i].x` and `skeleton[i].y`, sets `confidence = 1.0`, calls `onUpdate()`; person 0 circles: `#4fc3f7` (blue), person 1 circles: `#ffb74d` (orange); low-confidence keypoints (`< 0.3`) rendered as hollow circles (fill: transparent, stroke only)
-- [ ] wire editor into `OpenPoseEditor.vue`: mount composable when canvas becomes active; call `onUpdate → renderSkeletonOnCanvas` to live-update preview
-- [ ] toolbar buttons:
+- [x] implement `useSkeletonEditor(canvasEl, getSkeletons, onUpdate)` composable — creates a transparent SVG overlay absolutely positioned over the canvas; renders a draggable `<circle r="8">` at each keypoint; on `pointerdown` + `pointermove` updates `skeleton[i].x` and `skeleton[i].y`, sets `confidence = 1.0`, calls `onUpdate()`; person 0 circles: `#4fc3f7` (blue), person 1 circles: `#ffb74d` (orange); low-confidence keypoints (`< 0.3`) rendered as hollow circles (fill: transparent, stroke only)
+- [x] wire editor into `OpenPoseEditor.vue`: mount composable when canvas becomes active; call `onUpdate → renderSkeletonOnCanvas` to live-update preview
+- [x] toolbar buttons:
   - **Add person** — if `skeletons.length < 2`, append `emptySkeleton(canvas.width/2, canvas.height/2, 80)` and re-render
   - **Remove person** — if `skeletons.length > 0`, pop last skeleton and re-render
   - **Re-detect** — re-run `detectPoses` on current `imageBitmap`, replace `skeletons`, re-render
-- [ ] write `OpenPose/editor.test.mjs` (pure logic only — no DOM):
+- [x] write `OpenPose/editor.test.mjs` (pure logic only — no DOM):
   - test that dragging a keypoint updates its x/y and sets `confidence = 1.0`
   - test `addPerson` respects max 2 limit
   - test `removePerson` does not go below 0
-- [ ] run `node --test .vitepress/theme/components/OpenPose/editor.test.mjs` — must pass before task 7
+- [x] run `node --test .vitepress/theme/components/OpenPose/editor.test.mjs` — must pass before task 7
 
 ### Task 7: Export (`OpenPose/exporter.js` + buttons)
 
