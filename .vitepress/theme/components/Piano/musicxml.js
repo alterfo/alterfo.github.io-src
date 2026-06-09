@@ -53,10 +53,12 @@ function noteXML(note, voice, staff, color, prependChord, fifths) {
   const { div, type, dot } = DURATION_MAP[note.duration] ?? { div: 4, type: 'quarter', dot: false }
   const colorAttr = color ? ` color="${color}"` : ''
   const dotXML = dot ? '<dot/>' : ''
+  // OSMD reads notehead color from <notehead color="..."> not from the <note color="..."> attribute
+  const noteheadXML = color ? `<notehead color="${color}">normal</notehead>` : ''
   const midis = Array.isArray(note.midi) ? note.midi : [note.midi]
   return midis.map((m, idx) => {
     const chordXML = prependChord || idx > 0 ? '<chord/>' : ''
-    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}<staff>${staff}</staff></note>`
+    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${noteheadXML}<staff>${staff}</staff></note>`
   }).join('')
 }
 

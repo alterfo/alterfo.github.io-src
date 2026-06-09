@@ -3,7 +3,8 @@ import { DURATION_BEATS } from './score.js'
 // Duration threshold in ms: 60% of note duration at given tempo and tempo factor
 export function noteThresholdMs(duration, tempo, tempoFactor = 1.0) {
   const beats = DURATION_BEATS[duration] ?? 1
-  return (60 / tempo) * beats * 1000 * tempoFactor * 0.6
+  // Divide by tempoFactor: at 50% speed each beat takes twice as long → hold twice as long
+  return (60 / tempo) * beats * 1000 / tempoFactor * 0.6
 }
 
 // Check whether all expected MIDI notes are present in the midiSet

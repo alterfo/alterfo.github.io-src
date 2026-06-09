@@ -281,7 +281,7 @@ function rafTick() {
     if (note) {
       const heldMs = Date.now() - correctHoldStart
       const beats = DURATION_BEATS[note.duration] ?? 1
-      const threshold = (60 / currentScore.value.tempo) * beats * 1000 * tempoFactor.value * 0.6
+      const threshold = (60 / currentScore.value.tempo) * beats * 1000 / tempoFactor.value * 0.6
       if (heldMs >= threshold) {
         correctHoldStart = null
         advanceNote(heldMs)
@@ -438,7 +438,7 @@ let _metroTimer = null
 
 function startMetronome() {
   stopMetronome()
-  const bpm = currentScore.value.tempo
+  const bpm = currentScore.value.tempo * tempoFactor.value
   const beatsPerMeasure = currentScore.value.timeSignature[0]
   beatPhase.value = 0
   _metroTimer = setInterval(() => {
@@ -453,7 +453,7 @@ function stopMetronome() {
 }
 
 watch(metronomeOn, on => on ? startMetronome() : stopMetronome())
-watch(() => currentScore.value.tempo, () => { if (metronomeOn.value) startMetronome() })
+watch([() => currentScore.value.tempo, tempoFactor], () => { if (metronomeOn.value) startMetronome() })
 
 // ─────────────────────────────────────────────────────────────
 // Init & restart

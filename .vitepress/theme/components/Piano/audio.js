@@ -157,15 +157,14 @@ export function usePianoAudio() {
 
   // Must be called from a user gesture (click/keydown) so AudioContext can start.
   // Web MIDI events are NOT considered user gestures by Chrome/Firefox for AudioContext.
-  // Pre-builds the signal chain so that Reverb IR generation (which can produce a brief
-  // pop/hum) happens silently on first user click rather than during HD sampler load.
+  // Pre-builds the full chain + synth so the first MIDI note plays with zero latency.
   async function unlockAudio() {
     if (_disposed) return
     try {
       const T = await _ensureTone()
       await T.start()
       audioReady.value = true
-      _getOrBuildChain(T)  // fire-and-forget: builds EQ→Comp→Reverb→Limiter in background
+      await _ensureSynth()  // builds EQ→Comp→Reverb→Limiter chain + PolySynth
     } catch { /* ignore — may fail without a user gesture */ }
   }
 

@@ -32,16 +32,16 @@ describe('noteThresholdMs', () => {
     assert.equal(h, q * 2)
   })
 
-  it('tempoFactor 0.5 halves the threshold', () => {
+  it('tempoFactor 0.5 doubles the threshold (slower tempo = longer hold)', () => {
     const full = noteThresholdMs('q', 100, 1.0)
-    const half = noteThresholdMs('q', 100, 0.5)
-    assert.equal(half, full * 0.5)
+    const slow = noteThresholdMs('q', 100, 0.5)
+    assert.equal(slow, full * 2)
   })
 
-  it('tempoFactor 0.75 gives 3/4 of full threshold', () => {
+  it('tempoFactor 0.75 gives 4/3 of full threshold', () => {
     const full = noteThresholdMs('q', 100, 1.0)
     const t75 = noteThresholdMs('q', 100, 0.75)
-    assert.equal(t75, full * 0.75)
+    assert.ok(Math.abs(t75 - full / 0.75) < 0.001)
   })
 
   it('eighth note threshold is half a quarter', () => {
@@ -298,29 +298,28 @@ describe('Level2: repeatSection resets to phrase start', () => {
 // ── Tempo factor ──────────────────────────────────────────────────────────────
 
 describe('tempo factor affects threshold', () => {
-  it('at tempoFactor 0.5, a shorter hold suffices', () => {
+  it('at tempoFactor 1.0, holding the full threshold advances the note', () => {
     const state = createLevel1State(loadScore('c-major-scale'))
-    // threshold at factor 1.0 for q@80: (60/80)*1*1000*1.0*0.6 = 450 ms
-    // threshold at factor 0.5: 225 ms
-    const threshold50 = noteThresholdMs('q', 80, 0.5)
-    const r = checkNoteL1(state, new Set([60]), threshold50, 0.5)
+    // threshold at factor 1.0 for q@80: (60/80)*1*1000/1.0*0.6 = 450 ms
+    const threshold = noteThresholdMs('q', 80, 1.0)
+    const r = checkNoteL1(state, new Set([60]), threshold, 1.0)
     assert.equal(r, 'note-correct')
   })
 
-  it('at tempoFactor 1.0, same hold is insufficient', () => {
+  it('at tempoFactor 0.5, the 1.0 hold time is insufficient (threshold doubled)', () => {
     const state = createLevel1State(loadScore('c-major-scale'))
-    const threshold50 = noteThresholdMs('q', 80, 0.5)
-    // threshold50 is less than threshold at 1.0, so should still be waiting
-    const r = checkNoteL1(state, new Set([60]), threshold50 - 1, 1.0)
+    const threshold100 = noteThresholdMs('q', 80, 1.0)
+    // 0.5-factor threshold = 900 ms; 450 ms hold is not enough
+    const r = checkNoteL1(state, new Set([60]), threshold100, 0.5)
     assert.equal(r, 'waiting')
   })
 
-  it('tempoFactor 0.75 is between 0.5 and 1.0', () => {
+  it('slower tempoFactor requires a longer hold (0.5 > 0.75 > 1.0 threshold)', () => {
     const t50 = noteThresholdMs('q', 100, 0.5)
     const t75 = noteThresholdMs('q', 100, 0.75)
     const t100 = noteThresholdMs('q', 100, 1.0)
-    assert.ok(t50 < t75, '0.5 threshold < 0.75 threshold')
-    assert.ok(t75 < t100, '0.75 threshold < 1.0 threshold')
+    assert.ok(t50 > t75, '0.5 tempo threshold > 0.75 threshold')
+    assert.ok(t75 > t100, '0.75 tempo threshold > 1.0 threshold')
   })
 })
 
