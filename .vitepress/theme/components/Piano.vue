@@ -124,7 +124,9 @@ async function confirmAbcImport() {
   importError.value = ''
   try {
     const { parseABC } = await import('./Piano/importer/abc.js')
-    const score = abcPreview.value ?? parseABC(abcText.value)
+    // Always re-parse the current textarea — abcPreview may be stale if the user
+    // edited the text after clicking «Предпросмотр» (no watcher invalidates it).
+    const score = parseABC(abcText.value)
     addImportedScore(score)
     showAbcModal.value = false
     abcText.value = ''

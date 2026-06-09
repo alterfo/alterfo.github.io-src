@@ -147,9 +147,13 @@ function renderGrandMeasure(ctx, svgEl, measure, x, yTreble, options) {
   const trebleWrongIdx = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, false) : -1
   const bassWrongIdx   = isCurrent ? voiceNoteIdx(measure.notes, wrongNoteIdx, true) : -1
 
-  const trebleStaveNotes = rightNotes.map((note, i) =>
-    buildStaveNote(note, isCurrent ? noteStyle(i, trebleNoteIdx, lookahead, trebleWrongIdx) : null, 'treble')
-  )
+  // If no right-hand notes (e.g. an imported bar where the treble rests), pad the
+  // treble voice with a whole-measure ghost note so VexFlow doesn't throw on an empty voice
+  const trebleStaveNotes = rightNotes.length > 0
+    ? rightNotes.map((note, i) =>
+        buildStaveNote(note, isCurrent ? noteStyle(i, trebleNoteIdx, lookahead, trebleWrongIdx) : null, 'treble')
+      )
+    : [new GhostNote({ duration: timeSignature[1] === 8 ? '8' : 'w' })]
 
   // If no left-hand notes, pad bass voice with a whole-measure ghost note so VexFlow doesn't throw
   const bassStaveNotes = leftNotes.length > 0
