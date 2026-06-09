@@ -53,7 +53,7 @@ VitePress-based personal site with three fully client-side apps:
 - `Journal/vault.js` — pure data model and logic
 - `Journal/db.js` — IndexedDB persistence (envelope only, no plaintext)
 - `Journal/exporter.js` — encrypted file export/import
-- `Journal.vue` — full UI (unlock, editor, progress, past entries, sync)
+- `Journal.vue` — full UI (unlock, editor, progress, past entries, read-only past-entry viewer, sync)
 
 ### Journal modules
 
@@ -167,12 +167,13 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - FIPS 183 validation panel: errors shown in sidebar, red border on offending blocks
 - Remove decomposition: "✕ Декомп." toolbar button (enabled only when selected box has `childDiagramId`) recursively deletes child diagram subtree from `project.diagrams` and `project.childMap`, clears `box.childDiagramId`, navigates away if current view is inside the deleted subtree
 
-### Journal app (as of 2026-06-08)
+### Journal app (as of 2026-06-09)
 
 - WebCrypto substrate: PBKDF2 key derivation + AES-GCM encrypt/decrypt + base64 envelope format
 - Vault data model: entries by date, word count, streak, per-date LWW merge
 - Encrypted IndexedDB persistence: only the packed envelope is stored (no plaintext, no key)
 - Journal UI: unlock screen, today's textarea with live word count, 500-word progress bar, streak display, past-entries list, optional focus-lock mode
+- Read-only past-entry viewer: clicking a calendar day (with an entry) or a past-entry card swaps the main zone (`viewDate` ref; null = today's editor) into a read-only full-text view (`white-space: pre-wrap`, flows in parent scroll); "← Сегодня" button (`closeViewer`) returns to the editor. No modal — same layout. `openEntry(iso)` is a no-op for empty/future days and routes today → editor. `Journal.vue`-only; vault stays decrypted in memory so no extra crypto
 - Debounced autosave: edit → upsertEntry → encryptJSON → packEnvelope → db.saveEnvelope
 - Cross-tab sync via localStorage events
 - Sync v1: encrypted file export/import (.journal files) with LWW merge on import
