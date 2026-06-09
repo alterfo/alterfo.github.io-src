@@ -144,7 +144,7 @@ function cancelAbcModal() {
 
 const level = ref(1)          // 1 = note-by-note, 2 = measure-by-measure
 const tempoFactor = ref(1.0)  // 0.5 | 0.75 | 1.0
-const noHints = ref(false)    // hide notation, show only position cursor
+const noHints = ref(false)    // hide stave cursor highlight; keyboard highlight stays
 
 // ─────────────────────────────────────────────────────────────
 // MIDI
@@ -154,13 +154,16 @@ const { status: midiStatus, deviceName, pressedNotes, onNoteOn, onNoteOff, init:
 // ─────────────────────────────────────────────────────────────
 // Audio
 // ─────────────────────────────────────────────────────────────
-const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose: disposeAudio } = usePianoAudio()
+const { mode: audioMode, samplerReady, samplerLoading, audioReady, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose: disposeAudio } = usePianoAudio()
 const samplerError = ref(false)
 async function handleLoadSampler() {
   samplerError.value = false
   try { await loadSampler() } catch { samplerError.value = true }
 }
-onNoteOn((midi, vel) => playNote(midi, vel))
+// After MIDI permission is granted, Chrome allows AudioContext.resume() from
+// MIDI callbacks — so we attempt unlock on the first note to cover the case
+// where the user plays before clicking anything on the page.
+onNoteOn((midi, vel) => { unlockAudio(); playNote(midi, vel) })
 onNoteOff(midi => releaseNote(midi))
 
 const midiLabel = computed(() => {
@@ -334,9 +337,9 @@ function renderStave() {
   try {
     _renderPhrase(staveContainer.value, phrase, {
       measureIdx: measureIdx.value,
-      noteIdx: noteIdx.value,
-      lookahead: 2,
-      wrongNoteIdx: wrongFlashNote.value,
+      noteIdx: noHints.value ? -1 : noteIdx.value,
+      lookahead: noHints.value ? 0 : 2,
+      wrongNoteIdx: noHints.value ? -1 : wrongFlashNote.value,
       pressedNotes: pressedNotes.value,
     }, currentScore.value)
   } catch (e) {
@@ -395,19 +398,6 @@ const keyLabel = computed(() => {
   return `${k.root} ${k.mode === 'minor' ? 'min' : 'maj'}`
 })
 
-// Progress cursor data for no-hints mode: one segment per measure in current phrase.
-// Each segment carries a 0..1 fill indicating note progress within that measure.
-const cursorSegments = computed(() => {
-  const phrase = currentScore.value.phrases[phraseIdx.value]
-  if (!phrase) return []
-  return phrase.measures.map((m, i) => {
-    const total = m.notes.length
-    let fill = 0
-    if (i < measureIdx.value) fill = 1
-    else if (i === measureIdx.value) fill = total > 0 ? noteIdx.value / total : 0
-    return { active: i === measureIdx.value, fill }
-  })
-})
 
 function updateKeyboardWidth() {
   if (keyboardEl.value) keyboardWidth.value = keyboardEl.value.clientWidth || 800
@@ -571,7 +561,7 @@ onUnmounted(() => {
       </button>
 
       <button :class="['tb-btn', { active: noHints }]" @click="noHints = !noHints" title="Режим без нотных подсказок">
-        {{ noHints ? '♩ Ноты' : '♩ Без нот' }}
+        {{ noHints ? '♩ С курсором' : '♩ Без курсора' }}
       </button>
 
       <button @click="handleLoadSampler" :disabled="samplerLoading || audioMode === 'sampler'" class="tb-btn"
@@ -580,6 +570,11 @@ onUnmounted(() => {
       </button>
 
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
+    </div>
+
+    <!-- ── Audio unlock banner ──────────────────────────────── -->
+    <div v-if="!audioReady" class="piano-audio-banner" @click="unlockAudio">
+      ▶ Нажмите здесь для включения звука
     </div>
 
     <!-- ── Import error banner ──────────────────────────────── -->
@@ -636,19 +631,7 @@ onUnmounted(() => {
         <button class="restart-btn" @click="initTrainer">Заново</button>
       </div>
       <template v-else>
-        <div v-show="!noHints" ref="staveContainer" class="piano-stave-container"></div>
-        <div v-show="noHints" class="piano-cursor-wrap">
-          <div class="piano-cursor-bar">
-            <div
-              v-for="(seg, i) in cursorSegments"
-              :key="i"
-              :class="['cursor-seg', { 'cursor-seg--active': seg.active }]"
-            >
-              <div class="cursor-seg-fill" :style="{ width: seg.fill * 100 + '%' }"></div>
-            </div>
-          </div>
-          <div class="piano-cursor-label">{{ posLabel }}</div>
-        </div>
+        <div ref="staveContainer" class="piano-stave-container"></div>
       </template>
     </div>
 
@@ -1050,49 +1033,17 @@ onUnmounted(() => {
   letter-spacing: 0.08em;
 }
 
-/* ── No-hints cursor ─────────────────────────────────────────── */
-.piano-cursor-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 24px 20px;
-  gap: 14px;
+/* ── Audio unlock banner ─────────────────────────────────────── */
+.piano-audio-banner {
+  background: #1a1a3a;
+  border-bottom: 1px solid #3a3a6a;
+  color: #8888cc;
+  font-size: 12px;
+  text-align: center;
+  padding: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
-.piano-cursor-bar {
-  display: flex;
-  gap: 4px;
-  width: 100%;
-  max-width: 800px;
-  height: 28px;
-}
-.cursor-seg {
-  flex: 1;
-  background: #1e1e3a;
-  border: 1px solid #2a2a4a;
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-  transition: border-color 0.15s;
-}
-.cursor-seg--active {
-  border-color: #4a7eff;
-  box-shadow: 0 0 6px rgba(74, 126, 255, 0.4);
-}
-.cursor-seg-fill {
-  height: 100%;
-  background: #1e4aff;
-  opacity: 0.7;
-  transition: width 0.1s linear;
-}
-.cursor-seg--active .cursor-seg-fill {
-  background: #4a7eff;
-  opacity: 1;
-}
-.piano-cursor-label {
-  font-size: 13px;
-  color: #555;
-  letter-spacing: 0.04em;
-}
+.piano-audio-banner:hover { color: #aaaaff; background: #222244; }
+
 </style>

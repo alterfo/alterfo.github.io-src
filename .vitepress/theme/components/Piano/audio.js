@@ -8,6 +8,7 @@ export function usePianoAudio() {
   const mode = ref('synth')
   const samplerReady = ref(false)
   const samplerLoading = ref(false)
+  const audioReady = ref(false)  // true once AudioContext is running
 
   let _synth = null
   let _sampler = null
@@ -163,8 +164,9 @@ export function usePianoAudio() {
     try {
       const T = await _ensureTone()
       await T.start()
+      audioReady.value = true
       _getOrBuildChain(T)  // fire-and-forget: builds EQ→Comp→Reverb→Limiter in background
-    } catch { /* ignore — may fail if already running */ }
+    } catch { /* ignore — may fail without a user gesture */ }
   }
 
   function releaseAll() {
@@ -183,5 +185,5 @@ export function usePianoAudio() {
     samplerLoading.value = false
   }
 
-  return { mode, samplerReady, samplerLoading, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose }
+  return { mode, samplerReady, samplerLoading, audioReady, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose }
 }
