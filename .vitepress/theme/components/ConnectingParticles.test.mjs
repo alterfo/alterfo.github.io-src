@@ -34,5 +34,20 @@ test('createParticles count and bounds', () => {
     assert.ok(p.y >= 0 && p.y <= 100, 'y in bounds')
     assert.ok(typeof p.rgba === 'string' && p.rgba.startsWith('rgba('), 'rgba prefix')
     assert.ok(p.r >= 1 && p.r <= 3, 'radius in range')
+    // velocity seeded as (rand-0.5)*0.6 → [-0.3, 0.3]; a regression that drops
+    // the -0.5 (all-positive drift) or wrong magnitude would otherwise pass.
+    assert.ok(p.vx >= -0.3 && p.vx <= 0.3, 'vx in range')
+    assert.ok(p.vy >= -0.3 && p.vy <= 0.3, 'vy in range')
   }
+})
+
+test('createParticles uses the supplied palette', () => {
+  // createField threads a custom palette through to here; pin that the param is
+  // honored, not silently overridden by the default CANVAS_PALETTE.
+  const arr = createParticles(8, 10, 10, ['rgba(1,2,3,'])
+  for (const p of arr) assert.equal(p.rgba, 'rgba(1,2,3,')
+})
+
+test('createParticles with count 0 returns an empty array', () => {
+  assert.deepEqual(createParticles(0, 100, 100), [])
 })

@@ -9,13 +9,29 @@ test('SPECTRUM has 6 hex colors', () => {
   }
 })
 
-test('CANVAS_PALETTE entries are open rgba( prefixes', () => {
+test('CANVAS_PALETTE entries are well-formed open rgba( prefixes', () => {
   assert.ok(CANVAS_PALETTE.length >= SPECTRUM.length)
   for (const c of CANVAS_PALETTE) {
-    assert.ok(c.startsWith('rgba('), `${c} starts with rgba(`)
     // trailing comma: alpha + ')' are appended at draw time → rgba(r,g,b,a)
-    assert.ok(c.endsWith(','), `${c} ends with , (alpha appended at draw time)`)
+    // strict triple-of-0..255 form so a typo'd channel (e.g. rgba(999,foo,)
+    // that would render an invisible particle) is caught, not just rgba( prefix.
+    assert.match(c, /^rgba\((\d{1,3}),(\d{1,3}),(\d{1,3}),$/, `${c} is rgba(r,g,b,`)
+    const [, r, g, b] = c.match(/^rgba\((\d{1,3}),(\d{1,3}),(\d{1,3}),$/)
+    for (const ch of [r, g, b]) assert.ok(Number(ch) <= 255, `${c} channel ${ch} <= 255`)
   }
+})
+
+test('CANVAS_PALETTE first 6 entries mirror SPECTRUM (dual-mirror sync contract)', () => {
+  // The two palettes are hand-synced (CSS can't be imported as JS); this guards
+  // the documented "change a color in BOTH" rule so a SPECTRUM edit that forgets
+  // the matching CANVAS_PALETTE rgba is caught instead of silently mismatching.
+  const hexToPrefix = (hex) => {
+    const n = parseInt(hex.slice(1), 16)
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},`
+  }
+  SPECTRUM.forEach((hex, i) => {
+    assert.equal(CANVAS_PALETTE[i], hexToPrefix(hex), `CANVAS_PALETTE[${i}] mirrors ${hex}`)
+  })
 })
 
 test('PROJECT_COLORS has all 6 project keys, hex values', () => {

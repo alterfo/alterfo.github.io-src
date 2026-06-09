@@ -177,7 +177,7 @@ The wheel of life is split into colored spheres; «границы условны
 
 ### Connecting particles — one module
 
-`.vitepress/theme/components/ConnectingParticles.js` is the single source for the 2D connecting-particle background (replaced the two divergent copies that used to live in Portfolio.vue and Layout.vue). Pure, unit-tested helpers `stepParticle(p,w,h)` (torus-wrap step), `connectionAlpha(distance,maxDist)` (line fade), `createParticles(count,w,h,palette)`; plus the browser-only factory `createField(canvas, opts)` → `{ start, stop, resize, destroy }` (`opts`: `density`, `connectDistance`, `fade`, `palette`, `autoStart`, `getSize`, `count`). Portfolio.vue and the **2D fallback** in Layout.vue both call `createField`. The WebGPU 500k path (`WebGPUParticles.js`) is the premium header variant and is **untouched**. Helpers unit-tested in `ConnectingParticles.test.mjs`.
+`.vitepress/theme/components/ConnectingParticles.js` is the single source for the 2D connecting-particle background (replaced the two divergent copies that used to live in Portfolio.vue and Layout.vue). Pure, unit-tested helpers `stepParticle(p,w,h)` (torus-wrap step), `connectionAlpha(distance,maxDist)` (line fade), `createParticles(count,w,h,palette)`; plus the browser-only factory `createField(canvas, opts)` → `{ start, stop, resize, destroy }` (`opts`: `density`, `connectDistance`, `fade`, `palette`, `lineWidth`, `autoStart`, `getSize`, `count`). Portfolio.vue and the **2D fallback** in Layout.vue both call `createField`. The WebGPU 500k path (`WebGPUParticles.js`) is the premium header variant and is **untouched**. Helpers unit-tested in `ConnectingParticles.test.mjs`.
 
 ### Countdown «1000 дней роста»
 
