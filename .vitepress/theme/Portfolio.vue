@@ -86,6 +86,43 @@
                 <circle cx="49" cy="36" r="3" fill="rgba(255,170,34,0.7)"/>
                 <text x="140" y="80" text-anchor="middle" fill="rgba(255,170,34,0.5)" font-size="9" font-family="monospace">MIDI</text>
               </svg>
+              <!-- OpenPose -->
+              <svg v-else-if="p.id === 'openpose'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
+                <!-- black background -->
+                <rect x="0" y="0" width="200" height="100" fill="#0a0a0a"/>
+                <!-- skeleton: head -->
+                <circle cx="100" cy="14" r="7" fill="none" stroke="rgba(0,229,255,0.85)" stroke-width="1.5"/>
+                <!-- neck -->
+                <line x1="100" y1="21" x2="100" y2="32" stroke="rgba(0,229,255,0.7)" stroke-width="1.5"/>
+                <!-- shoulders -->
+                <line x1="100" y1="32" x2="72" y2="36" stroke="rgba(255,85,0,0.8)" stroke-width="1.5"/>
+                <line x1="100" y1="32" x2="128" y2="36" stroke="rgba(85,255,0,0.8)" stroke-width="1.5"/>
+                <!-- right arm -->
+                <line x1="72" y1="36" x2="58" y2="52" stroke="rgba(255,170,0,0.8)" stroke-width="1.5"/>
+                <line x1="58" y1="52" x2="46" y2="66" stroke="rgba(255,255,0,0.8)" stroke-width="1.5"/>
+                <!-- left arm -->
+                <line x1="128" y1="36" x2="142" y2="52" stroke="rgba(170,255,0,0.8)" stroke-width="1.5"/>
+                <line x1="142" y1="52" x2="154" y2="66" stroke="rgba(0,255,0,0.8)" stroke-width="1.5"/>
+                <!-- torso to hips -->
+                <line x1="100" y1="32" x2="92" y2="58" stroke="rgba(0,255,85,0.8)" stroke-width="1.5"/>
+                <line x1="100" y1="32" x2="108" y2="58" stroke="rgba(0,255,255,0.8)" stroke-width="1.5"/>
+                <!-- right leg -->
+                <line x1="92" y1="58" x2="86" y2="76" stroke="rgba(0,170,255,0.8)" stroke-width="1.5"/>
+                <line x1="86" y1="76" x2="82" y2="92" stroke="rgba(0,85,255,0.8)" stroke-width="1.5"/>
+                <!-- left leg -->
+                <line x1="108" y1="58" x2="114" y2="76" stroke="rgba(0,0,255,0.8)" stroke-width="1.5"/>
+                <line x1="114" y1="76" x2="118" y2="92" stroke="rgba(85,0,255,0.8)" stroke-width="1.5"/>
+                <!-- joint dots -->
+                <circle cx="100" cy="32" r="3" fill="rgba(0,229,255,0.9)"/>
+                <circle cx="72" cy="36" r="2.5" fill="rgba(255,85,0,0.9)"/>
+                <circle cx="128" cy="36" r="2.5" fill="rgba(85,255,0,0.9)"/>
+                <circle cx="58" cy="52" r="2.5" fill="rgba(255,170,0,0.9)"/>
+                <circle cx="142" cy="52" r="2.5" fill="rgba(170,255,0,0.9)"/>
+                <circle cx="46" cy="66" r="2.5" fill="rgba(255,255,0,0.9)"/>
+                <circle cx="154" cy="66" r="2.5" fill="rgba(0,255,0,0.9)"/>
+                <circle cx="92" cy="58" r="2.5" fill="rgba(0,255,85,0.9)"/>
+                <circle cx="108" cy="58" r="2.5" fill="rgba(0,255,255,0.9)"/>
+              </svg>
               <!-- GitHub -->
               <svg v-else-if="p.id === 'github'" viewBox="0 0 200 100" class="card-svg" aria-hidden="true">
                 <text x="10" y="16" font-size="9" fill="rgba(255,153,26,0.5)" font-family="monospace">$ git log --oneline</text>
@@ -218,6 +255,9 @@ const projects = [
   { id: 'piano',   title: 'Piano Teacher', href: '/piano',
     desc: 'MIDI-тренажёр: учи пьесы нота за нотой. Web MIDI API, VexFlow, IndexedDB.',
     tag: 'Tool', color: '#ffaa22', external: false },
+  { id: 'openpose', title: 'OpenPose Editor', href: '/openpose',
+    desc: 'Редактор поз для ControlNet: MediaPipe детекция, ручная правка скелетов, экспорт PNG + JSON.',
+    tag: 'AI Tool', color: '#00e5ff', external: false },
   { id: 'github',  title: 'GitHub', href: 'https://github.com/alterfo',
     desc: 'Open source проекты, эксперименты, инструменты.',
     tag: 'Profile', color: '#ff9933', external: true },

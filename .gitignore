@@ -5,6 +5,8 @@ dist
 .vitepress/cache
 .vitepress/dist
 docs/
+public/mediapipe/wasm/
+public/mediapipe/*.task
 *.pdf
 *.doc
 *.docx
