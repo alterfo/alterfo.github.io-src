@@ -158,12 +158,42 @@ Client-side pose editor at `/openpose`: batch-upload images, auto-detect skeleto
 - `@mediapipe/tasks-vision` is loaded via dynamic `import()` inside `initModel()` (same lazy pattern as the Piano importers) so it stays out of the shared `app` chunk and never runs during SSR — it lands in a lazy `vision_bundle.[hash].js` chunk. No `manualChunks` entry needed (dynamic-import auto-splitting). Namespace export resolved defensively as `vision.X ?? vision.default?.X`.
 - `OpenPoseEditor.vue` is registered as a **static** import in `index.mts` (unlike `Piano.vue`'s `defineAsyncComponent`), but only the light OpenPose modules land in the shared chunk — the heavy MediaPipe runtime stays lazy via the dynamic import above.
 
+## Design system «Spiral»
+
+Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue / BlogList.vue / CountDown.vue). The internal UI of Journal / Piano / IDEF0 / OpenPose is **not** part of this system — those keep their own styling.
+
+### Palette source of truth (two mirrors, same hex)
+
+CSS cannot be imported as JS values, so the spectrum lives in two synced mirrors — **change a color in BOTH**:
+
+- `.vitepress/theme/styles/vars.css` — `--ds-*` CSS custom properties (imported via `styles/index.css`). Holds base/void colors, text scale, the 6 spectrum colors, typography, radius, glow, and `--ds-border` (neutral separator).
+- `.vitepress/theme/components/spectrum.js` — JS mirror for canvas/Vue logic: `SPECTRUM` (6 hex), `CANVAS_PALETTE` (8 `rgba(` prefixes — alpha + `)` appended at draw time, adds teal + yellow for particle richness), `PROJECT_COLORS` (project → spectrum hex).
+
+The alternative (reading CSS vars from JS via `getComputedStyle`) was rejected as YAGNI complexity. Unit-tested in `spectrum.test.mjs`.
+
+### Spectrum semantics (from the author's blog «Круг жизни»)
+
+The wheel of life is split into colored spheres; «границы условны, перетекают друг в друга» = the connecting particles. The 6 project colors = 6 spheres: `--ds-violet` AR/signature/«я», `--ds-cyan` blog, `--ds-green` idef0, `--ds-pink` journal, `--ds-amber` piano, `--ds-orange` github. This ties the background, the countdown (growth), and the project grid into one story.
+
+### Connecting particles — one module
+
+`.vitepress/theme/components/ConnectingParticles.js` is the single source for the 2D connecting-particle background (replaced the two divergent copies that used to live in Portfolio.vue and Layout.vue). Pure, unit-tested helpers `stepParticle(p,w,h)` (torus-wrap step), `connectionAlpha(distance,maxDist)` (line fade), `createParticles(count,w,h,palette)`; plus the browser-only factory `createField(canvas, opts)` → `{ start, stop, resize, destroy }` (`opts`: `density`, `connectDistance`, `fade`, `palette`, `autoStart`, `getSize`, `count`). Portfolio.vue and the **2D fallback** in Layout.vue both call `createField`. The WebGPU 500k path (`WebGPUParticles.js`) is the premium header variant and is **untouched**. Helpers unit-tested in `ConnectingParticles.test.mjs`.
+
+### Countdown «1000 дней роста»
+
+`.vitepress/theme/components/CountDown.vue` renders 4 progress rings (Days/Hours/Minutes/Seconds), restyled under `--ds-*` tokens and colored from `SPECTRUM`. It is mounted in the Portfolio hero (`<CountDown class="hero-countdown" :countdownDays="1000" />`, default epoch — do **not** pass `startDate`). Pure date math is extracted to `.vitepress/theme/components/countdown.js`: `computeRemaining(startMs, days, nowMs)` and `ringOffset(value, max, circumference)`, unit-tested in `countdown.test.mjs`. Epoch: default `startDate = new Date(1742688224657)` (23/03/2025) + 1000 days → target ≈ 18/12/2027. **Do not change the epoch** (user decision — preserve the «1000 дней роста» history).
+
+### Dark theme only
+
+There is no light theme and none is planned. If `color-mix` is unsupported on a target browser, fall back to `rgba()` with hex from the tokens.
+
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
 - IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
 - OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
+- Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs` (palette completeness, particle helpers, countdown date math)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`

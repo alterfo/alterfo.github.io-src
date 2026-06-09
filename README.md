@@ -2,7 +2,11 @@
 
 Исходники сайта [alterfo.github.io](https://alterfo.github.io) — портфолио + блог.
 
-**Стек:** VitePress 1.6.x · Vue 3 · vanilla JS · WebGPU particles в шапке
+**Стек:** VitePress 1.6.x · Vue 3 · vanilla JS · WebGPU particles в шапке · дизайн-система «Spiral» (CSS-токены `--ds-*`)
+
+## Дизайн-система «Spiral»
+
+Единая визуальная идентичность оболочки-портфолио (Portfolio / Layout / BlogList / CountDown). Спектр из 6 цветов = «сферы круга жизни» (из блога), они же — цвета проектов. Источник правды: CSS-токены в `.vitepress/theme/styles/vars.css` + JS-зеркало `components/spectrum.js` (менять hex в обоих). Particle-фон — один модуль `components/ConnectingParticles.js` (шапка + портфолио); countdown «1000 дней роста» — `CountDown.vue` + чистая дата-математика `countdown.js`. Подробности — в `CLAUDE.md` → «## Design system «Spiral»».
 
 ## Структура
 
@@ -13,10 +17,17 @@
     index.mts          тема: extends DefaultTheme + кастомный Layout
     Layout.vue         шапка с WebGPU/Canvas particles, слот #layout-top
     Portfolio.vue      главная страница — сетка проектов
+    styles/vars.css    дизайн-токены --ds-* (палитра, текст, типографика)
     components/
-      IDEF0Editor.vue  редактор функциональных диаграмм (Vue 3, canvas)
-      CountDown.vue    обратный отсчёт
-      WebGPUParticles.js  particle-система (WebGPU → Canvas 2D fallback)
+      spectrum.js          JS-зеркало палитры (SPECTRUM/CANVAS_PALETTE/PROJECT_COLORS)
+      ConnectingParticles.js  единый particle-модуль (createField + чистые хелперы)
+      CountDown.vue / countdown.js  обратный отсчёт + чистая дата-математика
+      BlogList.vue         индекс блога (токен-driven)
+      IDEF0Editor.vue      редактор функциональных диаграмм (Vue 3, SVG)
+      Journal.vue          приватный шифрованный дневник (WebCrypto)
+      Piano.vue            MIDI-тренажёр (Web MIDI, VexFlow)
+      OpenPoseEditor.vue   редактор поз (MediaPipe BlazePose, WASM)
+      WebGPUParticles.js   particle-система шапки (WebGPU → Canvas 2D fallback)
 posts/                 35 постов в формате YYYY-MM-DD-slug.md
 public/particles/      WebGL шейдеры (legacy, шапка блога)
 ar-engine/             AudioReactiveVideo (WebGPU AR движок)
