@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMidi } from './Piano/midi.js'
 import { usePianoAudio } from './Piano/audio.js'
 import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
+import { loadUserScores, saveUserScore, deleteUserScore } from './Piano/userScores.js'
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection, checkNote } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
@@ -13,9 +14,25 @@ let _renderPhrase = null
 // ─────────────────────────────────────────────────────────────
 // Score & level
 // ─────────────────────────────────────────────────────────────
-const scores = listScores()
-const selectedScoreId = ref(scores[0]?.id ?? '')
-const currentScore = computed(() => loadScore(selectedScoreId.value))
+const builtinScores = listScores()              // metadata: { id, title, composer, key, tempo } — без phrases
+const userScores = ref(loadUserScores())        // полные Score объекты
+const scores = computed(() => [...builtinScores, ...userScores.value])
+const selectedScoreId = ref(builtinScores[0]?.id ?? '')
+// currentScore: сперва ищем среди user-scores (полные), иначе loadScore (встроенные)
+const currentScore = computed(() => {
+  const u = userScores.value.find(s => s.id === selectedScoreId.value)
+  return u ?? loadScore(selectedScoreId.value)
+})
+
+function addImportedScore(score) {
+  userScores.value = saveUserScore(score)   // saveUserScore возвращает новый массив → реактивность
+  selectedScoreId.value = score.id          // переключиться на импортированную пьесу
+}
+
+function deleteImportedScore(id) {
+  userScores.value = deleteUserScore(id)
+  if (selectedScoreId.value === id) selectedScoreId.value = builtinScores[0].id
+}
 const level = ref(1)          // 1 = note-by-note, 2 = measure-by-measure
 const tempoFactor = ref(1.0)  // 0.5 | 0.75 | 1.0
 
