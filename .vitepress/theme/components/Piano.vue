@@ -154,7 +154,7 @@ const { status: midiStatus, deviceName, pressedNotes, onNoteOn, onNoteOff, init:
 // ─────────────────────────────────────────────────────────────
 // Audio
 // ─────────────────────────────────────────────────────────────
-const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, unlockAudio, dispose: disposeAudio } = usePianoAudio()
+const { mode: audioMode, samplerReady, samplerLoading, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose: disposeAudio } = usePianoAudio()
 const samplerError = ref(false)
 async function handleLoadSampler() {
   samplerError.value = false
@@ -162,6 +162,10 @@ async function handleLoadSampler() {
 }
 onNoteOn((midi, vel) => playNote(midi, vel))
 onNoteOff(midi => releaseNote(midi))
+
+// When all MIDI keys are released, ensure no synth voices are stuck.
+// Covers the case where triggerRelease was missed (race with async init).
+watch(pressedNotes, notes => { if (notes.size === 0) releaseAll() })
 
 const midiLabel = computed(() => {
   if (midiStatus.value === 'unsupported') return 'MIDI: не поддерживается'

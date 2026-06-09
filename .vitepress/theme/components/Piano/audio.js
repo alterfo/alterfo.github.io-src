@@ -164,6 +164,11 @@ export function usePianoAudio() {
     } catch { /* ignore — may fail if already running */ }
   }
 
+  function releaseAll() {
+    if (_synth) _synth.releaseAll()
+    if (_sampler && samplerReady.value) try { _sampler.releaseAll() } catch {}
+  }
+
   function dispose() {
     _disposed = true
     _chainPromise = null
@@ -175,5 +180,5 @@ export function usePianoAudio() {
     samplerLoading.value = false
   }
 
-  return { mode, samplerReady, samplerLoading, playNote, releaseNote, loadSampler, unlockAudio, dispose }
+  return { mode, samplerReady, samplerLoading, playNote, releaseNote, releaseAll, loadSampler, unlockAudio, dispose }
 }
