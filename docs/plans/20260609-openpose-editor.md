@@ -110,12 +110,12 @@ OpenPose  Name        BlazePose
 
 ### Task 4: MediaPipe model wrapper (`OpenPose/model.js`)
 
-- [ ] implement `usePoseDetection()` composable (Vue 3 `ref`/`reactive`):
+- [x] implement `usePoseDetection()` composable (Vue 3 `ref`/`reactive`):
   - `status` ref: `'idle' | 'loading' | 'ready' | 'error'`
   - `modelError` ref: error message string (shown to user with download instructions)
   - `async initModel()` — dynamically imports `@mediapipe/tasks-vision`, loads `FilesetResolver` from `/mediapipe/wasm/`, loads `PoseLandmarker` model from `/mediapipe/pose_landmarker_full.task` with `numPoses: 2, runningMode: 'IMAGE'`; catches 404/network errors and sets `status = 'error'` with instructions string
   - `async detectPoses(htmlImageElement)` — runs `poseLandmarker.detect(el)`, maps each result via `blazeposeToOpenpose`, returns `Skeleton[]` (0–2 items)
-- [ ] no unit tests (requires real MediaPipe WASM + browser env)
+- [x] no unit tests (requires real MediaPipe WASM + browser env)
 
 ### Task 5: Batch queue UI (`OpenPoseEditor.vue` — upload and queue)
 
