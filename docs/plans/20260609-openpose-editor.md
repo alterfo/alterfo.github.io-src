@@ -119,14 +119,14 @@ OpenPose  Name        BlazePose
 
 ### Task 5: Batch queue UI (`OpenPoseEditor.vue` — upload and queue)
 
-- [ ] layout: topbar (back link to `/`, title "OpenPose", upload button, model status), sidebar (scrollable image queue 220px), main canvas area, bottom toolbar
-- [ ] drag & drop zone on the full page + file input `accept="image/*" multiple`; on drop/change, create queue entries: `{ id: crypto.randomUUID(), file, name, dataURL, status: 'pending'|'processing'|'done'|'error', skeletons: [], imageBitmap: null }`
-- [ ] queue sidebar: thumbnail from `dataURL`, filename, status badge (spinner / ✓ / ✗)
-- [ ] selecting a queue item updates `selectedId` ref; main area shows canvas for that image
-- [ ] on mount: call `initModel()`; show loading banner; show error banner with download command if `status === 'error'`
-- [ ] auto-process: when `status === 'ready'`, walk queue in order; for each `'pending'` item: set `'processing'`, create `ImageBitmap`, call `detectPoses`, set `skeletons`, set `'done'`; then call `renderSkeletonOnCanvas` on selected item's canvas
-- [ ] re-render canvas on `selectedId` change and on skeleton edit
-- [ ] no unit tests (UI)
+- [x] layout: topbar (back link to `/`, title "OpenPose", upload button, model status), sidebar (scrollable image queue 220px), main canvas area, bottom toolbar
+- [x] drag & drop zone on the full page + file input `accept="image/*" multiple`; on drop/change, create queue entries: `{ id: crypto.randomUUID(), file, name, dataURL, status: 'pending'|'processing'|'done'|'error', skeletons: [], imageBitmap: null }`
+- [x] queue sidebar: thumbnail from `dataURL`, filename, status badge (spinner / ✓ / ✗)
+- [x] selecting a queue item updates `selectedId` ref; main area shows canvas for that image
+- [x] on mount: call `initModel()`; show loading banner; show error banner with download command if `status === 'error'`
+- [x] auto-process: when `status === 'ready'`, walk queue in order; for each `'pending'` item: set `'processing'`, create `ImageBitmap`, call `detectPoses`, set `skeletons`, set `'done'`; then call `renderSkeletonOnCanvas` on selected item's canvas
+- [x] re-render canvas on `selectedId` change and on skeleton edit
+- [x] no unit tests (UI)
 
 ### Task 6: Interactive skeleton editor (`OpenPose/editor.js` + toolbar)
 
