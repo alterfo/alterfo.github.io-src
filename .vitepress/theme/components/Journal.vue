@@ -37,6 +37,21 @@ const pastEntries = computed(() =>
     .sort(([a], [b]) => b.localeCompare(a))
 )
 
+// ---- Past-entry viewer ----
+// null = today's editor; iso-string = read-only viewer for that date
+const viewDate = ref(null)
+const viewEntry = computed(() => viewDate.value ? vault.entries[viewDate.value] : null)
+
+function openEntry(iso) {
+  if (iso === todayISO.value) { viewDate.value = null; return }  // today → editor
+  if (!vault.entries[iso]) return                                // no entry → no-op
+  viewDate.value = iso
+}
+
+function closeViewer() {
+  viewDate.value = null
+}
+
 // ---- Calendar ----
 const calOffset = ref(0)  // 0 = current month, -1 = previous, etc.
 
