@@ -34,6 +34,7 @@ import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
 import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
+import { createField } from './components/ConnectingParticles.js'
 import Portfolio from './Portfolio.vue'
 
 const DefaultLayout = DefaultTheme.Layout
@@ -48,97 +49,30 @@ const canvasEl = ref<HTMLCanvasElement | null>(null)
 
 let useWebGPU = false
 let particles: any = null
-let raf: number | null = null
-let canvas2DParticles: any[] = []
+// Shared 2D connecting-particles fallback (see ConnectingParticles.js). Single
+// source of truth — the old drawConnections2D/initCanvas2D/COLORS copy is gone.
+let field: { start: () => void; stop: () => void; resize: () => void; destroy: () => void } | null = null
 
-const COLORS = [
-  'rgba(26, 204, 255, ',
-  'rgba(255, 51, 128, ',
-  'rgba(128, 255, 77, ',
-  'rgba(255, 153, 26, ',
-  'rgba(179, 77, 255, ',
-  'rgba(51, 255, 204, ',
-  'rgba(255, 230, 51, ',
-  'rgba(255, 77, 77, ',
-]
-
-let ctx: CanvasRenderingContext2D | null = null
 let width = 0
 let height = 0
 
-function drawConnections2D() {
-  if (!ctx || !canvasEl.value) return
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = 'rgba(2, 2, 4, 0.15)'
-  canvasEl.value.width = width
-  ctx.fillRect(0, 0, width, height)
-
-  ctx.globalCompositeOperation = 'lighter'
-
-  const connectDistance = 120
-
-  for (let i = 0; i < canvas2DParticles.length; i++) {
-    const p = canvas2DParticles[i]
-
-    for (let n = i + 1; n < canvas2DParticles.length; n++) {
-      const p2 = canvas2DParticles[n]
-      const yd = p2.location.y - p.location.y
-      const xd = p2.location.x - p.location.x
-      const distance = Math.sqrt(xd * xd + yd * yd)
-
-      if (distance < connectDistance) {
-        const alpha = Math.pow(1 - distance / connectDistance, 2) * 0.6
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.moveTo(p.location.x, p.location.y)
-        ctx.lineTo(p2.location.x, p2.location.y)
-        ctx.strokeStyle = p.rgba + alpha + ')'
-        ctx.stroke()
-      }
-    }
-
-    p.angle += Math.sin(p.location.x * 0.01 + Date.now() * 0.002) * 0.3
-    p.location.x += p.speed * Math.cos((p.angle * Math.PI) / 180)
-    p.location.y += p.speed * Math.sin((p.angle * Math.PI) / 180)
-
-    if (p.location.x < -50) p.location.x = width + 50
-    if (p.location.x > width + 50) p.location.x = -50
-    if (p.location.y < -50) p.location.y = height + 50
-    if (p.location.y > height + 50) p.location.y = -50
-  }
-
-  for (let i = 0; i < canvas2DParticles.length; i++) {
-    const p = canvas2DParticles[i]
-    ctx.beginPath()
-    ctx.arc(p.location.x, p.location.y, 2 + p.speed, 0, Math.PI * 2)
-    ctx.fillStyle = p.rgba + '0.9)'
-    ctx.fill()
-  }
-}
-
-function initCanvas2D() {
+// Create the 2D field on first use, otherwise just resize it; then sync the
+// rAF loop to the animation toggle (paused = one static frame already drawn).
+function ensureField2D() {
   if (!canvasEl.value) return
-  ctx = canvasEl.value.getContext('2d')
-  canvas2DParticles = []
-  const numOfParticles = Math.floor(height / 2.5)
-
-  for (let i = 0; i < numOfParticles; i++) {
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)]
-    canvas2DParticles.push({
-      location: { x: Math.random() * width, y: Math.random() * height },
-      speed: 0.3 + Math.random() * 1.2,
-      angle: Math.random() * 360,
-      rgba: color,
+  if (field) {
+    field.resize()
+  } else {
+    field = createField(canvasEl.value, {
+      count: () => Math.floor(height / 2.5),
+      connectDistance: 120,
+      fade: 'rgba(2,2,4,0.15)',
+      autoStart: false,
+      getSize: () => ({ w: width, h: height }),
     })
   }
-  drawConnections2D()
-}
-
-function draw() {
-  if (animateHeader.value && !useWebGPU) {
-    drawConnections2D()
-  }
-  raf = requestAnimationFrame(draw)
+  if (animateHeader.value) field.start()
+  else field.stop()
 }
 
 async function initWebGPU() {
@@ -154,10 +88,6 @@ async function initWebGPU() {
 
 function initHeader() {
   if (!canvasEl.value) return
-  if (raf) {
-    cancelAnimationFrame(raf)
-    raf = null
-  }
   width = window.innerWidth
   height = window.innerWidth / (isHomePage.value ? 2 : 4)
 
@@ -176,17 +106,11 @@ function initHeader() {
       if (success) {
         particles.render()
       } else {
-        initCanvas2D()
-        if (animateHeader.value) {
-          raf = requestAnimationFrame(draw)
-        }
+        ensureField2D()
       }
     })
   } else if (!useWebGPU) {
-    initCanvas2D()
-    if (animateHeader.value) {
-      raf = requestAnimationFrame(draw)
-    }
+    ensureField2D()
   } else if (particles) {
     particles.resize(width, height)
     particles.render()
@@ -208,7 +132,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', disableWhenScrolledHalf)
   window.removeEventListener('resize', initHeader)
-  if (raf) cancelAnimationFrame(raf)
+  field?.destroy()
   if (particles && particles.destroy) particles.destroy()
 })
 
@@ -217,16 +141,13 @@ watch(animateHeader, val => {
     if (useWebGPU && particles) {
       particles.start()
     } else {
-      raf = requestAnimationFrame(draw)
+      field?.start()
     }
   } else {
     if (useWebGPU && particles) {
       particles.stop()
     } else {
-      if (raf) {
-        cancelAnimationFrame(raf)
-        raf = null
-      }
+      field?.stop()
     }
   }
 })

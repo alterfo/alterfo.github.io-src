@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { createField } from './components/ConnectingParticles.js'
 
 // ── Data ────────────────────────────────────────────────────────
 
@@ -284,59 +285,8 @@ const codeSkills = [
 const arAvailable = ref(false)
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 
-const COLORS = [
-  'rgba(179,77,255,', 'rgba(26,204,255,', 'rgba(51,255,77,',
-  'rgba(255,153,26,', 'rgba(51,255,204,', 'rgba(255,51,128,',
-]
-
-let ctx: CanvasRenderingContext2D | null = null
-let particles: Array<{ x: number; y: number; vx: number; vy: number; rgba: string; r: number }> = []
-let raf: number | null = null
-let w = 0, h = 0
-
-function initParticles() {
-  if (!canvasEl.value) return
-  const canvas = canvasEl.value
-  w = canvas.width  = canvas.offsetWidth
-  h = canvas.height = canvas.offsetHeight
-  ctx = canvas.getContext('2d')
-  particles = []
-  const count = Math.floor(w / 12)
-  for (let i = 0; i < count; i++) {
-    particles.push({
-      x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6,
-      rgba: COLORS[Math.floor(Math.random() * COLORS.length)],
-      r: 1 + Math.random() * 2,
-    })
-  }
-}
-
-function drawFrame() {
-  if (!ctx) return
-  ctx.fillStyle = 'rgba(10,0,32,0.15)'
-  ctx.fillRect(0, 0, w, h)
-  const dist = 100
-  for (let i = 0; i < particles.length; i++) {
-    const p = particles[i]
-    p.x += p.vx; p.y += p.vy
-    if (p.x < 0) p.x = w; if (p.x > w) p.x = 0
-    if (p.y < 0) p.y = h; if (p.y > h) p.y = 0
-    for (let j = i + 1; j < particles.length; j++) {
-      const q = particles[j]
-      const dx = q.x - p.x, dy = q.y - p.y
-      const d = Math.sqrt(dx * dx + dy * dy)
-      if (d < dist) {
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y)
-        ctx.strokeStyle = p.rgba + (1 - d / dist) * 0.4 + ')'
-        ctx.lineWidth = 0.8; ctx.stroke()
-      }
-    }
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-    ctx.fillStyle = p.rgba + '0.8)'; ctx.fill()
-  }
-  raf = requestAnimationFrame(drawFrame)
-}
+let field: { resize: () => void; destroy: () => void } | null = null
+const onResize = () => field?.resize()
 
 function navigate(project: { href: string; external: boolean }, event: MouseEvent) {
   if (project.external) return
@@ -352,13 +302,15 @@ async function checkArAvailable() {
 }
 
 onMounted(() => {
-  initParticles(); drawFrame()
-  window.addEventListener('resize', initParticles)
+  if (canvasEl.value) {
+    field = createField(canvasEl.value, { density: 12, connectDistance: 100 })
+  }
+  window.addEventListener('resize', onResize)
   checkArAvailable()
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', initParticles)
-  if (raf) cancelAnimationFrame(raf)
+  window.removeEventListener('resize', onResize)
+  field?.destroy()
 })
 </script>
 
