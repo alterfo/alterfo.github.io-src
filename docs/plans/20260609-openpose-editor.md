@@ -144,7 +144,7 @@ OpenPose  Name        BlazePose
 
 ### Task 7: Export (`OpenPose/exporter.js` + buttons)
 
-- [ ] implement `toOpenPoseJSON(skeletons, imageWidth, imageHeight)` — returns standard OpenPose v1.3 object:
+- [x] implement `toOpenPoseJSON(skeletons, imageWidth, imageHeight)` — returns standard OpenPose v1.3 object:
   ```json
   {
     "version": 1.3,
@@ -160,17 +160,17 @@ OpenPose  Name        BlazePose
   }
   ```
   coordinates normalized 0–1 (`x/imageWidth`, `y/imageHeight`); one entry per skeleton
-- [ ] implement `downloadJSON(basename, json)` — `JSON.stringify` + `Blob('application/json')` + `URL.createObjectURL` + programmatic click + `revokeObjectURL`; filename: `{basename}_keypoints.json`
-- [ ] implement `downloadPNG(canvas, basename)` — `canvas.toBlob → URL.createObjectURL → click → revoke`; filename: `{basename}_openpose.png`
-- [ ] wire toolbar "Export PNG" button: calls `renderSkeletonOnBlack(w, h, skeletons)` then `downloadPNG`
-- [ ] wire toolbar "Export JSON" button: calls `toOpenPoseJSON` then `downloadJSON`
-- [ ] write `OpenPose/exporter.test.mjs`:
+- [x] implement `downloadJSON(basename, json)` — `JSON.stringify` + `Blob('application/json')` + `URL.createObjectURL` + programmatic click + `revokeObjectURL`; filename: `{basename}_keypoints.json`
+- [x] implement `downloadPNG(canvas, basename)` — `canvas.toBlob → URL.createObjectURL → click → revoke`; filename: `{basename}_openpose.png` (also handles `OffscreenCanvas.convertToBlob` since `renderSkeletonOnBlack` may return one)
+- [x] wire toolbar "Export PNG" button: calls `renderSkeletonOnBlack(w, h, skeletons)` then `downloadPNG`
+- [x] wire toolbar "Export JSON" button: calls `toOpenPoseJSON` then `downloadJSON`
+- [x] write `OpenPose/exporter.test.mjs`:
   - test `toOpenPoseJSON` has `version: 1.3`
   - test `toOpenPoseJSON` `people` array has same length as input skeletons
   - test each person's `pose_keypoints_2d` has exactly 54 values (18 × 3)
   - test coordinates are normalized: all x/y values in range [0, 1] when skeleton coords are within image bounds
   - test empty skeletons input returns `people: []`
-- [ ] run `node --test .vitepress/theme/components/OpenPose/exporter.test.mjs` — must pass before task 8
+- [x] run `node --test .vitepress/theme/components/OpenPose/exporter.test.mjs` — must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 

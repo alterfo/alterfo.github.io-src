@@ -10,8 +10,9 @@
 
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, markRaw } from 'vue'
 import { usePoseDetection } from './OpenPose/model.js'
-import { renderSkeletonOnCanvas } from './OpenPose/renderer.js'
+import { renderSkeletonOnCanvas, renderSkeletonOnBlack } from './OpenPose/renderer.js'
 import { useSkeletonEditor, addPerson, removePerson, MAX_PERSONS } from './OpenPose/editor.js'
+import { toOpenPoseJSON, downloadJSON, downloadPNG } from './OpenPose/exporter.js'
 
 const model = usePoseDetection()
 
@@ -147,6 +148,36 @@ async function onRedetect() {
   if (!entry || !entry.imageBitmap || model.status.value !== 'ready') return
   entry.skeletons = await model.detectPoses(entry.imageBitmap)
   nextTick(renderSelected)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Export
+// ─────────────────────────────────────────────────────────────
+// Strip the extension from the source filename for export basenames.
+function exportBasename(entry) {
+  return (entry?.name || 'openpose').replace(/\.[^./\\]+$/, '')
+}
+
+// Export the ControlNet-style PNG: black background + skeleton only (no photo).
+async function onExportPNG() {
+  const entry = selectedEntry.value
+  if (!entry || !entry.imageBitmap) return
+  const { width, height } = entry.imageBitmap
+  const canvas = renderSkeletonOnBlack(width, height, entry.skeletons)
+  try {
+    await downloadPNG(canvas, exportBasename(entry))
+  } catch (e) {
+    entry.errorMsg = e?.message || String(e)
+  }
+}
+
+// Export OpenPose v1.3 keypoints JSON (coordinates normalized 0–1).
+function onExportJSON() {
+  const entry = selectedEntry.value
+  if (!entry || !entry.imageBitmap) return
+  const { width, height } = entry.imageBitmap
+  const json = toOpenPoseJSON(entry.skeletons, width, height)
+  downloadJSON(exportBasename(entry), json)
 }
 
 // Re-render when the selection changes or the selected skeletons are edited.
@@ -325,6 +356,17 @@ onUnmounted(() => {
           :disabled="!canEdit || model.status.value !== 'ready'"
           @click="onRedetect"
         >↻ Заново</button>
+        <span class="op-toolbar-sep" />
+        <button
+          class="op-btn op-btn-sm"
+          :disabled="!canEdit"
+          @click="onExportPNG"
+        >⤓ PNG</button>
+        <button
+          class="op-btn op-btn-sm"
+          :disabled="!canEdit"
+          @click="onExportJSON"
+        >⤓ JSON</button>
       </template>
       <span v-else class="op-toolbar-name">Нет выбранного изображения</span>
     </div>
@@ -499,6 +541,12 @@ onUnmounted(() => {
 .op-toolbar-name { color: #ccc; }
 .op-toolbar-dim, .op-toolbar-persons { color: #888; }
 .op-toolbar-spacer { flex: 1; }
+.op-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: #333;
+  margin: 0 2px;
+}
 .op-btn-sm {
   padding: 4px 10px;
   font-size: 12px;
