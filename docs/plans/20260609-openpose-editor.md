@@ -60,20 +60,20 @@ Follows the existing app pattern: `openpose.md` + `<ClientOnly><OpenPoseEditor /
 
 ### Task 2: Keypoint definitions and mapping (`OpenPose/skeleton.js`)
 
-- [ ] define `OPENPOSE_KEYPOINTS` — 18 names in standard order:
+- [x] define `OPENPOSE_KEYPOINTS` — 18 names in standard order:
   `['Nose','Neck','RShoulder','RElbow','RWrist','LShoulder','LElbow','LWrist','RHip','RKnee','RAnkle','LHip','LKnee','LAnkle','REye','LEye','REar','LEar']`
-- [ ] define `OPENPOSE_CONNECTIONS` — 17 pairs `[fromIdx, toIdx]` using standard CMU connections
-- [ ] define `LIMB_COLORS` — parallel array of `[R, G, B]` tuples; use standard OpenPose palette
-- [ ] define `BLAZEPOSE_TO_OPENPOSE` — array of 18 entries; each entry is either a BlazePose index (0–32) or `null` for Neck (computed separately)
-- [ ] implement `blazeposeToOpenpose(landmarks, imageWidth, imageHeight)` — converts MediaPipe `NormalizedLandmark[]` (33 items, `{x, y, z, visibility}`) to `{x, y, confidence}[18]` pixel-coord array; `x = landmark.x * imageWidth`, `y = landmark.y * imageHeight`; Neck (index 1) = midpoint of landmarks[11] + landmarks[12]; confidence = `visibility ?? 0` clamped 0–1
-- [ ] implement `emptySkeleton(cx, cy, scale)` — returns a T-pose `{x, y, confidence: 1}[18]` centered at `(cx, cy)`; used when adding a person manually; `scale` controls spread (default 80px)
-- [ ] write `OpenPose/skeleton.test.mjs`:
+- [x] define `OPENPOSE_CONNECTIONS` — 17 pairs `[fromIdx, toIdx]` using standard CMU connections
+- [x] define `LIMB_COLORS` — parallel array of `[R, G, B]` tuples; use standard OpenPose palette
+- [x] define `BLAZEPOSE_TO_OPENPOSE` — array of 18 entries; each entry is either a BlazePose index (0–32) or `null` for Neck (computed separately)
+- [x] implement `blazeposeToOpenpose(landmarks, imageWidth, imageHeight)` — converts MediaPipe `NormalizedLandmark[]` (33 items, `{x, y, z, visibility}`) to `{x, y, confidence}[18]` pixel-coord array; `x = landmark.x * imageWidth`, `y = landmark.y * imageHeight`; Neck (index 1) = midpoint of landmarks[11] + landmarks[12]; confidence = `visibility ?? 0` clamped 0–1
+- [x] implement `emptySkeleton(cx, cy, scale)` — returns a T-pose `{x, y, confidence: 1}[18]` centered at `(cx, cy)`; used when adding a person manually; `scale` controls spread (default 80px)
+- [x] write `OpenPose/skeleton.test.mjs`:
   - test `OPENPOSE_KEYPOINTS.length === 18`
   - test `OPENPOSE_CONNECTIONS.length === 17`
   - test `LIMB_COLORS.length === 17`
   - test `blazeposeToOpenpose`: build synthetic 33-element landmarks array; verify index 0 maps to `Nose`, index 1 is midpoint of landmarks[11]+landmarks[12]; verify pixel denormalization
   - test `emptySkeleton` returns 18 points all with `confidence: 1`
-- [ ] run `node --test .vitepress/theme/components/OpenPose/skeleton.test.mjs` — must pass before task 3
+- [x] run `node --test .vitepress/theme/components/OpenPose/skeleton.test.mjs` — must pass before task 3
 
 **BlazePose → OpenPose mapping table:**
 ```
