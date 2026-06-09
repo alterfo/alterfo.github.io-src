@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildScoreFromMidi } from './midifile.js'
+import { buildScoreFromMidi, parseMIDIFile } from './midifile.js'
+import * as TonejsMidi from '@tonejs/midi'
+
+const Midi = TonejsMidi.Midi ?? TonejsMidi.default?.Midi ?? TonejsMidi.default
 
 // Synthetic Midi-like object (the shape @tonejs/midi exposes). We test the pure
 // converter directly so no binary .mid has to be assembled.
@@ -135,5 +138,27 @@ describe('Piano/importer/midifile.js', () => {
   it('throws when there are no notes', () => {
     const midi = mockMidi({ tracks: [{ name: 'RH', notes: [] }] })
     assert.throws(() => buildScoreFromMidi(midi, { timeSignature: [4, 4] }))
+  })
+
+  // Exercises the public entry point end-to-end: real binary → new Midi() →
+  // buildScoreFromMidi, locking in the @tonejs/midi namespace resolution that the
+  // mock-driven tests above bypass.
+  it('parseMIDIFile parses a real .mid ArrayBuffer', () => {
+    const midi = new Midi()
+    midi.header.setTempo(120)
+    midi.header.timeSignatures.push({ ticks: 0, timeSignature: [3, 4] })
+    const track = midi.addTrack()
+    track.name = 'Right Hand'
+    track.addNote({ midi: 60, ticks: 0, durationTicks: midi.header.ppq })
+    track.addNote({ midi: 62, ticks: midi.header.ppq, durationTicks: midi.header.ppq })
+    const bytes = midi.toArray()
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+
+    const { score, needsTimeSig, detectedTs } = parseMIDIFile(buf)
+    assert.equal(needsTimeSig, false)
+    assert.deepEqual(detectedTs, [3, 4])
+    assert.deepEqual(score.timeSignature, [3, 4])
+    assert.equal(score.userImported, true)
+    assert.deepEqual(score.phrases[0].measures[0].notes.map(n => n.midi), [60, 62])
   })
 })

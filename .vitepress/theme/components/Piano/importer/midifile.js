@@ -17,22 +17,12 @@
 // left/bass/alto → LH, otherwise track 0 = RH and track 1 = LH; extra tracks,
 // rests, articulations, and pedal events are ignored.
 
-import { DURATION_BEATS } from '../score.js'
+import { beatsToDurationCode, makeUserScoreId } from '../score.js'
 
 // @tonejs/midi ships a CommonJS-ish build: under Vite the namespace exposes
 // `Midi` directly, under node `--test` it lands on `default.Midi`. Resolve both.
 import * as TonejsMidi from '@tonejs/midi'
 const Midi = TonejsMidi.Midi ?? TonejsMidi.default?.Midi ?? TonejsMidi.default
-
-function beatsToDurationCode(beats) {
-  let best = 'q'
-  let bestDiff = Infinity
-  for (const [code, b] of Object.entries(DURATION_BEATS)) {
-    const d = Math.abs(beats - b)
-    if (d < bestDiff) { bestDiff = d; best = code }
-  }
-  return best
-}
 
 // durationTicks → nearest VexFlow duration code (beats counted in quarter notes).
 function ticksToDuration(ticks, ppq) {
@@ -124,7 +114,7 @@ export function buildScoreFromMidi(midi, options = {}) {
   }
 
   const score = {
-    id: `user-${Date.now()}`,
+    id: makeUserScoreId(),
     title: header.name || 'Импортированная пьеса',
     composer: '',
     tempo: Math.round(header.tempos?.[0]?.bpm ?? 120),

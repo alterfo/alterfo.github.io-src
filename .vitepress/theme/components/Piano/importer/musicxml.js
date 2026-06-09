@@ -10,7 +10,7 @@
 // (no DOMParser there) and keeps the module dependency-free. The parser handles
 // the well-formed XML notation editors emit — it is not a general XML validator.
 
-import { DURATION_BEATS } from '../score.js'
+import { beatsToDurationCode, makeUserScoreId } from '../score.js'
 
 // ── Minimal XML parser ────────────────────────────────────────────────────────
 
@@ -106,16 +106,6 @@ const FIFTHS_TO_MINOR = {
   '-1': 'D', '-2': 'G', '-3': 'C', '-4': 'F', '-5': 'Bb', '-6': 'Eb', '-7': 'Ab',
 }
 
-function beatsToDurationCode(beats) {
-  let best = 'q'
-  let bestDiff = Infinity
-  for (const [code, b] of Object.entries(DURATION_BEATS)) {
-    const d = Math.abs(beats - b)
-    if (d < bestDiff) { bestDiff = d; best = code }
-  }
-  return best
-}
-
 function xmlDuration(note, divisions) {
   const type = text(child(note, 'type'))
   const dotted = !!child(note, 'dot')
@@ -176,10 +166,13 @@ export function parseMusicXML(xmlString) {
   if (!findAll(root, 'note').length) throw new Error('MusicXML: ноты не найдены')
 
   // Accumulate notes by measure number (document order preserved by the Map).
+  // Only the first <part> is read — a piano grand staff is a single part with two
+  // staves; merging extra parts (other instruments) would overlay unrelated notes.
   const measureMap = new Map()
   let divisions = 1
-  for (const part of findAll(root, 'part')) {
-    for (const measure of childrenOf(part, 'measure')) {
+  const firstPart = findAll(root, 'part')[0]
+  if (firstPart) {
+    for (const measure of childrenOf(firstPart, 'measure')) {
       const num = parseInt(measure.attrs.number ?? String(measureMap.size + 1), 10)
       const attrs = child(measure, 'attributes')
       if (attrs) {
@@ -197,6 +190,7 @@ export function parseMusicXML(xmlString) {
         const octave = parseInt(text(child(pitch, 'octave')), 10)
         const alterTxt = text(child(pitch, 'alter'))
         const midi = xmlNoteToMidi(step, octave, alterTxt ? parseInt(alterTxt, 10) : 0)
+        if (!Number.isFinite(midi)) { lastNote = null; continue } // missing/unknown step or octave
 
         if (child(note, 'chord') && lastNote) {
           lastNote.midi = Array.isArray(lastNote.midi) ? [...lastNote.midi, midi] : [lastNote.midi, midi]
@@ -221,7 +215,7 @@ export function parseMusicXML(xmlString) {
   }
 
   return {
-    id: `user-${Date.now()}`,
+    id: makeUserScoreId(),
     title: parseTitle(root),
     composer: parseComposer(root),
     tempo: parseTempo(root),

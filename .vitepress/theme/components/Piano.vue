@@ -4,9 +4,6 @@ import { useMidi } from './Piano/midi.js'
 import { usePianoAudio } from './Piano/audio.js'
 import { listScores, loadScore, getScaleKeys, getActiveKey, DURATION_BEATS, midiToNoteName } from './Piano/score.js'
 import { loadUserScores, saveUserScore, deleteUserScore } from './Piano/userScores.js'
-import { parseMusicXML } from './Piano/importer/musicxml.js'
-import { parseABC } from './Piano/importer/abc.js'
-import { parseMIDIFile } from './Piano/importer/midifile.js'
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection, checkNote } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
@@ -60,17 +57,25 @@ function measureCount(score) {
   return score.phrases.reduce((sum, p) => sum + p.measures.length, 0)
 }
 
+// Parsers (and the heavy @tonejs/midi) are loaded on demand so they stay out of
+// the shared bundle — mirrors the dynamic import of the VexFlow renderer.
 async function onImportFile(event) {
   importError.value = ''
   const file = event.target.files?.[0]
   if (!file) return
   const name = file.name.toLowerCase()
   try {
-    if (name.endsWith('.xml') || name.endsWith('.mxl')) {
+    if (name.endsWith('.mxl')) {
+      // .mxl is a zip container, not text — we only parse uncompressed MusicXML.
+      throw new Error('сжатый MusicXML (.mxl) не поддерживается — экспортируйте несжатый .xml')
+    } else if (name.endsWith('.xml')) {
+      const { parseMusicXML } = await import('./Piano/importer/musicxml.js')
       addImportedScore(parseMusicXML(await file.text()))
     } else if (name.endsWith('.abc') || name.endsWith('.txt')) {
+      const { parseABC } = await import('./Piano/importer/abc.js')
       addImportedScore(parseABC(await file.text()))
     } else if (name.endsWith('.mid') || name.endsWith('.midi')) {
+      const { parseMIDIFile } = await import('./Piano/importer/midifile.js')
       const buf = await file.arrayBuffer()
       const { score, needsTimeSig, detectedTs } = parseMIDIFile(buf)
       if (needsTimeSig) {
@@ -91,9 +96,10 @@ async function onImportFile(event) {
   }
 }
 
-function confirmMidiTimeSig() {
+async function confirmMidiTimeSig() {
   if (!pendingMidiBuf.value) return
   try {
+    const { parseMIDIFile } = await import('./Piano/importer/midifile.js')
     const { score } = parseMIDIFile(pendingMidiBuf.value, { timeSignature: selectedTimeSig.value })
     addImportedScore(score)
     showTimeSigDialog.value = false
@@ -103,9 +109,10 @@ function confirmMidiTimeSig() {
   }
 }
 
-function previewAbc() {
+async function previewAbc() {
   importError.value = ''
   try {
+    const { parseABC } = await import('./Piano/importer/abc.js')
     abcPreview.value = parseABC(abcText.value)
   } catch (e) {
     abcPreview.value = null
@@ -113,9 +120,10 @@ function previewAbc() {
   }
 }
 
-function confirmAbcImport() {
+async function confirmAbcImport() {
   importError.value = ''
   try {
+    const { parseABC } = await import('./Piano/importer/abc.js')
     const score = abcPreview.value ?? parseABC(abcText.value)
     addImportedScore(score)
     showAbcModal.value = false
@@ -506,7 +514,7 @@ onUnmounted(() => {
         @click="deleteImportedScore(selectedScoreId)">✕</button>
 
       <button class="tb-btn" @click="triggerImport" title="Импортировать пьесу (MusicXML / MIDI / ABC)">⬆ Импорт</button>
-      <input ref="importInput" type="file" accept=".xml,.mxl,.mid,.midi,.abc,.txt"
+      <input ref="importInput" type="file" accept=".xml,.mid,.midi,.abc,.txt"
              style="display:none" @change="onImportFile" />
       <button class="tb-btn" @click="showAbcModal = true" title="Ввести ABC-нотацию текстом">ABC</button>
 

@@ -109,24 +109,31 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 |------|---------|
 | `Piano/midi.js` | `useMidi()` composable: `requestMIDIAccess`, reactive `pressedNotes` Set, `onNoteOn(cb)` / `onNoteOff(cb)` event hooks, `deviceName`, `status` |
 | `Piano/audio.js` | `usePianoAudio()` composable: Tone.js PolySynth (triangle8) + optional Salamander HD sampler; EQ3→Compressor→Reverb→Limiter chain; `playNote(midi, vel)`, `releaseNote(midi)`, `loadSampler()`, `dispose()`; `mode` ref (`'synth'`\|`'sampler'`), `samplerReady`, `samplerLoading` |
-| `Piano/score.js` | Score JSON CRUD, built-in pieces, `getScaleKeys(key)`, `getNonScaleKeys()`, `getActiveKey(score, phraseIdx, measureIdx)`, `midiToNoteName(midi)` |
+| `Piano/score.js` | Score JSON CRUD, built-in pieces, `getScaleKeys(key)`, `getNonScaleKeys()`, `getActiveKey(score, phraseIdx, measureIdx)`, `midiToNoteName(midi)`; shared importer helpers `beatsToDurationCode(beats)` (snap quarter-beats → VexFlow code) and `makeUserScoreId()` (collision-resistant `user-<ts>-<seq>` via a module-level counter shared across all importers) |
 | `Piano/trainer.js` | `createLevel1State` / `createLevel2State`; `checkNote()` / `repeatSection()` generic dispatchers; `getCurrentNote()`; L1 repeats measure, L2 repeats phrase |
 | `Piano/renderer.js` | VexFlow wrapper: `renderPhrase(container, phrase, cursor)`, highlight, look-ahead, wrong-note flash |
 | `Piano/keyboard.js` | SVG 88-key piano: `generateKeyRects()`, `keyColor()`, `buildKeyLayout()` |
 | `Piano/db.js` | IndexedDB database `piano`, object store `progress`: `loadProgress(scoreId)`, `saveProgress(scoreId, state)`, debounce 300 ms |
+| `Piano/userScores.js` | Pure (no-Vue) localStorage persistence of full user-imported Score objects under key `piano:user-scores`: `loadUserScores()` / `saveUserScore(score)` / `deleteUserScore(id)`. Each takes an optional `storage` arg (defaults to `localStorage`, `null` under node/SSR → loads return `[]`, saves no-op). `saveUserScore` stamps `userImported: true` and returns a **new** array (reassign, don't mutate, to drive Vue reactivity) |
+| `Piano/importer/musicxml.js` | `parseMusicXML(xmlString)` → Score; self-contained regex XML→tree parser (no DOMParser → runs under `node --test`); `<fifths>`+`<mode>` → key (major + relative-minor tables), `<staff>1/2` → right/left hand, `<chord/>` merges into a midi array; reads only the **first** `<part>` (grand staff); skips notes whose computed MIDI is non-finite |
+| `Piano/importer/abc.js` | `parseABC(abcString)` → Score; dependency-free ABC subset: `^_=` accidentals, `,'` octave marks (uppercase = octave 4, C=60), `[CEG]` chords, `n/n` durations, `w:` lyrics |
+| `Piano/importer/midifile.js` | `parseMIDIFile(arrayBuffer, options)` → `{ score, needsTimeSig, detectedTs }`; wraps `@tonejs/midi`. Pure converter `buildScoreFromMidi(midi, options)` is unit-tested with a mock Midi object. Returns `needsTimeSig: true` when the file has no time signature so the UI can prompt; `options.timeSignature` overrides |
 
 ### Piano bundle notes
 
 - `Piano.vue` is registered as `defineAsyncComponent` — VexFlow loads only on `/piano`
 - VexFlow is isolated via `manualChunks` in `config.mts` → separate `vexflow.[hash].js` chunk (~677 KB gzip)
+- The renderer **and the three importers** (`musicxml.js` / `abc.js` / `midifile.js`) are loaded via dynamic `import()` from the Piano.vue handlers, **not** static top-level imports. This keeps the heavy `@tonejs/midi` dep (MIDI import) out of the shared `app.[hash].js` chunk that every page executes — it lands in a lazy `midifile.[hash].js` chunk instead. When adding a new importer, follow the same `await import(...)`-in-handler pattern.
+- MIDI import depends on `@tonejs/midi` (npm, no CDN). Its namespace export is resolved defensively as `TonejsMidi.Midi ?? TonejsMidi.default?.Midi` because the build differs between Vite and node `--test`.
 - Firefox: Web MIDI requires `dom.webmidi.enabled` flag; Safari: unsupported natively
 - HD sampler loads from `/audio/salamander/` (local Salamander Grand Piano mp3s; not bundled — must be present in `public/audio/salamander/` for HD mode to work)
+- Imported measures are **not** beat-sum-validated against the time signature (built-in scores are, via `score.test.mjs`). Durations are snapped to the nearest `DURATION_BEATS` code, so an imported bar may over/under-fill — `renderPhrase` uses `Voice.Mode.SOFT` + try/catch so this degrades gracefully rather than crashing. `.mxl` (zip-compressed MusicXML) is **not** supported; export uncompressed `.xml`.
 
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
 - IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
-- Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs`
+- Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`
@@ -187,3 +194,13 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - VexFlow isolated in its own build chunk (`~677 KB gzip`); Piano component itself ~7 KB gzip
 - Firefox note: Web MIDI API requires `dom.webmidi.enabled` flag or WebMIDIAPI shim; Safari unsupported (banner shown)
 - Unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs`
+
+### Piano score import (as of 2026-06-09)
+
+- Import user pieces in three formats via the `/piano` topbar: `.xml` (MusicXML), `.abc`/`.txt` (typed in a modal or uploaded), `.mid`/`.midi` (MIDI, via `@tonejs/midi`)
+- Importers in `Piano/importer/` (`musicxml.js`, `abc.js`, `midifile.js`) → the shared Score shape; lazy-loaded via dynamic `import()` in Piano.vue handlers so `@tonejs/midi` stays out of the shared `app` chunk
+- Imported scores persist in `localStorage` (`piano:user-scores`) via `Piano/userScores.js`; ids are `user-<ts>-<seq>` (`makeUserScoreId()` in `score.js`); `userImported: true` marks them with a 🎵 in the dropdown and enables the ✕ delete button
+- `currentScore` resolves user-scores first (full objects in `userScores.value`), then falls back to `loadScore()` (built-ins) — required because `loadScore()` returns `SCORES[0]` on a miss
+- MIDI files often omit a time signature: `parseMIDIFile` returns `needsTimeSig: true` → Piano.vue shows a 2/4·3/4·4/4·6/8 picker, then re-parses the buffered file with the chosen meter
+- `.mxl` (compressed MusicXML) is rejected with a clear error (it's a zip, not text)
+- Unit tests: `node --test .vitepress/theme/components/Piano/importer/*.test.mjs` (musicxml, abc, midifile) plus `userScores.test.mjs`

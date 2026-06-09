@@ -15,20 +15,10 @@
 // broken rhythm, chord symbols in quotes, key-signature accidentals (only
 // explicit ^_= alter a pitch — F in K:D stays F natural unless written ^F).
 
-import { DURATION_BEATS } from '../score.js'
+import { beatsToDurationCode, makeUserScoreId } from '../score.js'
 
 // Uppercase letters sit in octave 4 (middle C = C4 = MIDI 60); lowercase add +12.
 const ABC_BASE = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 }
-
-function beatsToDurationCode(beats) {
-  let best = 'q'
-  let bestDiff = Infinity
-  for (const [code, b] of Object.entries(DURATION_BEATS)) {
-    const d = Math.abs(beats - b)
-    if (d < bestDiff) { bestDiff = d; best = code }
-  }
-  return best
-}
 
 // ── Pitch + duration scanning ─────────────────────────────────────────────────
 
@@ -244,7 +234,7 @@ export function parseABC(abcString) {
   }
 
   return {
-    id: `user-${Date.now()}`,
+    id: makeUserScoreId(),
     title: headers.T || 'Импортированная пьеса',
     composer: headers.C || '',
     tempo: parseTempo(headers.Q),

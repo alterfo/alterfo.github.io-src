@@ -134,4 +134,29 @@ describe('Piano/importer/musicxml.js', () => {
     const s = parseMusicXML(xml)
     assert.deepEqual(s.key, { root: 'A', mode: 'minor' })
   })
+
+  it('reads only the first <part> (does not overlay extra instruments)', () => {
+    const SECOND_PART = `
+  <part id="P2">
+    <measure number="1">
+      <note><pitch><step>C</step><octave>2</octave></pitch><duration>16</duration><type>whole</type><staff>1</staff></note>
+    </measure>
+  </part>`
+    const xml = SAMPLE.replace('</score-partwise>', SECOND_PART + '\n</score-partwise>')
+    const s = parseMusicXML(xml)
+    // m1 still holds only P1's notes (F#4+A4 chord, D3) — no C2 from P2.
+    const midis = s.phrases[0].measures[0].notes.flatMap(n => (Array.isArray(n.midi) ? n.midi : [n.midi]))
+    assert.ok(!midis.includes(36), 'C2 from the second part must not appear')
+    assert.deepEqual(s.phrases[0].measures[0].notes[0].midi, [66, 69])
+  })
+
+  it('skips a note with a missing <octave> instead of emitting midi NaN', () => {
+    const xml = SAMPLE.replace(
+      '<pitch><step>A</step><octave>4</octave></pitch>\n        <duration>16</duration><type>whole</type><staff>1</staff>',
+      '<pitch><step>A</step></pitch>\n        <duration>16</duration><type>whole</type><staff>1</staff>',
+    )
+    const s = parseMusicXML(xml)
+    const allMidis = s.phrases.flatMap(p => p.measures.flatMap(m => m.notes.flatMap(n => (Array.isArray(n.midi) ? n.midi : [n.midi]))))
+    assert.ok(allMidis.every(Number.isFinite), 'no NaN midi values should be produced')
+  })
 })
