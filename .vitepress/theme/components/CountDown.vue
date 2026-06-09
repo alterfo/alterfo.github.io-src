@@ -36,6 +36,7 @@
   <script>
   import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
   import { computeRemaining, ringOffset } from './countdown.js'
+  import { SPECTRUM } from './spectrum.js'
 
   export default {
     name: 'CountDown',
@@ -52,7 +53,8 @@
     setup(props, { emit }) {
       // Fix: Use the correct radius (80) for circumference calculation
       const circumference = 2 * Math.PI * 80
-      const colors = ['#45B7D1', '#4ECDC4',  '#FFA500', '#FF6B6B']
+      // Rings colored by the design-system spectrum («сферы круга жизни»)
+      const colors = SPECTRUM
       
       const startDateObj = ref(new Date(props.startDate))
       const targetDate = computed(() => {
@@ -174,9 +176,15 @@
     flex-direction: column;
     align-items: center;
     padding: 1rem;
-    font-family: 'Arial', sans-serif;
+    font-family: var(--ds-font-body);
+    color: var(--ds-text);
   }
-  
+
+  .countdown-container h2 {
+    font-family: var(--ds-font-display);
+    color: var(--ds-text-strong);
+  }
+
   .timer-circles {
     display: flex;
     flex-wrap: nowrap;
@@ -194,7 +202,7 @@
   }
   
   .progress-ring-circle-bg {
-    stroke: #f1f1f1;
+    stroke: var(--ds-text-dim);
     transition: stroke-dashoffset 0.5s;
     transform: rotate(-90deg);
     transform-origin: 50% 50%;
@@ -221,53 +229,16 @@
   .time-value {
     font-size: 3rem;
     font-weight: bold;
+    color: var(--ds-text);
   }
-  
+
   .time-label {
     font-size: 0.8rem;
     text-transform: uppercase;
     margin-top: 0.2rem;
-    color: #fff;
+    color: var(--ds-text-muted);
   }
-  
-  .date-info {
-    margin-bottom: 1.5rem;
-    text-align: center;
-    color: #fff;
-  }
-  
-  .date-info p {
-    margin: 0.5rem 0;
-  }
-  
-  .controls {
-    display: flex;
-    gap: 1rem;
-  }
-  
-  .control-button {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 4px;
-    background-color: #4ECDC4;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s;
-  }
-  
-  .control-button:hover {
-    background-color: #3dbdb5;
-  }
-  
-  .control-button.reset {
-    background-color: #FF6B6B;
-  }
-  
-  .control-button.reset:hover {
-    background-color: #ff5252;
-  }
-  
+
   @media (max-width: 768px) {
     .timer-circles {
       gap: 1rem;
@@ -293,10 +264,6 @@
     .timer-circles {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .date-info {
-      font-size: 0.9rem;
     }
   }
   </style>

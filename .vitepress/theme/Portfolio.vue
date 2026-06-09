@@ -10,6 +10,7 @@
         <h1 class="hero-name">Oleg Sidorkin</h1>
         <p class="hero-roles">Engineer&nbsp;·&nbsp;Musician&nbsp;·&nbsp;Builder</p>
       </div>
+      <CountDown class="hero-countdown" :countdownDays="1000" />
     </header>
 
     <!-- ── PROJECTS ─────────────────────────────────────────── -->
@@ -219,6 +220,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { createField } from './components/ConnectingParticles.js'
+import CountDown from './components/CountDown.vue'
 
 // ── Data ────────────────────────────────────────────────────────
 
@@ -351,9 +353,12 @@ onBeforeUnmount(() => {
 /* ── Hero ────────────────────────────────────────────────────── */
 .hero {
   position: relative;
-  height: 90px;
+  height: auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0 0.5rem;
   z-index: 1;
 }
 
@@ -364,6 +369,31 @@ onBeforeUnmount(() => {
   align-items: baseline;
   gap: 1rem;
   padding: 0 1.5rem;
+}
+
+/* Countdown «1000 дней роста» — scaled compactly into the hero.
+   transform (not r/cx/cy override) keeps the ring-fill math correct;
+   the negative margin reclaims the empty space the scale leaves below. */
+.hero-countdown {
+  position: relative;
+  z-index: 2;
+  transform: scale(0.62);
+  transform-origin: top center;
+  margin-bottom: -7rem;
+}
+
+@media (max-width: 768px) {
+  .hero-countdown {
+    transform: scale(0.85);
+    margin-bottom: -2.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-countdown {
+    transform: none;
+    margin-bottom: 0;
+  }
 }
 
 .hero-name {
