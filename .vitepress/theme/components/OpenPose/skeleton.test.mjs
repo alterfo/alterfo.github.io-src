@@ -83,6 +83,29 @@ test('blazeposeToOpenpose clamps confidence to 0–1 and defaults missing visibi
   assert.equal(skel[2].confidence, 0)
 })
 
+test('blazeposeToOpenpose tolerates a short/sparse landmark array without throwing', () => {
+  // Only the right shoulder is present; everything else (incl. the left
+  // shoulder needed for the Neck midpoint) is missing.
+  const sparse = []
+  sparse[12] = { x: 0.5, y: 0.5, visibility: 0.9 }
+  let skel
+  assert.doesNotThrow(() => { skel = blazeposeToOpenpose(sparse, 100, 100) })
+  assert.equal(skel.length, 18)
+  // Neck (needs both shoulders) → undetected default.
+  assert.deepEqual(skel[1], { x: 0, y: 0, confidence: 0 })
+  // RShoulder ← landmarks[12], present → denormalized.
+  assert.equal(skel[2].x, 50)
+  assert.equal(skel[2].y, 50)
+  // Nose ← landmarks[0], missing → undetected default.
+  assert.deepEqual(skel[0], { x: 0, y: 0, confidence: 0 })
+})
+
+test('blazeposeToOpenpose returns 18 undetected points for null landmarks', () => {
+  const skel = blazeposeToOpenpose(null, 100, 100)
+  assert.equal(skel.length, 18)
+  for (const p of skel) assert.deepEqual(p, { x: 0, y: 0, confidence: 0 })
+})
+
 test('emptySkeleton returns 18 points all with confidence 1', () => {
   const skel = emptySkeleton(500, 400, 80)
   assert.equal(skel.length, 18)

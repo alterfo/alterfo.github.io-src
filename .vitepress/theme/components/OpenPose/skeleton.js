@@ -87,11 +87,17 @@ function clamp01(v) {
 // to an 18-point OpenPose skeleton in pixel coordinates.
 // Neck (index 1) = midpoint of shoulders 11 + 12; confidence = visibility ?? 0.
 export function blazeposeToOpenpose(landmarks, imageWidth, imageHeight) {
+  const src = landmarks || []
   const skeleton = []
   for (let i = 0; i < OPENPOSE_KEYPOINTS.length; i++) {
     if (i === NECK_INDEX) {
-      const a = landmarks[11]
-      const b = landmarks[12]
+      const a = src[11]
+      const b = src[12]
+      // A missing shoulder → undetected Neck (confidence 0), never a crash.
+      if (!a || !b) {
+        skeleton.push({ x: 0, y: 0, confidence: 0 })
+        continue
+      }
       skeleton.push({
         x: ((a.x + b.x) / 2) * imageWidth,
         y: ((a.y + b.y) / 2) * imageHeight,
@@ -99,7 +105,11 @@ export function blazeposeToOpenpose(landmarks, imageWidth, imageHeight) {
       })
       continue
     }
-    const lm = landmarks[BLAZEPOSE_TO_OPENPOSE[i]]
+    const lm = src[BLAZEPOSE_TO_OPENPOSE[i]]
+    if (!lm) {
+      skeleton.push({ x: 0, y: 0, confidence: 0 })
+      continue
+    }
     skeleton.push({
       x: lm.x * imageWidth,
       y: lm.y * imageHeight,

@@ -58,6 +58,24 @@ test('empty skeletons input returns people: []', () => {
   assert.deepEqual(toOpenPoseJSON(null, 200, 200).people, [])
 })
 
+test('toOpenPoseJSON keeps coordinates finite when image dimensions are 0', () => {
+  // 0 width/height must not divide by zero → the || 1 guard keeps values finite.
+  const json = toOpenPoseJSON([emptySkeleton(10, 10, 5)], 0, 0)
+  const kp = json.people[0].pose_keypoints_2d
+  assert.equal(kp.length, 54)
+  for (const v of kp) assert.ok(Number.isFinite(v), `value ${v} should be finite`)
+})
+
+test('toOpenPoseJSON pads a short skeleton to 54 values with zero keypoints', () => {
+  const short = [{ x: 50, y: 25, confidence: 0.9 }] // only keypoint 0 of 18
+  const json = toOpenPoseJSON([short], 100, 100)
+  const kp = json.people[0].pose_keypoints_2d
+  assert.equal(kp.length, 54)
+  assert.deepEqual([kp[0], kp[1], kp[2]], [0.5, 0.25, 0.9])
+  // Missing keypoint 1 → zero triple, not undefined/NaN.
+  assert.deepEqual([kp[3], kp[4], kp[5]], [0, 0, 0])
+})
+
 test('each person carries the standard empty sub-arrays and person_id', () => {
   const json = toOpenPoseJSON([emptySkeleton(100, 100, 80)], 200, 200)
   const person = json.people[0]

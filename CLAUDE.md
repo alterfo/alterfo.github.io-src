@@ -2,10 +2,11 @@
 
 ## Project overview
 
-VitePress-based personal site with three fully client-side apps:
+VitePress-based personal site with four fully client-side apps:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day mechanic, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
+- `/openpose` — OpenPose pose editor (MediaPipe Tasks Vision / BlazePose, WASM in-browser, drag-edit skeletons, ControlNet PNG + OpenPose v1.3 JSON export)
 
 ## Key paths
 
@@ -19,6 +20,9 @@ VitePress-based personal site with three fully client-side apps:
 - `.vitepress/theme/components/Piano.vue` — piano teacher root component (async/`<ClientOnly>`): topbar, stave, keyboard, metronome
 - `.vitepress/theme/components/Piano/` — piano modules (see below)
 - `piano.md` — page that mounts the piano teacher
+- `.vitepress/theme/components/OpenPoseEditor.vue` — OpenPose root component (`<ClientOnly>`): batch-upload queue, canvas preview, drag-edit toolbar, PNG/JSON export
+- `.vitepress/theme/components/OpenPose/` — OpenPose modules (see below)
+- `openpose.md` — page that mounts the editor (`layout: false`)
 - `posts.data.ts` — VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts `excerpt` via `extractExcerpt()` (first non-heading/list/blockquote/HTML line, strips inline Markdown, truncates to 120 chars; returns `''` if no qualifying paragraph found); `buildPost()` throws at build time if `date` or `title` frontmatter fields are absent or if `date` is unparseable
 - `.vitepress/theme/components/BlogList.vue` — blog index component; groups posts by year (`groupedPosts` computed), renders year sections with per-post title, ISO-attributed `<time>`, and optional excerpt; uses hardcoded `rgba()` values instead of `var(--vp-c-*)` tokens to match the dark portfolio theme
 
@@ -129,11 +133,37 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - HD sampler loads from `/audio/salamander/` (local Salamander Grand Piano mp3s; not bundled — must be present in `public/audio/salamander/` for HD mode to work)
 - Imported measures are **not** beat-sum-validated against the time signature (built-in scores are, via `score.test.mjs`). Durations are snapped to the nearest `DURATION_BEATS` code, so an imported bar may over/under-fill — `renderPhrase` uses `Voice.Mode.SOFT` + try/catch so this degrades gracefully rather than crashing. `.mxl` (zip-compressed MusicXML) is **not** supported; export uncompressed `.xml`.
 
+## OpenPose Editor app
+
+Client-side pose editor at `/openpose`: batch-upload images, auto-detect skeletons with MediaPipe BlazePose (in-browser WASM, up to 2 persons), drag-edit keypoints, export a black-background skeleton PNG + OpenPose v1.3 JSON for ControlNet / Stable Diffusion. A "Skeleton" is a flat 18-point array of `{ x, y, confidence }` in pixel coords; order matches `OPENPOSE_KEYPOINTS`.
+
+### OpenPose modules
+
+| File | Purpose |
+|------|---------|
+| `OpenPose/skeleton.js` | OpenPose COCO 18-keypoint defs (`OPENPOSE_KEYPOINTS`, 17-pair `OPENPOSE_CONNECTIONS`, parallel `LIMB_COLORS`), `BLAZEPOSE_TO_OPENPOSE` map, `blazeposeToOpenpose()` (33→18, Neck = shoulder-11/12 midpoint; missing landmarks → `{0,0,0}`, never throws), `emptySkeleton()` (T-pose, all confidence 1) |
+| `OpenPose/model.js` | `usePoseDetection()` composable: `status`/`modelError` refs, `initModel()`, `detectPoses(img)`, `dispose()`; lazy `await import('@mediapipe/tasks-vision')` PoseLandmarker (full model, `numPoses: 2`, `runningMode: 'IMAGE'`) |
+| `OpenPose/renderer.js` | `renderSkeleton(ctx, skel, colorOverride?, lineWidth?, dotRadius?)`, `renderSkeletonOnCanvas()` (photo + overlay; person 1 at 0.7 alpha), `renderSkeletonOnBlack()` (black bg, ControlNet PNG — returns `OffscreenCanvas` when available); `CONFIDENCE_THRESHOLD = 0.3` skips limbs/dots |
+| `OpenPose/editor.js` | pure `moveKeypoint` / `addPerson` / `removePerson` (`MAX_PERSONS = 2`) + `useSkeletonEditor()` — transparent SVG drag overlay aligned to the canvas via `viewBox` = canvas pixel size |
+| `OpenPose/exporter.js` | `toOpenPoseJSON()` (v1.3, coords normalized 0–1, one `people` entry per skeleton) + `downloadJSON` / `downloadPNG` (handles both `<canvas>.toBlob` and `OffscreenCanvas.convertToBlob`) |
+
+### MediaPipe model + WASM (non-obvious, required for the app to run)
+
+- WASM runtime is copied from `node_modules/@mediapipe/tasks-vision/wasm/` → `public/mediapipe/wasm/` by `scripts/copy-mediapipe-wasm.js`, run via `npm run mediapipe:copy` and auto-hooked into `predev` / `prebuild`.
+- The model file `public/mediapipe/pose_landmarker_full.task` (~10.8 MB) is **gitignored** and must be downloaded once:
+  ```bash
+  curl -L "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task" -o public/mediapipe/pose_landmarker_full.task
+  ```
+  Same pattern as the Salamander piano samples. If missing, the app shows an error banner with this exact command.
+- `@mediapipe/tasks-vision` is loaded via dynamic `import()` inside `initModel()` (same lazy pattern as the Piano importers) so it stays out of the shared `app` chunk and never runs during SSR — it lands in a lazy `vision_bundle.[hash].js` chunk. No `manualChunks` entry needed (dynamic-import auto-splitting). Namespace export resolved defensively as `vision.X ?? vision.default?.X`.
+- `OpenPoseEditor.vue` is registered as a **static** import in `index.mts` (unlike `Piano.vue`'s `defineAsyncComponent`), but only the light OpenPose modules land in the shared chunk — the heavy MediaPipe runtime stays lazy via the dynamic import above.
+
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
 - IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
+- OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`
@@ -205,3 +235,13 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - MIDI files often omit a time signature: `parseMIDIFile` returns `needsTimeSig: true` → Piano.vue shows a 2/4·3/4·4/4·6/8 picker, then re-parses the buffered file with the chosen meter
 - `.mxl` (compressed MusicXML) is rejected with a clear error (it's a zip, not text)
 - Unit tests: `node --test .vitepress/theme/components/Piano/importer/*.test.mjs` (musicxml, abc, midifile) plus `userScores.test.mjs`
+
+### OpenPose Editor app (as of 2026-06-09)
+
+- Client-side pose editor at `/openpose`: in-browser BlazePose detection via MediaPipe Tasks Vision WASM (no server, no CDN — WASM copied locally, model downloaded once and gitignored)
+- BlazePose 33-keypoint → OpenPose COCO 18-keypoint mapping (`Neck` = shoulder midpoint); missing landmarks degrade to `{0,0,0}` rather than throwing
+- Batch image upload (drag & drop / picker) → queue auto-processes in order when the model is ready (`createImageBitmap` → `detectPoses` → preview render)
+- Draggable SVG keypoint overlay (transparent, aligned to the canvas via `viewBox`); per-person handle colors (blue / orange); low-confidence joints rendered hollow
+- Add / remove person (max 2), re-detect; live canvas preview updates on edit
+- Dual export: black-background ControlNet PNG (`renderSkeletonOnBlack` → `downloadPNG`) + OpenPose v1.3 JSON with coords normalized 0–1 (`toOpenPoseJSON` → `downloadJSON`)
+- Unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton mapping, renderer with mocked canvas, editor pure helpers, exporter JSON)

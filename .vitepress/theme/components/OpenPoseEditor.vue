@@ -180,9 +180,10 @@ function onExportJSON() {
   downloadJSON(exportBasename(entry), json)
 }
 
-// Re-render when the selection changes or the selected skeletons are edited.
+// Re-render when the selection changes. Skeleton edits (drag, add/remove person,
+// re-detect, queue processing) each call renderSelected directly, so a deep
+// watcher here would only duplicate that render on every pointer move.
 watch(selectedId, () => nextTick(renderSelected))
-watch(() => selectedEntry.value?.skeletons, () => nextTick(renderSelected), { deep: true })
 
 // ─────────────────────────────────────────────────────────────
 // File input + drag & drop
@@ -330,7 +331,7 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Bottom toolbar: info + editing actions (export buttons added in Task 7) -->
+    <!-- Bottom toolbar: info + editing actions + PNG/JSON export -->
     <div class="op-toolbar">
       <template v-if="selectedEntry">
         <span class="op-toolbar-name">{{ selectedEntry.name }}</span>
