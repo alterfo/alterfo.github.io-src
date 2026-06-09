@@ -257,12 +257,14 @@ watch(pressedNotes, (newNotes) => {
   const expected = getExpectedMidis()
   if (!expected.length) return
 
+  const allExpectedHeld = expected.every(m => newNotes.has(m))
   const anyWrong = newNotes.size > 0 && [...newNotes].some(m => !expected.includes(m))
-  const allCorrect = !anyWrong && expected.every(m => newNotes.has(m)) && newNotes.size > 0
 
-  if (anyWrong) {
+  if (!allExpectedHeld && anyWrong) {
+    // Wrong note pressed without the expected note being held — genuine mistake
     triggerWrong()
-  } else if (allCorrect) {
+  } else if (allExpectedHeld) {
+    // Expected note(s) held — start/continue timer even if extra keys are pressed (legato)
     if (!correctHoldStart) correctHoldStart = Date.now()
   } else {
     correctHoldStart = null

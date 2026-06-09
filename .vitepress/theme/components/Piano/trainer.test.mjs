@@ -493,16 +493,16 @@ describe('chord notes (midi as array)', () => {
     assert.equal(checkNoteL1(state, new Set([60, 64, 67]), LONG_HOLD), 'note-correct')
   })
 
-  it('wrong when full chord pressed plus extra wrong key', () => {
+  it('note-correct when full chord pressed plus extra key (legato overlap)', () => {
     const state = createLevel1State(chordScore)
-    // all expected notes [60,64,67] + wrong 61
-    assert.equal(checkNoteL1(state, new Set([60, 64, 67, 61]), LONG_HOLD), 'wrong')
+    // all expected notes [60,64,67] + extra 61 held simultaneously (legato) → advance
+    assert.equal(checkNoteL1(state, new Set([60, 64, 67, 61]), LONG_HOLD), 'note-correct')
   })
 
-  it('wrong when single expected note pressed with extra wrong key', () => {
+  it('note-correct when single expected note pressed with extra key (legato overlap)', () => {
     const score = loadScore('c-major-scale')
     const state = createLevel1State(score)
-    // expected 60, also pressing 61
-    assert.equal(checkNoteL1(state, new Set([60, 61]), LONG_HOLD), 'wrong')
+    // expected 60 held, also pressing 62 (next note) → legato advance, not wrong
+    assert.equal(checkNoteL1(state, new Set([60, 62]), LONG_HOLD), 'note-correct')
   })
 })

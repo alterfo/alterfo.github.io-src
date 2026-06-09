@@ -57,16 +57,16 @@ export function checkNoteL1(state, midiSet, heldMs, tempoFactor = 1.0) {
   if (!note) { state.complete = true; return 'complete' }
 
   if (!notesMatch(note.midi, midiSet)) {
+    // Expected note(s) not held — wrong only if a different note is pressed without the expected one
     if (midiSet.size > 0 && hasWrongNote(note.midi, midiSet)) {
       _updateStats(state.stats, false)
       return 'wrong'
     }
     return 'waiting'
   }
-  if (hasWrongNote(note.midi, midiSet)) {
-    _updateStats(state.stats, false)
-    return 'wrong'
-  }
+  // All expected notes are held. Extra notes (e.g. legato overlap) are intentionally ignored —
+  // penalising them would break normal piano playing where the next note is pressed before
+  // the current one is fully released.
 
   const threshold = noteThresholdMs(note.duration, state.score.tempo, tempoFactor)
   if (heldMs < threshold) return 'waiting'
@@ -127,10 +127,7 @@ export function checkNoteL2(state, midiSet, heldMs, tempoFactor = 1.0) {
     }
     return 'waiting'
   }
-  if (hasWrongNote(note.midi, midiSet)) {
-    _updateStats(state.stats, false)
-    return 'wrong'
-  }
+  // Extra notes beyond expected are ignored (legato overlap).
 
   const threshold = noteThresholdMs(note.duration, state.score.tempo, tempoFactor)
   if (heldMs < threshold) return 'waiting'
