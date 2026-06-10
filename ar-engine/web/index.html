@@ -1,9 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audio Reactive Fluid</title>
+  <title>AR Engine — Alterfo</title>
+  <meta name="description" content="AR Engine — аудио-реактивный визуализатор на WebGPU: частицы, фигуры Хладни и Nova реагируют на музыку в реальном времени прямо в браузере.">
+  <link rel="canonical" href="https://alterfo.github.io/ar/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="AR Engine — Alterfo">
+  <meta property="og:description" content="Аудио-реактивный визуализатор на WebGPU: частицы и фигуры реагируют на музыку в реальном времени прямо в браузере.">
+  <meta property="og:url" content="https://alterfo.github.io/ar/">
+  <meta property="og:image" content="https://alterfo.github.io/og.png">
+  <meta property="og:site_name" content="Alterfo">
+  <meta property="og:locale" content="ru_RU">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AR Engine — Alterfo">
+  <meta name="twitter:description" content="Аудио-реактивный визуализатор на WebGPU: частицы и фигуры реагируют на музыку в реальном времени прямо в браузере.">
+  <meta name="twitter:image" content="https://alterfo.github.io/og.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -206,10 +219,35 @@
     }
     .icon-btn:hover { border-color: #8b00ff; color: #fff; }
 
+    /* ---- home link (back to portfolio) ---- */
+    #home-link {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      z-index: 95;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(10, 0, 30, 0.75);
+      border: 1px solid #333;
+      border-radius: 20px;
+      padding: 5px 14px;
+      color: #aaa;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    #home-link:hover {
+      border-color: #8b00ff;
+      color: #fff;
+      background: rgba(139, 0, 255, 0.18);
+    }
+
     /* ---- track label ---- */
     #track-label {
       position: absolute;
-      top: 12px;
+      top: 50px;
       left: 14px;
       font-size: 0.75rem;
       color: #666;
@@ -275,9 +313,10 @@
     #btn-ym.active { border-color: #ff2270; color: #ff2270; }
 
     /* ---- fullscreen auto-hide ---- */
-    #controls, #bpm-badge, #track-label, #icon-bar, #mode-bar {
+    #controls, #bpm-badge, #track-label, #icon-bar, #mode-bar, #home-link {
       transition: opacity 0.6s ease;
     }
+    .fs-hidden #home-link   { opacity: 0 !important; pointer-events: none !important; }
     .fs-hidden #controls    { opacity: 0 !important; pointer-events: none !important; }
     .fs-hidden #bpm-badge   { opacity: 0 !important; }
     .fs-hidden #track-label { opacity: 0 !important; }
@@ -290,6 +329,9 @@
 <body>
   <div id="canvas-wrap">
     <canvas id="canvas" width="960" height="540"></canvas>
+
+    <!-- back to portfolio (internal linking + UX) -->
+    <a id="home-link" href="/" title="На главную">← Главная</a>
 
     <!-- drag-drop overlay -->
     <div id="drop-overlay" role="button" aria-label="Drop audio files or a folder, or click to browse">
