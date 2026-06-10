@@ -5,6 +5,7 @@ import IDEF0Editor from './components/IDEF0Editor.vue'
 import Journal from './components/Journal.vue'
 import Piano from './components/Piano.vue'
 import OpenPoseEditor from './components/OpenPoseEditor.vue'
+import PlannerEditor from './components/PlannerEditor.vue'
 import './styles/index.css'
 
 export default {
@@ -15,5 +16,6 @@ export default {
     app.component('Journal', Journal)
     app.component('Piano', Piano)
     app.component('OpenPoseEditor', OpenPoseEditor)
+    app.component('PlannerEditor', PlannerEditor)
   },
 } satisfies Theme

@@ -46,6 +46,7 @@ export default defineConfig({
   nav: [
     { text: 'Главная', link: '/' },
     { text: 'Блог', link: '/blog/' },
+    { text: 'Planner', link: '/planner' },
   ],
   // Old VuePress posts used /posts/:year/:month/:day/:slug.
   // New VitePress posts live at /posts/YYYY-MM-DD-slug.

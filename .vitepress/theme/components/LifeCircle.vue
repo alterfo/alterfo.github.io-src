@@ -51,7 +51,7 @@ const SEGMENTS = [
   { id: 'ar',       title: 'AR Engine',    href: '/ar/',      color: '#b34dff', readiness: 5 },
   { id: 'piano',    title: 'Piano',        href: '/piano',    color: '#ffaa22', readiness: 4 },
   { id: 'openpose', title: 'OpenPose',     href: '/openpose', color: '#1accff', readiness: 4 },
-  { id: 'planner',  title: 'Планировщик',  href: null,        color: '#ff9933', readiness: 4, soon: true },
+  { id: 'planner',  title: 'Планировщик',  href: '/planner',  color: '#ff9933', readiness: 4 },
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))
