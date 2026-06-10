@@ -2,12 +2,13 @@
 
 ## Project overview
 
-VitePress-based personal site with five fully client-side apps:
+VitePress-based personal site with six fully client-side apps:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day mechanic, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 - `/openpose` — OpenPose pose editor (MediaPipe Tasks Vision / BlazePose, WASM in-browser, drag-edit skeletons, ControlNet PNG + OpenPose v1.3 JSON export)
 - `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, File System Access bridge → plaintext agent-editable `tasks.json`)
+- `/decision-journal` — encrypted decision journal with calibration (WebCrypto AES-GCM, IndexedDB; record a choice + confidence % + review date → mark the outcome later → Brier score + confidence-bucket calibration)
 
 ## Key paths
 
@@ -27,11 +28,14 @@ VitePress-based personal site with five fully client-side apps:
 - `.vitepress/theme/components/PlannerEditor.vue` — planner root component (`<ClientOnly>`): unlock screen, project sidebar, kanban/list views, task detail panel, FS sync + export/import
 - `.vitepress/theme/components/Planner/` — planner modules (see below)
 - `planner.md` — page that mounts the planner (`layout: false`)
+- `.vitepress/theme/components/DecisionJournal.vue` — decision-journal root component (`<ClientOnly>`): unlock/create screen, decision form, review cards, calibration stats panel, export/import
+- `.vitepress/theme/components/Decisions/` — decision-journal modules (see below)
+- `decision-journal.md` — page that mounts the decision journal (`layout: false`)
 - `posts.data.ts` — VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts `excerpt` via `extractExcerpt()` (first non-heading/list/blockquote/HTML line, strips inline Markdown, truncates to 120 chars; returns `''` if no qualifying paragraph found); `buildPost()` throws at build time if `date` or `title` frontmatter fields are absent or if `date` is unparseable
 - `.vitepress/theme/components/BlogList.vue` — blog index component; groups posts by year (`groupedPosts` computed), renders year sections with per-post title, ISO-attributed `<time>`, and optional excerpt; uses hardcoded `rgba()` values instead of `var(--vp-c-*)` tokens to match the dark portfolio theme
 - `.vitepress/theme/components/HelpModal.vue` — reusable help/info modal: `<Teleport to="body">`, `v-model:modelValue` open/close, default slot for content, Escape-key + backdrop-click dismiss. Dark local styling (NOT part of the «Spiral» design system). Used by IDEF0Editor / Journal / Piano roots (a toolbar/sidebar `?` button reopens it). OpenPose and Planner do not have one yet.
 - `.vitepress/theme/components/onboarding.js` — pure `shouldShowOnboarding(key, storage = localStorage)`: returns `true` the first time `key` is seen (and records it via a `<tool>:seen-help` flag), `false` thereafter; `null`/SSR storage → safe no-op `false`. Injectable `storage` for `node --test` (same pattern as `Piano/userScores.js`). Each app root calls it and shows its `HelpModal` once: IDEF0/Piano in `onMounted`, Journal in `watch(phase)` on first `'unlocked'` (so help never covers the password screen). Tested in `onboarding.test.mjs`.
-- `.vitepress/theme/components/HomeMark.vue` — home link in every app top bar: a mini replica of the LifeCircle wheel (6 sphere arcs, same uneven readiness radii; reuses `arcPath`/`fillRadius` from `lifecircle.js`), the current app's sphere highlighted via the `active` prop (`journal | idef0 | ar | piano | openpose | planner`), 60° rotate on hover. Replaced the old uniform `← Главная` text links (user feedback: too recognizable as a generated-site pattern). Pure SVG, SSR-safe, no `<ClientOnly>`; registered globally in `index.mts`. Its `SPHERES` table mirrors `SEGMENTS` in `LifeCircle.vue` — keep in sync. The AR app carries a hand-maintained static copy (see SEO section). App top bars also carry the sphere color on the title + bottom border, so each tool reads as its sphere of the wheel.
+- `.vitepress/theme/components/HomeMark.vue` — home link in every app top bar: a mini replica of the LifeCircle wheel (7 sphere arcs, same uneven readiness radii; reuses `arcPath`/`fillRadius` from `lifecircle.js`), the current app's sphere highlighted via the `active` prop (`journal | idef0 | ar | piano | openpose | planner | decisions`), `360/n` rotate on hover (n = `SPHERES.length` = 7 → ≈ 51.4°, set via the `--home-rot` CSS var so the angle tracks the sphere count). The per-sphere arc span is `360 / SPHERES.length` (no hardcoded 60). Replaced the old uniform `← Главная` text links (user feedback: too recognizable as a generated-site pattern). Pure SVG, SSR-safe, no `<ClientOnly>`; registered globally in `index.mts`. Its `SPHERES` table mirrors `SEGMENTS` in `LifeCircle.vue` — keep in sync. The AR app carries a hand-maintained static copy (see SEO section). App top bars also carry the sphere color on the title + bottom border, so each tool reads as its sphere of the wheel.
 
 ## IDEF0 Editor modules
 
@@ -227,6 +231,49 @@ Task = { id, projectId, title, status, priority, dueDate, tags, note, deleted, c
 
 `node --test .vitepress/theme/components/Planner/store.test.mjs` (pure helpers incl. note-stripping + merge cases) and the shared `crypto.test.mjs`. `db.js`/`fsbridge.js`/`exporter.js` are browser-only (IndexedDB / FS Access / Blob) → `node --check` only; runtime behaviour verified manually in a Chromium browser.
 
+## Decision Journal app
+
+Client-side, encrypted **decision journal with calibration** at `/decision-journal`. You record a decision made under uncertainty (context, options, the chosen option, expected outcome, confidence 0–100 %, a review date); when the review date arrives the app surfaces it, you mark the actual outcome (correct/wrong + free text), and it computes your **calibration** — a Brier score plus a confidence-bucket table («заявлено 70% → сбылось X%»). No local-first OSS analogue exists — the strongest novelty in the backlog. Reuses the **shared** `components/crypto.js` substrate (PBKDF2 → AES-GCM, identical model to journal/planner; only the `{salt,iterations,iv,ciphertext}` envelope is persisted — no key, no plaintext). Its own IndexedDB (`decision-journal`), its own salt; the password may coincide with the journal's but there is no link.
+
+### Decision Journal modules
+
+| File | Purpose |
+|------|---------|
+| `Decisions/vault.js` | Pure vault logic (no DOM/crypto/IndexedDB → node-testable). `emptyVault()` → `{ version:1, createdAt, decisions:{} }`; `makeDecisionId()` (`randomUUID().slice(0,8)`, mirrors Planner `makeId`); `clampConfidence` (int 0–100, non-finite → 50); `upsertDecision` (create/partial-edit, preserves `createdAt`, bumps `updatedAt`); `markReviewed(vault,id,outcome,actualOutcome,now)` (records outcome/actualOutcome/reviewedAt, invalid outcome → null so it stays queued); `removeDecision` (**tombstone** `deleted:true` + bump, never splice — so LWW propagates the deletion); selectors `dueForReview(vault,todayISO)` (not-deleted, `outcome==null`, `reviewDate<=today` inclusive, sorted by reviewDate) / `openDecisions` / `reviewedDecisions`; `mergeVaults(a,b)` (union-by-id LWW on `updatedAt`, returns a NEW vault, commutative/idempotent, `a` wins on tie — mirrors Planner `mergeVaultTasks` / Journal `mergeVaults`) |
+| `Decisions/stats.js` | Pure calibration math (array of Decision in, no reactivity). `brierScore(decisions)` → `mean((confidence/100 − (outcome==='correct'?1:0))²)` over **reviewed** decisions, `null` if none; `calibrationBuckets(decisions, edges=[50,60,70,80,90,101])` → per-bucket `{ label, n, avgConfidence, hitRate }` with an implicit `0` floor prepended (sub-50 confidence lands in a leading `[0,50)` bucket; empty buckets report `null`, never `NaN`); `counts(decisions, todayISO)` → `{ total, open, due, reviewed }` (all ignore `deleted` tombstones; `due` = open with `reviewDate<=today`). No streak stats (YAGNI) |
+| `Decisions/db.js` | Encrypted IndexedDB `decision-journal` (single envelope string, no key/plaintext) — mirror of `Journal/db.js`: `loadEnvelope`, `saveEnvelope` (debounced 300 ms + cross-tab ping on `decisions:ping`), `saveEnvelopeNow` (awaited, **rejects** on failure — used by the create-vault guard to close the wrong-passphrase-on-empty-vault race; `{notify:true}` pings), `cancelPendingSave`, `initCrossTabSync`. Browser-only → `node --check`, no unit tests (repo convention) |
+| `Decisions/exporter.js` | `exportEnvelope` → download `.decisions` envelope file; `readEnvelopeFile` → string (mirrors `Journal/exporter.js`). Browser-only |
+
+### Crypto model (shared)
+
+Identical to journal/planner: `PBKDF2(passphrase, salt=16 bytes, iterations=600000, SHA-256)` → AES-GCM 256; `iv` = 12 random bytes per encrypt; at-rest envelope `{salt,iterations,iv,ciphertext}` base64 — no key, no plaintext ever persisted. Key lives only in memory, re-derived on unlock.
+
+### Vault shape
+
+```
+{ version: 1, createdAt, decisions: { [id]: Decision } }
+Decision = { id, title, context, options: string[], chosen, expectedOutcome,
+             confidence (0–100 int), reviewDate ('YYYY-MM-DD' | null),
+             outcome (null | 'correct' | 'wrong'), actualOutcome (''),
+             reviewedAt (null | ISO), deleted (false), createdAt (ISO), updatedAt (ISO) }
+```
+
+### Merge (single-user LWW)
+
+Union by id; on a shared id keep the decision with the greater `updatedAt` (`a` wins on tie). Deterministic, commutative, idempotent — safe for file sync / cross-tab merge, no CRDT. Deletes are tombstones (`deleted:true`) so absence ≠ deletion.
+
+### Calibration
+
+Brier and buckets score **only reviewed** decisions (`outcome !== null`); `correct` → 1, `wrong` → 0. Brier 0 = perfect, 0.25 = a coin-flip (50 % confidence with random results), 1 = maximally wrong-and-sure. A well-calibrated author has per-bucket `hitRate ≈ avgConfidence/100`.
+
+### Page + registration + SEO
+
+`decision-journal.md` (`layout: false`, dark header with `<HomeMark active="decisions"/>`, teal `#33ffcc` title + `rgba(51,255,204,.3)` border) → `<ClientOnly><DecisionJournal/></ClientOnly>`. `DecisionJournal` is a **static** `app.component(...)` registration in `index.mts` (like PlannerEditor/OpenPose). `'decision-journal.md'` is in `TOOL_CATEGORY` (`.vitepress/seo.js`, `applicationCategory: 'BusinessApplication'`) → `SoftwareApplication` JSON-LD + sitemap 0.8 tier; the page carries a `description` frontmatter (RU, nbsp before «—»). The LifeCircle `decisions` sphere links here.
+
+### Tests
+
+`node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs` (vault: upsert/markReviewed/tombstone, dueForReview boundary, merge new-id/LWW/commutativity; stats: Brier on known examples + bucket boundaries with no NaN) plus the shared `crypto.test.mjs`. `db.js`/`exporter.js` are browser-only → `node --check` + manual browser verification.
+
 ## Design system «Spiral»
 
 Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue / BlogList.vue / CountDown.vue). The internal UI of Journal / Piano / IDEF0 / OpenPose is **not** part of this system — those keep their own styling.
@@ -235,14 +282,14 @@ Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue 
 
 CSS cannot be imported as JS values, so the spectrum lives in two synced mirrors — **change a color in BOTH**:
 
-- `.vitepress/theme/styles/vars.css` — `--ds-*` CSS custom properties (imported via `styles/index.css`). Holds base/void colors, text scale, the 6 spectrum colors, typography, radius, glow, and `--ds-border` (neutral separator).
-- `.vitepress/theme/components/spectrum.js` — JS mirror for canvas/Vue logic: `SPECTRUM` (6 hex), `CANVAS_PALETTE` (8 `rgba(` prefixes — alpha + `)` appended at draw time, adds teal + yellow for particle richness), `PROJECT_COLORS` (project → spectrum hex).
+- `.vitepress/theme/styles/vars.css` — `--ds-*` CSS custom properties (imported via `styles/index.css`). Holds base/void colors, text scale, the 7 spectrum colors (incl. `--ds-teal: #33ffcc`, the 7th), typography, radius, glow, and `--ds-border` (neutral separator).
+- `.vitepress/theme/components/spectrum.js` — JS mirror for canvas/Vue logic: `SPECTRUM` (7 hex — teal `#33ffcc` is the 7th, after orange), `CANVAS_PALETTE` (8 `rgba(` prefixes — alpha + `)` appended at draw time: the 7 spectrum colors + yellow for particle richness; teal is now part of the spectrum, no longer decoration-only), `PROJECT_COLORS` (project → spectrum hex, incl. `decisions: '#33ffcc'`).
 
 The alternative (reading CSS vars from JS via `getComputedStyle`) was rejected as YAGNI complexity. Unit-tested in `spectrum.test.mjs`.
 
 ### Spectrum semantics (from the author's blog «Круг жизни»)
 
-The wheel of life is split into colored spheres; «границы условны, перетекают друг в друга» = the connecting particles. The 6 project colors = 6 spheres: `--ds-violet` AR/signature/«я», `--ds-cyan` blog, `--ds-green` idef0, `--ds-pink` journal, `--ds-amber` piano, `--ds-orange` github. This ties the background, the countdown (growth), and the project grid into one story.
+The wheel of life is split into colored spheres; «границы условны, перетекают друг в друга» = the connecting particles. The 7 project colors = 7 spheres: `--ds-violet` AR/signature/«я», `--ds-cyan` blog, `--ds-green` idef0, `--ds-pink` journal, `--ds-amber` piano, `--ds-orange` github, `--ds-teal` decisions (журнал решений). This ties the background, the countdown (growth), and the project grid into one story.
 
 ### Connecting particles — one module
 
@@ -254,11 +301,11 @@ The wheel of life is split into colored spheres; «границы условны
 
 ### LifeCircle «колесо жизни»
 
-`.vitepress/theme/components/LifeCircle.vue` is the main element of the Portfolio shell — replaces the old `.projects-grid`. A donut «wheel of life» of 6 spheres (= 6 spectrum colors); each sphere's **outer radius encodes its readiness** (1–10), so the wheel is deliberately uneven and reads as «what's developed vs. not». Each sphere is an `<a href>` linking to the project; the component also supports a linkless `soon` sphere (rendered as a `<g>` with no href), though **no sphere currently sets `soon: true`** since the planner shipped. No `<ClientOnly>` (pure SVG, no DOM API). The 6 segments are **hardcoded** in the component (`SEGMENTS`) — they only change with a release; no props.
+`.vitepress/theme/components/LifeCircle.vue` is the main element of the Portfolio shell — replaces the old `.projects-grid`. A donut «wheel of life» of 7 spheres (= 7 spectrum colors); each sphere's **outer radius encodes its readiness** (1–10), so the wheel is deliberately uneven and reads as «what's developed vs. not». Each sphere is an `<a href>` linking to the project; the component also supports a linkless `soon` sphere (rendered as a `<g>` with no href), though **no sphere currently sets `soon: true`** since the planner shipped. No `<ClientOnly>` (pure SVG, no DOM API). The 7 segments are **hardcoded** in the component (`SEGMENTS`) — they only change with a release; no props.
 
-- Geometry: `viewBox="-45 -5 490 410"` (widened so outside labels never clip; wheel itself centred at `200,200`). The `.vue` passes `GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }`. 6 spheres × 56° + 6 × 4° gap = 360°: sphere `i` spans `startDeg = i*60 + 2 … endDeg = i*60 + 58`, midpoint `i*60 + 30`.
+- Geometry: `viewBox="-45 -5 490 410"` (widened so outside labels never clip; wheel itself centred at `200,200`). The `.vue` passes `GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }`. `buildSegments` is **generalized to n = `defs.length` spheres**: `span = 360/n`, sphere `i` spans `startDeg = i*span + 2 … endDeg = (i+1)*span − 2` (a 4° gap), midpoint `i*span + span/2`, so n × (span−4) + n × 4 = 360°. For n = 6 → span 60° (the original layout); for n = 7 → span ≈ 51.43°, last sphere ends at 358°.
 - Per sphere: faint full-radius track (`.seg-bg`, opacity 0.12) + readiness fill (`.seg-fill`, outer radius = `fillRadius(readiness, 55, 155)`) + crisp stroke edge (`.seg-stroke`) + outside two-line label (title + «N/10»). `soon: true` (currently unused) → dashed track, dim fill, «⟳ скоро» label.
-- Spheres/readiness: Дневник `/journal` 9 (pink), IDEF0 `/idef0` 8 (green), AR Engine `/ar/` 5 (violet), Piano `/piano` 4 (amber), OpenPose `/openpose` 4 (cyan), Планировщик `/planner` 4 (orange).
+- Spheres/readiness: Дневник `/journal` 9 (pink), IDEF0 `/idef0` 8 (green), AR Engine `/ar/` 5 (violet), Piano `/piano` 4 (amber), OpenPose `/openpose` 4 (cyan), Планировщик `/planner` 4 (orange), Решения `/decision-journal` 4 (teal). The `decisions` sphere is the 7th (after `planner`); existing spheres are **not** recolored — teal was only appended.
 - Hover: `scale(1.02)` + color-matched `drop-shadow` glow on non-`soon` spheres. `@media (max-width: 480px)` shrinks label font so it stays readable on mobile.
 - Pure helpers live in `.vitepress/theme/components/lifecircle.js` (`deg2rad` with 0° = top/CW, `arcPath` donut segment, `labelXY`, `fillRadius`, and `buildSegments(defs, geom)` which composes the whole per-sphere render record — paths, label, `text-anchor`), all unit-tested in `lifecircle.test.mjs`. `LifeCircle.vue` only maps `SEGMENTS` through `buildSegments` and renders the result, so the geometry/anchor logic is fully tested; only the static SVG markup is verified manually (visual artifact, no DOM test).
 
@@ -301,6 +348,8 @@ Site-wide RU typography rule (user decision, «всегда»): an em dash «—
 - IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
 - OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
+- Planner unit tests: `node --test .vitepress/theme/components/Planner/store.test.mjs` (pure helpers, note-stripping, merge)
+- Decision Journal unit tests: `node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs` (vault upsert/markReviewed/tombstone/dueForReview/merge; stats Brier + calibration buckets)
 - Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs` (palette completeness, particle helpers, countdown date math, wheel-of-life geometry)
 - SEO unit tests: `node --test .vitepress/seo.test.mjs` (canonical/sitemap URL building, JSON-LD per page type, JSON-LD `<script>` escaping, sitemap priority tiers)
 - Onboarding gate unit tests: `node --test .vitepress/theme/components/onboarding.test.mjs` (first-visit `true` + flag write, return-visit `false`, key isolation, SSR/null-storage no-op)
@@ -397,3 +446,12 @@ Site-wide RU typography rule (user decision, «всегда»): an em dash «—
 - **File System Access bridge** (`fsbridge.js`, Chrome/Edge only, degrades gracefully): "Connect folder" writes a plaintext `tasks.json` (**notes stripped**) the agent can edit; re-read + LWW merge on window `focus`; reconnect flow for lapsed permissions on reload
 - Encrypted file export/import: `.planner` envelope download + import → decrypt (passphrase prompt) → LWW merge → save
 - Unit tests: `node --test .vitepress/theme/components/Planner/store.test.mjs` (pure helpers incl. note-stripping + merge) + shared `crypto.test.mjs`; `db.js`/`fsbridge.js`/`exporter.js` are browser-only → `node --check` + manual browser verification
+
+### Decision Journal app (as of 2026-06-10)
+
+- Encrypted, fully client-side **decision journal with calibration** at `/decision-journal` reusing the **shared** `components/crypto.js` substrate (PBKDF2 → AES-GCM; only the `{salt,iterations,iv,ciphertext}` envelope is persisted — no key, no plaintext). Own IndexedDB (`decision-journal`), own salt
+- Pure, node-testable modules: `Decisions/vault.js` (`emptyVault`/`upsertDecision`/`markReviewed`/`removeDecision` tombstone/`dueForReview`/`openDecisions`/`reviewedDecisions`/`mergeVaults` LWW-by-`updatedAt`) and `Decisions/stats.js` (`brierScore`, `calibrationBuckets`, `counts`)
+- UI: unlock/create-vault screen (create-vault guard via awaited `saveEnvelopeNow` to close the empty-vault race, mirrors PlannerEditor); decision form (title, context, dynamic options list, chosen-option select, expected outcome, confidence range 0–100, review date defaulting +30 days); «⏰ На ревью (N)» queue + open/reviewed lists; review cards (expected vs. actual, Сбылось? Да/Нет → `markReviewed`); calibration stats panel (Brier score with «0 — идеал, 0.25 — монетка», bucket table «заявлено → сбылось», counts, empty states)
+- Debounced autosave (watch vault → `encryptJSON`→`packEnvelope`→`saveEnvelope`); cross-tab merge via `initCrossTabSync` (LWW `mergeVaults`); encrypted `.decisions` file export/import (paste-password on import); Lock clears key/vault from memory
+- LifeCircle gained a 7th sphere «Решения» (teal `#33ffcc`, readiness 4); `buildSegments` generalized 6→7 (span = 360/n); palette extended in both mirrors (`--ds-teal`, `SPECTRUM[6]`, `PROJECT_COLORS.decisions`); `HomeMark` SPHERES 7 + `360/n` hover rotate; AR static SVG mini-wheel recomputed to 7; SEO: `decision-journal.md` in `TOOL_CATEGORY` → SoftwareApplication JSON-LD + sitemap 0.8
+- Unit tests: `node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs` + updated `lifecircle.test.mjs` / `spectrum.test.mjs`; `db.js`/`exporter.js` browser-only → `node --check` + manual browser verification
