@@ -4,7 +4,7 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveE
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
-import { closeSync } from './Journal/sync.js'
+import { createOffer, acceptOffer, closeSync } from './Journal/sync.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -452,17 +452,27 @@ const syncPeerBlob = ref('')      // the peer's blob pasted in
 const syncPass = ref('')          // journal password — decrypts the peer's envelope
 const syncError = ref('')
 const syncResult = ref('')        // human summary after a merge
+const syncConnState = ref('')     // raw pc.connectionState (from onState) for the status line
+const syncCopied = ref(false)     // brief copied-feedback flag on the copy button
+const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallback
 
 // Live connection handles (browser-only; null on SSR / before a role is chosen).
 let _syncPc = null
 let _syncDc = null
+let _syncConn = null              // object returned by createOffer / acceptOffer
 
-const syncStageLabel = computed(() => ({
-  'blob-ready': 'Код готов — передайте его на другое устройство.',
-  waiting: 'Ждём соединения…',
-  connected: 'Соединено — обмен данными…',
-  merged: 'Готово.',
-}[syncStage.value] || ''))
+const syncStageLabel = computed(() => {
+  if (syncStage.value === 'waiting') {
+    return syncConnState.value === 'connecting'
+      ? 'Устанавливаем соединение…'
+      : 'Ждём подключения второго устройства…'
+  }
+  return ({
+    'blob-ready': 'Код готов — передайте его на другое устройство.',
+    connected: 'Соединено.',
+    merged: 'Готово.',
+  }[syncStage.value] || '')
+})
 
 // Tear down any live connection and clear all sync state. Idempotent — safe on
 // modal close, lock, and unmount (closeSync no-ops on a null/closed pc).
@@ -470,6 +480,7 @@ function syncReset() {
   closeSync(_syncPc)
   _syncPc = null
   _syncDc = null
+  _syncConn = null
   syncRole.value = null
   syncStage.value = 'idle'
   syncBlob.value = ''
@@ -477,6 +488,8 @@ function syncReset() {
   syncPass.value = ''
   syncError.value = ''
   syncResult.value = ''
+  syncConnState.value = ''
+  syncCopied.value = false
 }
 
 function openSync() {
@@ -489,11 +502,103 @@ function closeSyncModal() {
   syncReset()
 }
 
-// Pick initiator ('offer') or responder ('answer'). The actual createOffer/
-// acceptOffer wiring lands in Task 3 — here we only record the chosen role.
-function chooseSyncRole(role) {
+// --- Role selection + blob exchange ---
+// onState mirrors pc.connectionState into the status line; a hard 'failed'
+// surfaces as a recoverable error. The waitForChannel timeout (sync.js) covers
+// the silent case where the peer never finishes connecting.
+function onSyncState(state) {
+  syncConnState.value = state
+  if (state === 'failed' && syncStage.value !== 'merged') {
+    syncError.value = 'Соединение не удалось установить. Проверьте, что оба устройства в одной сети.'
+    syncStage.value = 'error'
+  }
+}
+
+// Wait for the DataChannel to open, then mark the session connected. The
+// envelope send/receive (decrypt + merge) is wired in Task 4 — for now the
+// channel simply opening is the success signal the UI reports.
+function startWaiting() {
+  syncStage.value = 'waiting'
+  _syncConn.waitForChannel(onReceiveEnvelope)
+    .then((dc) => { _syncDc = dc; syncStage.value = 'connected' })
+    .catch((e) => {
+      syncError.value = (e && e.message) || 'Ошибка соединения.'
+      syncStage.value = 'error'
+    })
+}
+
+// Placeholder seam for Task 4: the peer's encrypted envelope arrives here.
+// eslint-disable-next-line no-unused-vars
+function onReceiveEnvelope(envelopeStr) {
+  // Decrypt with syncPass + LWW merge + persist lands in Task 4.
+}
+
+// Initiator: generate the offer blob, then await the peer's answer.
+async function startOffer() {
   syncError.value = ''
-  syncRole.value = role
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  syncRole.value = 'offer'
+  syncStage.value = 'idle'
+  try {
+    _syncConn = await createOffer(onSyncState)
+    _syncPc = _syncConn.pc
+    syncBlob.value = _syncConn.blobStr
+    syncStage.value = 'blob-ready'
+  } catch {
+    syncError.value = 'Не удалось создать код соединения.'
+    syncRole.value = null
+  }
+}
+
+// Initiator step 2: accept the answer blob pasted back from the peer.
+async function submitAnswer() {
+  syncError.value = ''
+  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте ответ со второго устройства.'; return }
+  try {
+    await _syncConn.acceptAnswer(syncPeerBlob.value.trim())
+  } catch {
+    syncError.value = 'Неверный код ответа — проверьте и вставьте заново.'
+    return
+  }
+  startWaiting()
+}
+
+// Responder: choose the answer role; the offer blob is pasted next.
+function startAnswer() {
+  syncError.value = ''
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  syncRole.value = 'answer'
+  syncStage.value = 'idle'
+}
+
+// Responder step 2: accept the offer blob, produce the answer, and wait.
+async function submitOffer() {
+  syncError.value = ''
+  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте код с первого устройства.'; return }
+  try {
+    _syncConn = await acceptOffer(syncPeerBlob.value.trim(), onSyncState)
+  } catch {
+    syncError.value = 'Неверный код — проверьте и вставьте заново.'
+    return
+  }
+  _syncPc = _syncConn.pc
+  syncBlob.value = _syncConn.blobStr
+  startWaiting()
+}
+
+// Copy our blob to the clipboard, with a select()+execCommand fallback.
+async function copySyncBlob() {
+  try {
+    await navigator.clipboard.writeText(syncBlob.value)
+    syncCopied.value = true
+  } catch {
+    const el = _syncBlobTextarea.value
+    if (el) {
+      el.focus(); el.select()
+      try { document.execCommand('copy'); syncCopied.value = true } catch { /* clipboard unavailable */ }
+    }
+  }
+  if (syncCopied.value) setTimeout(() => { syncCopied.value = false }, 1500)
 }
 
 // Close the modal on Escape (the change-password modal closes on backdrop only;
@@ -562,6 +667,7 @@ onUnmounted(() => {
   closeSync(_syncPc)
   _syncPc = null
   _syncDc = null
+  _syncConn = null
   _key = null
   _salt = null
   _pendingImportStr = null
@@ -808,15 +914,65 @@ onUnmounted(() => {
               Нужен для расшифровки данных с другого устройства&nbsp;— тот же пароль, что и на нём.
             </div>
             <div class="sync-role-actions">
-              <button class="journal-btn journal-btn-primary" @click="chooseSyncRole('offer')">Создать код</button>
-              <button class="journal-btn journal-btn-sync sync-role-btn" @click="chooseSyncRole('answer')">
+              <button class="journal-btn journal-btn-primary" @click="startOffer">Создать код</button>
+              <button class="journal-btn journal-btn-sync sync-role-btn" @click="startAnswer">
                 Ввести код с другого устройства
               </button>
             </div>
           </template>
 
-          <!-- Offer / answer flow (wired in Task 3/4) -->
+          <!-- Offer / answer blob exchange -->
           <template v-else>
+            <!-- Initiator: show our offer, then take the peer's answer -->
+            <template v-if="syncRole === 'offer'">
+              <div class="sync-block-label">Ваш код — передайте его на другое устройство:</div>
+              <textarea
+                ref="_syncBlobTextarea"
+                class="sync-blob"
+                readonly
+                :value="syncBlob"
+                @focus="$event.target.select()"
+              ></textarea>
+              <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
+              </button>
+              <template v-if="syncStage === 'blob-ready'">
+                <div class="sync-block-label">Вставьте ответ со второго устройства:</div>
+                <textarea
+                  v-model="syncPeerBlob"
+                  class="sync-blob"
+                  placeholder="Ответный код…"
+                ></textarea>
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitAnswer">Подключиться</button>
+              </template>
+            </template>
+
+            <!-- Responder: take the offer, then show our answer -->
+            <template v-else-if="syncRole === 'answer'">
+              <template v-if="syncStage === 'idle'">
+                <div class="sync-block-label">Вставьте код с первого устройства:</div>
+                <textarea
+                  v-model="syncPeerBlob"
+                  class="sync-blob"
+                  placeholder="Код приглашения…"
+                ></textarea>
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitOffer">Создать ответ</button>
+              </template>
+              <template v-else>
+                <div class="sync-block-label">Ваш ответ — вставьте его на первом устройстве:</div>
+                <textarea
+                  ref="_syncBlobTextarea"
+                  class="sync-blob"
+                  readonly
+                  :value="syncBlob"
+                  @focus="$event.target.select()"
+                ></textarea>
+                <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                  {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
+                </button>
+              </template>
+            </template>
+
             <p v-if="syncStageLabel" class="sync-stage-line">{{ syncStageLabel }}</p>
             <p v-if="syncResult" class="sync-result-line">{{ syncResult }}</p>
           </template>
@@ -1494,5 +1650,35 @@ onUnmounted(() => {
   font-size: 13px;
   color: #77cc77;
   margin: 8px 0 0;
+}
+.sync-block-label {
+  font-size: 12px;
+  color: #aaa;
+  margin: 14px 0 6px;
+}
+.sync-blob {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  resize: vertical;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  background: #222;
+  border: 1px solid #555;
+  border-radius: 8px;
+  color: #cfcfcf;
+  padding: 9px 11px;
+  outline: none;
+  word-break: break-all;
+}
+.sync-blob:focus { border-color: #8888ff; }
+.sync-copy-btn {
+  margin-top: 6px;
+  text-align: center;
+}
+.sync-go-btn {
+  margin-top: 10px;
+  width: 100%;
 }
 </style>
