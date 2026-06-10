@@ -7,6 +7,19 @@ import { loadUserScores, saveUserScore, deleteUserScore } from './Piano/userScor
 import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeatSection, checkNote } from './Piano/trainer.js'
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
+import HelpModal from './HelpModal.vue'
+
+// ---- Help / onboarding (shown on first visit) ----
+const showHelp = ref(false)
+function useOnboarding(key, showRef) {
+  onMounted(() => {
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
+      showRef.value = true
+      localStorage.setItem(key, '1')
+    }
+  })
+}
+useOnboarding('piano:seen-help', showHelp)
 
 // VexFlow touches the DOM — dynamic import so SSR never loads it
 let _renderPhrase = null
@@ -599,6 +612,8 @@ onUnmounted(() => {
         {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
       </button>
 
+      <button class="tb-btn" @click="showHelp = true" title="Справка">?</button>
+
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
     </div>
 
@@ -714,6 +729,45 @@ onUnmounted(() => {
         Не в гамме: <span class="hint-notes">{{ nonScaleLabel }}</span>
       </div>
     </div>
+
+    <!-- ═══ HELP MODAL ═══ -->
+    <HelpModal v-model="showHelp">
+      <h2>Piano Teacher</h2>
+
+      <h3>Подключение</h3>
+      <ul>
+        <li>Подключи MIDI-клавиатуру — браузер подхватит автоматически (Web MIDI API)</li>
+        <li>Firefox: включи <code>dom.webmidi.enabled</code> в about:config</li>
+        <li>Safari: Web MIDI не поддерживается</li>
+      </ul>
+
+      <h3>Цветовая подсказка</h3>
+      <ul>
+        <li>🟢 <strong>Зелёная</strong> клавиша — следующая ожидаемая нота</li>
+        <li>🔵 <strong>Синяя</strong> клавиша — нажатая тобой нота</li>
+        <li>⬜ <strong>Серая</strong> клавиша — нота не из текущей тональности</li>
+      </ul>
+
+      <h3>Режимы обучения</h3>
+      <table>
+        <thead>
+          <tr><th>Режим</th><th>Как работает</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Нота</strong></td><td>Одна нота за раз, нет наказания за ошибку</td></tr>
+          <tr><td><strong>Такт</strong></td><td>Нужно сыграть весь такт — ошибка возвращает к началу такта</td></tr>
+          <tr><td><strong>Фраза</strong></td><td>Ошибка возвращает к началу фразы</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Управление</h3>
+      <ul>
+        <li><strong>Темп</strong> — 50% / 75% / 100% от оригинального</li>
+        <li><strong>HD звук</strong> — загружает сэмплы реального рояля (~15 MB)</li>
+        <li><strong>Повтор</strong> — начать текущий такт/фразу заново</li>
+        <li><strong>Метроном</strong> — визуальные доли такта</li>
+      </ul>
+    </HelpModal>
 
   </div>
 </template>
