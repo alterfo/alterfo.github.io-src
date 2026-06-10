@@ -49,6 +49,13 @@ test('jsonLdFor: tool page → SoftwareApplication with matching category', () =
   assert.equal(ld.offers.price, '0')
 })
 
+test('jsonLdFor: decision-journal is a registered tool page (SoftwareApplication)', () => {
+  const ld = jsonLdFor('decision-journal.md', 'Журнал решений', 'd', SITE_URL + '/decision-journal')
+  assert.equal(ld['@type'], 'SoftwareApplication')
+  assert.equal(ld.applicationCategory, TOOL_CATEGORY['decision-journal.md'])
+  assert.equal(sitemapPriority('decision-journal.md'), '0.8')
+})
+
 test('jsonLdFor: dated post → BlogPosting with datePublished', () => {
   const ld = jsonLdFor('posts/2021-01-15-foo.md', 'T', 'd', 'u')
   assert.equal(ld['@type'], 'BlogPosting')
