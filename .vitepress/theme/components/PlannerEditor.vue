@@ -18,7 +18,7 @@ import {
   state, loadData, getSnapshot, resetState,
   selectedProjectId, selectedTaskId,
   addProject, renameProject, removeProject, addTask, updateTask,
-  visibleTasks, isOverdue, isDueToday,
+  visibleTasks, sortTasks, isOverdue, isDueToday,
 } from './Planner/store.js'
 
 // ---- In-memory key (never persisted) ----
@@ -219,6 +219,77 @@ function openTask(id) {
   selectedTaskId.value = id // detail panel opens on this in Task 10
 }
 
+// ---- List view (Task 9) ----
+
+// Sort state for the table headers (toggle asc/desc on the active field).
+const sortField = ref('status') // 'status' | 'title' | 'project' | 'priority' | 'due' | 'tags'
+const sortDir = ref('asc')      // 'asc' | 'desc'
+
+// Independent filter bar (the list view spans projects, unlike kanban).
+const listProjectFilter = ref(null) // null = all projects
+const listPriorityFilter = ref(null) // null = all priorities
+const listTagFilter = ref([])        // multi-tag (OR)
+const listHideDone = ref(false)
+
+// id → name / color lookups (for the project column + project-name sorting).
+const projectNameById = computed(() => {
+  const m = {}
+  for (const p of state.projects) m[p.id] = p.name
+  return m
+})
+const projectColorById = computed(() => {
+  const m = {}
+  for (const p of state.projects) m[p.id] = p.color
+  return m
+})
+
+// Tags available to the list filter (scoped to the list's project filter).
+const listAllTags = computed(() => {
+  const set = new Set()
+  for (const t of state.tasks) {
+    if (t.deleted) continue
+    if (listProjectFilter.value && t.projectId !== listProjectFilter.value) continue
+    for (const tag of t.tags || []) set.add(tag)
+  }
+  return [...set].sort()
+})
+
+// Filtered + sorted rows for the table.
+const listTasks = computed(() => {
+  const filtered = visibleTasks(state.tasks, {
+    projectId: listProjectFilter.value,
+    priority: listPriorityFilter.value,
+    tags: listTagFilter.value,
+    hideDone: listHideDone.value,
+  })
+  return sortTasks(filtered, sortField.value, sortDir.value, projectNameById.value)
+})
+
+// Header click: same field → flip direction; new field → asc.
+function sortBy(field) {
+  if (sortField.value === field) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortField.value = field
+    sortDir.value = 'asc'
+  }
+}
+function sortArrow(field) {
+  if (sortField.value !== field) return ''
+  return sortDir.value === 'asc' ? ' ▲' : ' ▼'
+}
+
+// Checkbox toggles a task between done and todo.
+function toggleDone(task) {
+  updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' })
+}
+
+function toggleListTag(tag) {
+  const i = listTagFilter.value.indexOf(tag)
+  if (i === -1) listTagFilter.value = [...listTagFilter.value, tag]
+  else listTagFilter.value = listTagFilter.value.filter(t => t !== tag)
+}
+
 // Native HTML5 drag-and-drop (no library). Desktop-oriented — touch DnD is weak, which is
 // acceptable for this MVP. The dragged task id rides in the dataTransfer payload.
 function onDragStart(e, taskId) {
@@ -365,7 +436,7 @@ onUnmounted(() => {
             <button :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">Список</button>
           </div>
           <button class="planner-add-task" :disabled="!selectedProjectId" @click="addNewTask">+ Задача</button>
-          <div class="planner-tag-filters">
+          <div v-if="viewMode === 'kanban'" class="planner-tag-filters">
             <button
               v-for="tag in allTags"
               :key="tag"
@@ -377,13 +448,13 @@ onUnmounted(() => {
         </div>
 
         <div class="planner-content">
-          <!-- No project selected -->
+          <!-- Kanban board — needs a selected project -->
+          <template v-if="viewMode === 'kanban'">
           <div v-if="!selectedProjectId" class="planner-content-empty">
             <span class="planner-muted">Выберите или создайте проект.</span>
           </div>
 
-          <!-- Kanban board -->
-          <div v-else-if="viewMode === 'kanban'" class="planner-kanban">
+          <div v-else class="planner-kanban">
             <section
               v-for="col in kanbanColumns"
               :key="col.id"
@@ -433,10 +504,92 @@ onUnmounted(() => {
               </div>
             </section>
           </div>
+          </template>
 
-          <!-- List view (Task 9) -->
-          <div v-else class="planner-content-empty">
-            <span class="planner-muted">Список задач появится здесь.</span>
+          <!-- List view (Task 9) — spans projects with its own filter bar -->
+          <div v-else class="planner-list-view">
+            <div class="planner-list-filters">
+              <select v-model="listProjectFilter" class="planner-filter-select">
+                <option :value="null">Все проекты</option>
+                <option v-for="p in state.projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+              <select v-model="listPriorityFilter" class="planner-filter-select">
+                <option :value="null">Любой приоритет</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+              <div class="planner-list-tagfilter">
+                <button
+                  v-for="tag in listAllTags"
+                  :key="tag"
+                  class="planner-tag-chip"
+                  :class="{ active: listTagFilter.includes(tag) }"
+                  @click="toggleListTag(tag)"
+                >#{{ tag }}</button>
+              </div>
+              <label class="planner-hidedone">
+                <input type="checkbox" v-model="listHideDone" /> Скрыть выполненные
+              </label>
+            </div>
+
+            <table class="planner-table">
+              <thead>
+                <tr>
+                  <th class="col-done" @click="sortBy('status')">✓<span class="sort-arrow">{{ sortArrow('status') }}</span></th>
+                  <th @click="sortBy('title')">Задача<span class="sort-arrow">{{ sortArrow('title') }}</span></th>
+                  <th @click="sortBy('project')">Проект<span class="sort-arrow">{{ sortArrow('project') }}</span></th>
+                  <th @click="sortBy('priority')">Приоритет<span class="sort-arrow">{{ sortArrow('priority') }}</span></th>
+                  <th @click="sortBy('due')">Срок<span class="sort-arrow">{{ sortArrow('due') }}</span></th>
+                  <th @click="sortBy('tags')">Теги<span class="sort-arrow">{{ sortArrow('tags') }}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="task in listTasks"
+                  :key="task.id"
+                  class="planner-row"
+                  :class="{ selected: selectedTaskId === task.id, 'is-done': task.status === 'done' }"
+                  @click="openTask(task.id)"
+                >
+                  <td class="col-done">
+                    <input
+                      type="checkbox"
+                      :checked="task.status === 'done'"
+                      @click.stop
+                      @change="toggleDone(task)"
+                    />
+                  </td>
+                  <td class="col-title">{{ task.title }}</td>
+                  <td class="col-project">
+                    <span class="planner-proj-tag">
+                      <span
+                        class="planner-project-dot"
+                        :style="{ background: projectColorById[task.projectId] || '#94a3b8' }"
+                      ></span>
+                      {{ projectNameById[task.projectId] || '—' }}
+                    </span>
+                  </td>
+                  <td class="col-prio">
+                    <span
+                      class="planner-card-prio"
+                      :style="{ background: PRIORITY[task.priority].color }"
+                    ></span>
+                    {{ PRIORITY[task.priority].label }}
+                  </td>
+                  <td class="col-due">
+                    <span v-if="task.dueDate" class="planner-card-due" :class="dueClass(task)">{{ task.dueDate }}</span>
+                    <span v-else class="planner-muted">—</span>
+                  </td>
+                  <td class="col-tags">
+                    <span v-for="tag in task.tags" :key="tag" class="planner-card-tag">#{{ tag }}</span>
+                  </td>
+                </tr>
+                <tr v-if="!listTasks.length">
+                  <td colspan="6" class="planner-table-empty">Нет задач</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </main>
@@ -818,5 +971,89 @@ onUnmounted(() => {
   border-radius: 5px;
   background: #eef2ff;
   color: #4f46e5;
+}
+
+/* List view */
+.planner-list-view {
+  padding: 16px;
+}
+.planner-list-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.planner-filter-select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+}
+.planner-list-tagfilter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.planner-hidedone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.planner-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.planner-table thead th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.planner-table thead th:hover { background: #f8fafc; }
+.planner-table thead th.col-done { width: 36px; text-align: center; }
+.sort-arrow { color: #2563eb; font-size: 11px; }
+
+.planner-row {
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+}
+.planner-row:hover { background: #f8fafc; }
+.planner-row.selected { background: #eff6ff; }
+.planner-row.is-done .col-title { text-decoration: line-through; color: #94a3b8; }
+.planner-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+.planner-table td.col-done { text-align: center; }
+.planner-table td.col-done input { cursor: pointer; }
+.col-title { color: #1e293b; word-break: break-word; }
+.planner-proj-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+.col-prio { white-space: nowrap; color: #475569; }
+.col-prio .planner-card-prio { display: inline-block; margin-right: 6px; margin-top: 0; vertical-align: middle; }
+.col-due .planner-card-due { display: inline-block; }
+.col-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.planner-table-empty {
+  text-align: center;
+  padding: 28px 10px;
+  color: #94a3b8;
 }
 </style>

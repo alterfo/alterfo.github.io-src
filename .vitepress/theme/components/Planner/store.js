@@ -79,14 +79,49 @@ export function isDueToday(task, today = todayISO()) {
 }
 
 // Filter for views. Tombstones (deleted) are always hidden.
-export function visibleTasks(tasks, { projectId = null, tag = null, status = null, hideDone = false } = {}) {
+//   - tag (single string)  → kanban chip filter (task must include it)
+//   - tags (string[])      → list-view multi-tag filter, OR semantics (task includes ANY)
+//   - priority (string)    → list-view priority filter
+export function visibleTasks(tasks, { projectId = null, tag = null, tags = null, status = null, priority = null, hideDone = false } = {}) {
   return tasks.filter(t => {
     if (t.deleted) return false
     if (projectId && t.projectId !== projectId) return false
     if (tag && !(t.tags || []).includes(tag)) return false
+    if (tags && tags.length && !tags.some(x => (t.tags || []).includes(x))) return false
     if (status && t.status !== status) return false
+    if (priority && t.priority !== priority) return false
     if (hideDone && t.status === 'done') return false
     return true
+  })
+}
+
+// Rank tables so priority/status sort in a meaningful order (not alphabetical).
+const PRIORITY_RANK = { low: 0, medium: 1, high: 2 }
+const STATUS_RANK = { todo: 0, 'in-progress': 1, done: 2 }
+
+// Pure list-view sort. Returns a NEW array (never mutates the input).
+//   field: 'title' | 'project' | 'priority' | 'due' | 'status' | 'tags'
+//   dir:   'asc' | 'desc'
+//   projectNameById: { [projectId]: name } so 'project' sorts by display name.
+// Tasks with no dueDate sort last in ascending order.
+export function sortTasks(tasks, field, dir = 'asc', projectNameById = {}) {
+  const sign = dir === 'desc' ? -1 : 1
+  const keyOf = t => {
+    switch (field) {
+      case 'title': return (t.title || '').toLowerCase()
+      case 'project': return (projectNameById[t.projectId] || '').toLowerCase()
+      case 'priority': return PRIORITY_RANK[t.priority] ?? -1
+      case 'due': return t.dueDate || '￿' // null/empty → sort last (asc)
+      case 'status': return STATUS_RANK[t.status] ?? -1
+      case 'tags': return (t.tags || []).join(',').toLowerCase()
+      default: return 0
+    }
+  }
+  return [...tasks].sort((a, b) => {
+    const av = keyOf(a), bv = keyOf(b)
+    if (av < bv) return -1 * sign
+    if (av > bv) return 1 * sign
+    return 0
   })
 }
 

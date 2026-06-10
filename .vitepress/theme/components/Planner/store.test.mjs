@@ -11,6 +11,7 @@ import {
   isOverdue,
   isDueToday,
   visibleTasks,
+  sortTasks,
   projectForFile,
   mergeFromFile,
   loadData,
@@ -185,6 +186,77 @@ describe('visibleTasks', () => {
   it('hideDone drops done tasks', () => {
     const ids = visibleTasks(tasks, { hideDone: true }).map(t => t.id)
     assert.deepEqual(ids.sort(), ['a', 'c'])
+  })
+
+  it('filters by priority', () => {
+    const prioTasks = [
+      task({ id: 'a', priority: 'high' }),
+      task({ id: 'b', priority: 'low' }),
+      task({ id: 'c', priority: 'high' }),
+    ]
+    const ids = visibleTasks(prioTasks, { priority: 'high' }).map(t => t.id)
+    assert.deepEqual(ids.sort(), ['a', 'c'])
+  })
+
+  it('multi-tag filter uses OR semantics (task includes ANY)', () => {
+    const ids = visibleTasks(tasks, { tags: ['ui'] }).map(t => t.id)
+    assert.deepEqual(ids.sort(), ['b', 'c'])
+    const ids2 = visibleTasks(tasks, { tags: ['seo', 'ui'] }).map(t => t.id)
+    assert.deepEqual(ids2.sort(), ['a', 'b', 'c'])
+  })
+
+  it('empty tags array is ignored (no filtering)', () => {
+    const ids = visibleTasks(tasks, { tags: [] }).map(t => t.id)
+    assert.deepEqual(ids.sort(), ['a', 'b', 'c'])
+  })
+})
+
+describe('sortTasks', () => {
+  it('sorts by title asc/desc and does not mutate the input', () => {
+    const tasks = [task({ id: 'b', title: 'Banana' }), task({ id: 'a', title: 'apple' })]
+    const asc = sortTasks(tasks, 'title', 'asc').map(t => t.id)
+    assert.deepEqual(asc, ['a', 'b']) // case-insensitive
+    const desc = sortTasks(tasks, 'title', 'desc').map(t => t.id)
+    assert.deepEqual(desc, ['b', 'a'])
+    // input untouched
+    assert.deepEqual(tasks.map(t => t.id), ['b', 'a'])
+  })
+
+  it('sorts by priority using rank order (low<medium<high), not alphabetical', () => {
+    const tasks = [
+      task({ id: 'h', priority: 'high' }),
+      task({ id: 'l', priority: 'low' }),
+      task({ id: 'm', priority: 'medium' }),
+    ]
+    assert.deepEqual(sortTasks(tasks, 'priority', 'asc').map(t => t.id), ['l', 'm', 'h'])
+    assert.deepEqual(sortTasks(tasks, 'priority', 'desc').map(t => t.id), ['h', 'm', 'l'])
+  })
+
+  it('sorts by status using kanban order (todo<in-progress<done)', () => {
+    const tasks = [
+      task({ id: 'd', status: 'done' }),
+      task({ id: 't', status: 'todo' }),
+      task({ id: 'p', status: 'in-progress' }),
+    ]
+    assert.deepEqual(sortTasks(tasks, 'status', 'asc').map(t => t.id), ['t', 'p', 'd'])
+  })
+
+  it('sorts by due date with nulls last in ascending order', () => {
+    const tasks = [
+      task({ id: 'none', dueDate: null }),
+      task({ id: 'late', dueDate: '2026-07-01' }),
+      task({ id: 'soon', dueDate: '2026-06-15' }),
+    ]
+    assert.deepEqual(sortTasks(tasks, 'due', 'asc').map(t => t.id), ['soon', 'late', 'none'])
+  })
+
+  it('sorts by project display name via projectNameById', () => {
+    const tasks = [
+      task({ id: 'a', projectId: 'p1' }),
+      task({ id: 'b', projectId: 'p2' }),
+    ]
+    const names = { p1: 'Zeta', p2: 'Alpha' }
+    assert.deepEqual(sortTasks(tasks, 'project', 'asc', names).map(t => t.id), ['b', 'a'])
   })
 })
 
