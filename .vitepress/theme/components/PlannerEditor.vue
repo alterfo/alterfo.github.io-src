@@ -537,7 +537,10 @@ async function doImport() {
     const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
     const importKey = await deriveKey(importPassphrase.value, salt, iterations)
     const imported = await decryptJSON(importKey, { iv, ciphertext })
-    const tasks = mergeFromFile(state.tasks, imported.tasks || [])
+    // The .planner envelope is the full encrypted vault (notes included), so merge with the
+    // note-aware mergeVaultTasks — NOT mergeFromFile (the note-stripping tasks.json merge),
+    // which would drop every imported note. Same source kind as cross-tab sync (onCrossTabSave).
+    const tasks = mergeVaultTasks(state.tasks, imported.tasks || [])
     const projects = mergeProjectsFromFile(state.projects, imported.projects || [])
     loadData({ projects, tasks }) // autosave watcher persists; FS write is scheduled too
     importPassphrase.value = ''
