@@ -10,10 +10,13 @@
 // file currently provides the lock screen + a minimal unlocked placeholder so the lifecycle
 // is wired and testable end-to-end.
 
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { deriveKey, randomBytes } from './crypto.js'
 import { loadSalt, saveSalt, loadVault, saveVault } from './Planner/db.js'
-import { state, loadData, getSnapshot, resetState } from './Planner/store.js'
+import {
+  state, loadData, getSnapshot, resetState,
+  selectedProjectId, addProject, renameProject, removeProject, addTask,
+} from './Planner/store.js'
 
 // ---- In-memory key (never persisted) ----
 const cryptoKey = ref(null)
@@ -107,6 +110,90 @@ function onPassphraseEnter() {
   hasVault.value ? unlock() : createVault()
 }
 
+// ---- Layout shell: sidebar projects + main toolbar (Task 7) ----
+
+// View mode for the main pane — kanban/list panes are built in Tasks 8/9.
+const viewMode = ref('kanban') // 'kanban' | 'list'
+
+// Active tag-filter chip (null = no filter).
+const activeTag = ref(null)
+
+// FS folder status — full bridge wiring lands in Task 11; default = no folder.
+const fsStatus = ref('none') // 'none' | 'reconnect' | 'synced'
+const fsChip = computed(() => {
+  switch (fsStatus.value) {
+    case 'synced': return { cls: 'fs-synced', label: '● Синхронизировано' }
+    case 'reconnect': return { cls: 'fs-reconnect', label: '● Переподключить' }
+    default: return { cls: 'fs-none', label: '● Нет папки' }
+  }
+})
+
+// Colors cycled through for newly created projects.
+const PROJECT_PALETTE = ['#1accff', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
+
+// Distinct tags across the selected project's live tasks (drives the filter chips).
+const allTags = computed(() => {
+  const set = new Set()
+  for (const t of state.tasks) {
+    if (t.deleted) continue
+    if (selectedProjectId.value && t.projectId !== selectedProjectId.value) continue
+    for (const tag of t.tags || []) set.add(tag)
+  }
+  return [...set].sort()
+})
+
+function projectTaskCount(id) {
+  return state.tasks.filter(t => t.projectId === id && !t.deleted).length
+}
+
+function selectProject(id) {
+  selectedProjectId.value = id
+}
+
+function newProject() {
+  const color = PROJECT_PALETTE[state.projects.length % PROJECT_PALETTE.length]
+  const p = addProject('Новый проект', color)
+  selectedProjectId.value = p.id
+  startRename(p.id, p.name)
+}
+
+function deleteProject(id, name) {
+  if (confirm(`Удалить проект «${name}» и все его задачи?`)) removeProject(id)
+}
+
+// ---- Inline project rename ----
+const renamingId = ref(null)
+const renameText = ref('')
+const renameInputEl = ref(null)
+
+function startRename(id, name) {
+  renamingId.value = id
+  renameText.value = name
+  nextTick(() => renameInputEl.value?.focus())
+}
+function commitRename() {
+  if (renamingId.value == null) return
+  const name = renameText.value.trim()
+  if (name) renameProject(renamingId.value, name)
+  renamingId.value = null
+}
+function cancelRename() {
+  renamingId.value = null
+}
+
+function toggleTag(tag) {
+  activeTag.value = activeTag.value === tag ? null : tag
+}
+
+function addNewTask() {
+  if (!selectedProjectId.value) return
+  addTask(selectedProjectId.value, 'Новая задача')
+}
+
+// Export / Import are wired in Task 11 (FS sync + encrypted .planner files).
+function onExport() {}
+function onImport() {}
+
 // ---- Autosave: re-encrypt on every state change while unlocked ----
 // getSnapshot() reads every reactive field of `state` (via JSON.stringify), so the getter is
 // tracked deeply; saveVault is itself debounced (300 ms) in db.js.
@@ -177,18 +264,88 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Unlocked (placeholder — real UI built in later tasks) -->
+    <!-- Unlocked — layout shell: sidebar + main (kanban/list panes built in Tasks 8/9) -->
     <div v-else class="planner-unlocked">
-      <div class="planner-topbar">
-        <strong class="planner-topbar-title">Планировщик</strong>
-        <span class="planner-muted planner-topbar-stats">
-          {{ state.projects.length }} проектов · {{ state.tasks.length }} задач
-        </span>
-        <button class="planner-btn planner-btn-lock" @click="lockVault">🔒 Заблокировать</button>
-      </div>
-      <div class="planner-placeholder">
-        <span class="planner-muted">Интерфейс проектов и задач появится здесь.</span>
-      </div>
+      <!-- Sidebar -->
+      <aside class="planner-sidebar">
+        <div class="planner-sidebar-head">
+          <strong class="planner-sidebar-title">Планировщик</strong>
+        </div>
+
+        <div class="planner-project-list">
+          <div
+            v-for="p in state.projects"
+            :key="p.id"
+            class="planner-project"
+            :class="{ active: selectedProjectId === p.id }"
+            @click="selectProject(p.id)"
+            @dblclick="startRename(p.id, p.name)"
+          >
+            <span class="planner-project-dot" :style="{ background: p.color }"></span>
+            <input
+              v-if="renamingId === p.id"
+              ref="renameInputEl"
+              v-model="renameText"
+              class="planner-rename-input"
+              @click.stop
+              @keydown.enter="commitRename"
+              @keydown.esc="cancelRename"
+              @blur="commitRename"
+            />
+            <template v-else>
+              <span class="planner-project-name">{{ p.name }}</span>
+              <span class="planner-project-count">{{ projectTaskCount(p.id) }}</span>
+              <button
+                class="planner-project-del"
+                title="Удалить проект"
+                @click.stop="deleteProject(p.id, p.name)"
+              >✕</button>
+            </template>
+          </div>
+          <p v-if="!state.projects.length" class="planner-sidebar-empty">Нет проектов</p>
+        </div>
+
+        <button class="planner-new-project" @click="newProject">+ Новый проект</button>
+
+        <div class="planner-sidebar-footer">
+          <div class="planner-fs-chip" :class="fsChip.cls">{{ fsChip.label }}</div>
+          <div class="planner-footer-actions">
+            <button class="planner-btn-sm" @click="onExport">Экспорт</button>
+            <button class="planner-btn-sm" @click="onImport">Импорт</button>
+          </div>
+          <button class="planner-btn-sm planner-lock-btn" @click="lockVault">🔒 Заблокировать</button>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="planner-main">
+        <div class="planner-toolbar">
+          <div class="planner-view-toggle">
+            <button :class="{ active: viewMode === 'kanban' }" @click="viewMode = 'kanban'">Канбан</button>
+            <button :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">Список</button>
+          </div>
+          <button class="planner-add-task" :disabled="!selectedProjectId" @click="addNewTask">+ Задача</button>
+          <div class="planner-tag-filters">
+            <button
+              v-for="tag in allTags"
+              :key="tag"
+              class="planner-tag-chip"
+              :class="{ active: activeTag === tag }"
+              @click="toggleTag(tag)"
+            >#{{ tag }}</button>
+          </div>
+        </div>
+
+        <div class="planner-content">
+          <div class="planner-content-empty">
+            <span class="planner-muted">
+              {{ !selectedProjectId
+                ? 'Выберите или создайте проект.'
+                : (viewMode === 'kanban' ? 'Канбан-доска' : 'Список задач') + ' появится здесь.' }}
+            </span>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 </template>
@@ -257,34 +414,201 @@ onUnmounted(() => {
 
 .planner-error { margin-top: 14px; color: #f87171; font-size: 13px; }
 
-/* Unlocked placeholder */
+/* Unlocked — layout shell */
 .planner-unlocked {
   flex: 1;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 0;
+}
+
+/* Sidebar */
+.planner-sidebar {
+  background: #1e293b;
+  border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.planner-topbar {
+.planner-sidebar-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+.planner-sidebar-title { font-size: 15px; color: #f1f5f9; }
+
+.planner-project-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 0;
+}
+.planner-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #cbd5e1;
+}
+.planner-project:hover { background: #273449; }
+.planner-project.active { background: #334155; color: #fff; }
+.planner-project-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.planner-project-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.planner-project-count { font-size: 11px; color: #64748b; }
+.planner-project-del {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.planner-project:hover .planner-project-del { opacity: 1; }
+.planner-project-del:hover { color: #f87171; }
+.planner-rename-input {
+  flex: 1;
+  min-width: 0;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 5px;
+  color: #e2e8f0;
+  font-size: 14px;
+  padding: 3px 6px;
+  outline: none;
+}
+.planner-sidebar-empty {
+  padding: 10px;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.planner-new-project {
+  margin: 8px;
+  padding: 9px;
+  background: #273449;
+  border: 1px dashed #475569;
+  border-radius: 7px;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.planner-new-project:hover { background: #334155; color: #fff; }
+
+.planner-sidebar-footer {
+  border-top: 1px solid #334155;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.planner-fs-chip {
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+.planner-fs-chip.fs-none { background: #273449; color: #94a3b8; }
+.planner-fs-chip.fs-reconnect { background: #3b2f14; color: #f59e0b; }
+.planner-fs-chip.fs-synced { background: #14321f; color: #34d399; }
+.planner-footer-actions { display: flex; gap: 8px; }
+.planner-btn-sm {
+  flex: 1;
+  padding: 7px 10px;
+  background: #334155;
+  border: none;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+}
+.planner-btn-sm:hover { background: #475569; color: #fff; }
+.planner-lock-btn { flex: none; }
+
+/* Main */
+.planner-main {
+  background: #ffffff;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.planner-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
-.planner-topbar-title { font-size: 15px; color: #f1f5f9; }
-.planner-topbar-stats { font-size: 12px; margin-right: auto; }
-.planner-btn-lock {
-  background: #334155;
-  color: #cbd5e1;
-  font-size: 12px;
+.planner-view-toggle {
+  display: flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.planner-view-toggle button {
   padding: 6px 14px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #475569;
 }
-.planner-btn-lock:hover { background: #475569; color: #fff; opacity: 1; }
+.planner-view-toggle button.active { background: #2563eb; color: #fff; }
+.planner-add-task {
+  padding: 7px 14px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.planner-add-task:disabled { background: #cbd5e1; cursor: default; }
+.planner-tag-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.planner-tag-chip {
+  padding: 4px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+}
+.planner-tag-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 
-.planner-placeholder {
+.planner-content {
   flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+.planner-content-empty {
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
