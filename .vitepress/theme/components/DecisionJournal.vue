@@ -20,8 +20,13 @@ import {
   dueForReview, openDecisions, reviewedDecisions, mergeVaults,
 } from './Decisions/vault.js'
 import { brierScore, calibrationBuckets, counts } from './Decisions/stats.js'
+import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
 
 const ITERATIONS = 600000
+
+// ---- Help / onboarding (shown on first unlock, never on the password screen) ----
+const showHelp = ref(false)
 
 // ---- In-memory key + salt (never persisted; dropped on lock) ----
 const cryptoKey = ref(null)
@@ -29,6 +34,10 @@ let _salt = null
 
 // ---- Reactive UI state ----
 const phase = ref('loading')      // 'loading' | 'locked' | 'unlocked'
+// Show the help modal on the first unlock only — never over the password screen (mirrors Journal).
+watch(phase, (p) => {
+  if (p === 'unlocked' && shouldShowOnboarding('decisions:seen-help')) showHelp.value = true
+})
 const hasVault = ref(false)       // true once an envelope exists (vault created previously)
 const passphrase = ref('')
 const confirmPassphrase = ref('') // only used on first-run create
@@ -566,6 +575,7 @@ onUnmounted(() => {
           <div class="dj-footer-actions">
             <button class="dj-btn-sm" @click="onExport">Экспорт</button>
             <button class="dj-btn-sm" @click="onImport">Импорт</button>
+            <button class="dj-btn-sm dj-help-btn" title="Справка" @click="showHelp = true">?</button>
           </div>
 
           <!-- Hidden picker for .decisions import -->
@@ -769,6 +779,36 @@ onUnmounted(() => {
         </div>
       </main>
     </div>
+
+    <HelpModal v-model="showHelp">
+      <h2>Журнал решений с калибровкой</h2>
+
+      <p>Решения забываются, а память подгоняет прошлую уверенность под результат. Этот журнал фиксирует выбор <strong>до</strong> того, как стал известен исход&#160;— и со временем показывает, насколько ваша уверенность совпадает с реальностью.</p>
+
+      <h3>Как записывать решение</h3>
+      <ul>
+        <li><strong>Контекст</strong> и <strong>варианты</strong>&#160;— что известно и из чего выбираете</li>
+        <li><strong>Выбранный вариант</strong> и <strong>ожидаемый исход</strong>&#160;— что, по-вашему, произойдёт</li>
+        <li><strong>Уверенность 0–100%</strong>&#160;— насколько вы убеждены в исходе</li>
+        <li><strong>Дата ревью</strong>&#160;— когда станет ясно, сбылось ли (по умолчанию +30 дней)</li>
+      </ul>
+
+      <h3>Ревью</h3>
+      <p>Когда дата ревью наступает, решение попадает в очередь <strong>«⏰ На ревью»</strong>. Откройте его и честно отметьте, сбылось ли ожидание&#160;— «да» или «нет», по желанию опишите фактический исход. Честность здесь важнее, чем «оказаться правым».</p>
+
+      <h3>Калибровка</h3>
+      <ul>
+        <li><strong>Brier score</strong>: <code>0</code>&#160;— идеал, <code>0.25</code>&#160;— уровень монетки (50% наугад), <code>1</code>&#160;— максимально уверенная ошибка</li>
+        <li><strong>Корзины уверенности</strong>: «заявлено 80% → сбылось X%». У хорошо откалиброванного автора «сбылось» близко к «заявлено»; если «сбылось» стабильно ниже&#160;— уверенность завышена</li>
+      </ul>
+
+      <h3>Приватность</h3>
+      <ul>
+        <li>Всё <strong>шифруется прямо в браузере</strong> (PBKDF2 → AES-GCM 256, как в дневнике); на диске лежит лишь envelope <code>{ соль, итерации, IV, шифротекст }</code></li>
+        <li>Ключ выводится из пароля и живёт только в памяти сессии&#160;— при перезагрузке нужно ввести пароль снова</li>
+        <li><strong>Экспорт</strong> скачивает зашифрованный файл <code>.decisions</code>; <strong>импорт</strong> спрашивает его пароль и сливает данные по принципу «побеждает последнее обновление»</li>
+      </ul>
+    </HelpModal>
   </div>
 </template>
 
@@ -978,6 +1018,7 @@ onUnmounted(() => {
 }
 .dj-btn-sm:hover { background: #475569; color: #fff; }
 .dj-lock-btn { flex: none; }
+.dj-help-btn { flex: none; min-width: 32px; }
 
 .dj-import-dialog {
   background: #0f172a;
