@@ -20,6 +20,12 @@ function redirectHtml(target: string): string {
 `
 }
 
+function canonicalFor(rel: string): string {
+  let p = rel.replace(/\.md$/, '').replace(/(^|\/)index$/, '$1')
+  if (!p.startsWith('/')) p = '/' + p
+  return SITE_URL + (p === '/' ? '/' : p)
+}
+
 export default defineConfig({
   title: 'Alterfo',
   titleTemplate: ':title — Alterfo',
@@ -52,6 +58,28 @@ export default defineConfig({
     { text: 'Блог', link: '/blog/' },
     { text: 'Planner', link: '/planner' },
   ],
+  transformPageData(pageData) {
+    const url = canonicalFor(pageData.relativePath)
+    const title = pageData.title || 'Alterfo'
+    const desc = pageData.description
+      || (pageData.frontmatter.description as string)
+      || 'Oleg Sidorkin — инженер и музыкант. Проекты, инструменты и заметки.'
+    const isPost = pageData.relativePath.startsWith('posts/')
+    ;(pageData.frontmatter.head ??= []).push(
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:type', content: isPost ? 'article' : 'website' }],
+      ['meta', { property: 'og:title', content: title }],
+      ['meta', { property: 'og:description', content: desc }],
+      ['meta', { property: 'og:url', content: url }],
+      ['meta', { property: 'og:image', content: SITE_URL + '/og.png' }],
+      ['meta', { property: 'og:site_name', content: 'Alterfo' }],
+      ['meta', { property: 'og:locale', content: 'ru_RU' }],
+      ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+      ['meta', { name: 'twitter:title', content: title }],
+      ['meta', { name: 'twitter:description', content: desc }],
+      ['meta', { name: 'twitter:image', content: SITE_URL + '/og.png' }],
+    )
+  },
   // Old VuePress posts used /posts/:year/:month/:day/:slug.
   // New VitePress posts live at /posts/YYYY-MM-DD-slug.
   // No source rewrites needed (posts stay at /posts/); static HTML redirects
