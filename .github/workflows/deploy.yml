@@ -30,8 +30,26 @@ jobs:
           make -C ar-engine/engine/ || echo "Warning: WASM build failed, skipping"
         fi
 
+    # The pose model (~10.8 MB) is gitignored; fetch it at build time so /openpose
+    # works on prod. Cached between runs — Google's "latest" URL rarely changes.
+    - name: Cache MediaPipe pose model
+      uses: actions/cache@v4
+      with:
+        path: public/mediapipe/pose_landmarker_full.task
+        key: mediapipe-pose-landmarker-full-float16-v1
+
+    - name: Download MediaPipe pose model
+      run: |
+        if [ ! -f public/mediapipe/pose_landmarker_full.task ]; then
+          curl -fL "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task" \
+            -o public/mediapipe/pose_landmarker_full.task
+        fi
+
+    # npm run build (NOT npx vitepress build): the prebuild hook runs
+    # mediapipe:copy, which copies the gitignored WASM runtime from
+    # node_modules into public/mediapipe/wasm/ — without it /openpose 404s.
     - name: Build VitePress
-      run: npx vitepress build
+      run: npm run build
 
     - name: Copy AR Engine assets
       run: |

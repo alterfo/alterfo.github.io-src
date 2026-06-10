@@ -46,7 +46,8 @@ export function usePoseDetection() {
     } catch (err) {
       _landmarker = null
       status.value = 'error'
-      modelError.value = DOWNLOAD_INSTRUCTIONS + '\n\n(' + (err?.message || err) + ')'
+      // err может быть Event (упавшая загрузка wasm/модели) — у него нет message
+      modelError.value = DOWNLOAD_INSTRUCTIONS + '\n\n(' + (err?.message || err?.type || String(err)) + ')'
     }
   }
 
