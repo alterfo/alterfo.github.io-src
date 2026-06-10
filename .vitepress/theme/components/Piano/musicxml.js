@@ -39,6 +39,24 @@ export function midiPitchXML(midi, fifths = 0) {
   return `<pitch><step>${step}</step>${alterXML}<octave>${octave}</octave></pitch>`
 }
 
+function xmlEscape(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// Build a MusicXML <lyric> for a note's syllable.
+// Convention: a trailing '-' marks a syllable that hyphenates to the next one
+// (syllabic=begin → OSMD draws a hyphen); a plain word is a standalone (single).
+export function lyricXML(lyric) {
+  if (!lyric) return ''
+  const hyphenated = /-\s*$/.test(lyric)
+  const text = lyric.replace(/-\s*$/, '')
+  const syllabic = hyphenated ? 'begin' : 'single'
+  return `<lyric number="1"><syllabic>${syllabic}</syllabic><text>${xmlEscape(text)}</text></lyric>`
+}
+
 // cursor.noteIdx / cursor.measureIdx are 0-based within the phrase / within the measure.
 function noteColor(mIdx, nIdx, cursor) {
   const { measureIdx = -1, noteIdx = -1, lookahead = 0, wrongNoteIdx = -1 } = cursor
@@ -55,10 +73,13 @@ function noteXML(note, voice, staff, color, prependChord, fifths) {
   const dotXML = dot ? '<dot/>' : ''
   // OSMD reads notehead color from <notehead color="..."> not from the <note color="..."> attribute
   const noteheadXML = color ? `<notehead color="${color}">normal</notehead>` : ''
+  // Lyric attaches to the principal note only — never duplicated on chord tones.
+  const lyric = lyricXML(note.lyric)
   const midis = Array.isArray(note.midi) ? note.midi : [note.midi]
   return midis.map((m, idx) => {
     const chordXML = prependChord || idx > 0 ? '<chord/>' : ''
-    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${noteheadXML}<staff>${staff}</staff></note>`
+    const lyricForNote = idx === 0 ? lyric : ''
+    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${noteheadXML}<staff>${staff}</staff>${lyricForNote}</note>`
   }).join('')
 }
 

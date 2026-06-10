@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { phraseToMusicXML, midiPitchXML, FIFTHS_MAP } from './musicxml.js'
+import { phraseToMusicXML, midiPitchXML, FIFTHS_MAP, lyricXML } from './musicxml.js'
 
 // ── midiPitchXML ──────────────────────────────────────────────────────────────
 test('midiPitchXML: C4 (60) in C major', () =>
@@ -27,6 +27,27 @@ test('FIFTHS_MAP: G major = 1 sharp', () => assert.equal(FIFTHS_MAP['G'], 1))
 test('FIFTHS_MAP: C major = 0', () => assert.equal(FIFTHS_MAP['C'], 0))
 test('FIFTHS_MAP: F major = -1', () => assert.equal(FIFTHS_MAP['F'], -1))
 test('FIFTHS_MAP: Bb = -2', () => assert.equal(FIFTHS_MAP['Bb'], -2))
+
+// ── lyricXML ──────────────────────────────────────────────────────────────────
+test('lyricXML: empty/undefined → empty string', () => {
+  assert.equal(lyricXML(''), '')
+  assert.equal(lyricXML(undefined), '')
+})
+
+test('lyricXML: plain word → single syllabic', () => {
+  assert.equal(lyricXML('Freude'),
+    '<lyric number="1"><syllabic>single</syllabic><text>Freude</text></lyric>')
+})
+
+test('lyricXML: trailing hyphen → begin syllabic, hyphen stripped from text', () => {
+  assert.equal(lyricXML('Freu-'),
+    '<lyric number="1"><syllabic>begin</syllabic><text>Freu</text></lyric>')
+})
+
+test('lyricXML: escapes XML special characters', () => {
+  assert.ok(lyricXML('A & B').includes('<text>A &amp; B</text>'))
+  assert.ok(lyricXML('<x>').includes('<text>&lt;x&gt;</text>'))
+})
 
 // ── phraseToMusicXML ──────────────────────────────────────────────────────────
 
@@ -165,6 +186,31 @@ test('phraseToMusicXML: dotted half — contains dot element', () => {
   const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
   const xml = phraseToMusicXML(phrase, score, 0)
   assert.ok(xml.includes('<dot/>'))
+})
+
+test('phraseToMusicXML: note lyric rendered under the note', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [{ midi: 64, duration: 'w', hand: 'right', lyric: 'Freu-' }],
+    }],
+  }
+  const xml = phraseToMusicXML(phrase, simpleScore, 0)
+  assert.ok(xml.includes('<lyric number="1"><syllabic>begin</syllabic><text>Freu</text></lyric>'))
+})
+
+test('phraseToMusicXML: chord lyric appears once, not on chord tones', () => {
+  const chordPhrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [{ midi: [74, 66], duration: 'h', hand: 'right', lyric: 'sing' }],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [2, 4], phrases: [chordPhrase] }
+  const xml = phraseToMusicXML(chordPhrase, score, 0)
+  assert.equal((xml.match(/<lyric /g) || []).length, 1)
 })
 
 test('phraseToMusicXML: 4/4 time signature in XML', () => {
