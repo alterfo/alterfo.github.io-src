@@ -166,6 +166,7 @@ Client-side pose editor at `/openpose`: batch-upload images, auto-detect skeleto
   curl -L "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task" -o public/mediapipe/pose_landmarker_full.task
   ```
   Same pattern as the Salamander piano samples. If missing, the app shows an error banner with this exact command.
+- **CI/prod:** `deploy.yml` downloads the model itself (curl + `actions/cache`) and runs `npm run build` — NOT `npx vitepress build` — because only the npm script triggers the `prebuild` → `mediapipe:copy` hook. Both were once missing → /openpose was dead on prod with the model and the WASM both 404ing (fixed 2026-06-10, `69338a0`). If you change the build step, keep the hook path alive.
 - `@mediapipe/tasks-vision` is loaded via dynamic `import()` inside `initModel()` (same lazy pattern as the Piano importers) so it stays out of the shared `app` chunk and never runs during SSR — it lands in a lazy `vision_bundle.[hash].js` chunk. No `manualChunks` entry needed (dynamic-import auto-splitting). Namespace export resolved defensively as `vision.X ?? vision.default?.X`.
 - `OpenPoseEditor.vue` is registered as a **static** import in `index.mts` (unlike `Piano.vue`'s `defineAsyncComponent`), but only the light OpenPose modules land in the shared chunk — the heavy MediaPipe runtime stays lazy via the dynamic import above.
 
