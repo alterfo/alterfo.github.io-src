@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitepress'
-import { mkdirSync, writeFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SITE_URL = 'https://alterfo.github.io'
@@ -105,7 +105,9 @@ export default defineConfig({
     'node_modules/**',
     'KODA.md',
     'README.md',
+    'CLAUDE.md',
     'docs/**',
+    'ar-engine/**',
   ],
   nav: [
     { text: 'Главная', link: '/' },
@@ -143,11 +145,11 @@ export default defineConfig({
   // No source rewrites needed (posts stay at /posts/); static HTML redirects
   // are generated below so old inbound links keep working.
   buildEnd: async (siteConfig) => {
-    let files: string[]
+    let files: string[] = []
     try {
       files = readdirSync(join(siteConfig.srcDir, 'posts')).filter(f => f.endsWith('.md'))
     } catch {
-      return
+      files = []
     }
     for (const file of files) {
       const basename = file.replace(/\.md$/, '')
@@ -158,5 +160,28 @@ export default defineConfig({
       mkdirSync(dir, { recursive: true })
       writeFileSync(join(dir, 'index.html'), redirectHtml(`/posts/${basename}`))
     }
+
+    // Hand-rolled sitemap.xml from source pages (md only → redirect stubs auto-excluded).
+    const EXTRA_URLS = ['/ar/'] // static apps not in siteConfig.pages
+    const entries = siteConfig.pages
+      .map((p: string) => {
+        const path = '/' + p.replace(/\.md$/, '').replace(/(^|\/)index$/, '')
+        let lastmod = ''
+        try {
+          lastmod = statSync(join(siteConfig.srcDir, p)).mtime.toISOString().slice(0, 10)
+        } catch {}
+        const priority = p === 'index.md' ? '1.0'
+          : /^(idef0|planner|journal)/.test(p) ? '0.8'
+          : p.startsWith('projects/') ? '0.7' : '0.6'
+        return { loc: SITE_URL + (path === '/' ? '/' : path), lastmod, priority }
+      })
+      .concat(EXTRA_URLS.map(u => ({ loc: SITE_URL + u, lastmod: '', priority: '0.8' })))
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n`
+      + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
+      + entries.map(e => `  <url><loc>${e.loc}</loc>`
+          + (e.lastmod ? `<lastmod>${e.lastmod}</lastmod>` : '')
+          + `<priority>${e.priority}</priority></url>`).join('\n')
+      + `\n</urlset>\n`
+    writeFileSync(join(siteConfig.outDir, 'sitemap.xml'), xml)
   },
 })
