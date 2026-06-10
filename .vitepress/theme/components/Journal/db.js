@@ -77,6 +77,18 @@ async function saveEnvelopeQuiet(envelopeStr) {
   }
 }
 
+// Durable write that REJECTS on failure (unlike saveEnvelopeQuiet, which swallows).
+// Used by the change-password re-key so the caller can keep the old key in memory
+// when the write does not land. With { notify: true } it pings other tabs after a
+// confirmed write so they re-load (and re-lock if the key changed).
+async function saveEnvelopeNow(envelopeStr, { notify = false } = {}) {
+  if (typeof indexedDB === 'undefined') return
+  await writeEnvelope(envelopeStr)
+  if (notify) {
+    try { localStorage.setItem('journal:saved', String(Date.now())) } catch {}
+  }
+}
+
 function initCrossTabSync(onReload) {
   if (typeof window === 'undefined') return () => {}
   const handler = e => {
@@ -86,4 +98,4 @@ function initCrossTabSync(onReload) {
   return () => window.removeEventListener('storage', handler)
 }
 
-export { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync }
+export { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveEnvelopeNow, initCrossTabSync }

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, initCrossTabSync } from './Journal/db.js'
+import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveEnvelopeNow, initCrossTabSync } from './Journal/db.js'
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
@@ -65,11 +65,13 @@ function resetIdleTimer() {
   _idleTimer = setTimeout(() => lockVault('Заблокировано из-за 5 минут бездействия'), IDLE_MS)
 }
 
-async function lockVault(reason = '') {
+async function lockVault(reason = '', { flush = true } = {}) {
   lockReason.value = reason
   clearTimeout(_saveTimer)
   clearTimeout(_idleTimer)
-  try { await persistVault() } catch { /* best-effort flush */ }
+  // Skip the flush when the in-memory key is stale (password changed in another
+  // tab): persisting with the old key would clobber the freshly re-keyed envelope.
+  if (flush) { try { await persistVault() } catch { /* best-effort flush */ } }
   _key = null
   _salt = null
   viewDate.value = null
@@ -379,10 +381,11 @@ async function doChangePassword() {
     const packed = packEnvelope({ salt: newSalt, iterations: newIterations, iv, ciphertext })
 
     // 4. Drop any pending debounced (old-key) write so it cannot clobber the
-    //    re-keyed envelope, then write durably (awaited, no cross-tab ping).
+    //    re-keyed envelope, then write durably (awaited; rejects on failure so a
+    //    failed write keeps the old key below) and ping other tabs so they re-lock.
     clearTimeout(_saveTimer)
     cancelPendingSave()
-    await saveEnvelopeQuiet(packed)
+    await saveEnvelopeNow(packed, { notify: true })
 
     // 5. Swap in-memory key material only after the write succeeds — if step 4
     //    threw, IndexedDB still holds the old envelope and _key is unchanged.
@@ -432,7 +435,15 @@ onMounted(async () => {
       const { iv: newIv, ciphertext: newCt } = await encryptJSON(_key, vault)
       await saveEnvelopeQuiet(packEnvelope({ salt: _salt, iterations: _iterations, iv: newIv, ciphertext: newCt }))
     } catch (err) {
-      console.warn('[journal] cross-tab sync failed:', err)
+      if (err?.name === 'OperationError') {
+        // The on-disk envelope no longer decrypts with our key → the password was
+        // changed in another tab. Lock WITHOUT flushing (a flush would re-write the
+        // old-key envelope and clobber the re-key); the user re-unlocks with the new
+        // password. Pending old-key saves are cancelled by lockVault's clearTimeout.
+        await lockVault('Пароль был изменён в другой вкладке', { flush: false })
+      } else {
+        console.warn('[journal] cross-tab sync failed:', err)
+      }
     }
   })
 })

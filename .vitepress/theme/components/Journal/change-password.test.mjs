@@ -81,7 +81,7 @@ test('after re-keying the OLD password no longer decrypts the new envelope', asy
   const oldKeyAgainstNewSalt = await deriveKey('old-pass', salt, iterations)
   await assert.rejects(
     () => decryptJSON(oldKeyAgainstNewSalt, { iv, ciphertext }),
-    err => err instanceof DOMException,
+    err => err instanceof DOMException && err.name === 'OperationError',
     'old password is rejected after change'
   )
 })
@@ -90,9 +90,11 @@ test('wrong current password aborts re-keying (decrypt rejects, envelope untouch
   const vault = emptyVault()
   const oldEnvelope = await makeEnvelope('correct-pass', vault)
 
+  // The handler branches on err.name === 'OperationError' to show "Неверный
+  // текущий пароль"; pin that exact name, not just the DOMException base type.
   await assert.rejects(
     () => rekey(oldEnvelope, 'WRONG-pass', 'new-pass-123', vault),
-    err => err instanceof DOMException,
-    'verification step throws before any new envelope is produced'
+    err => err instanceof DOMException && err.name === 'OperationError',
+    'verification step throws OperationError before any new envelope is produced'
   )
 })

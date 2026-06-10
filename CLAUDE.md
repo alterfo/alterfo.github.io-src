@@ -108,6 +108,7 @@ Unit tests run with `node --test` (Node 22, native `crypto.subtle`):
 - `crypto.test.mjs` — derive→encrypt→decrypt round-trip; wrong passphrase rejects; envelope pack/unpack; large-buffer base64 (byte-loop, no spread-overflow)
 - `Journal/vault.test.mjs` — `countWords`, `upsertEntry`, `computeStreak`, `mergeVaults`
 - `Journal/exporter.test.mjs` — encrypt→pack→unpack→decrypt→merge round-trip; tampered ciphertext rejects
+- `Journal/change-password.test.mjs` — re-key data-layer round-trip mirroring `doChangePassword()` without DOM/Vue: verify current password → fresh salt → derive new key → encrypt → pack → unpack → decrypt = same vault; asserts `encryptJSON` returns raw `{iv, ciphertext}`, fresh-salt regeneration, old password rejected after change (`OperationError`), and wrong current password aborts (`OperationError`) before any new envelope is produced
 
 ## Piano Teacher app
 
@@ -308,6 +309,7 @@ There is no light theme and none is planned. If `color-mix` is unsupported on a 
 - Debounced autosave: edit → upsertEntry → encryptJSON → packEnvelope → db.saveEnvelope
 - Cross-tab sync via localStorage events
 - Sync v1: encrypted file export/import (.journal files) with LWW merge on import
+- Change password (re-key, added 2026-06-10): sidebar button → teleported modal (current / new / confirm). Verifies the current password by re-deriving from the **stored** envelope's own salt/iterations and decrypting (wrong → `OperationError` → "Неверный текущий пароль"), generates a **fresh salt** (full re-keying, not just re-encryption), folds in any in-progress today's text, re-encrypts the in-memory vault, cancels pending debounced/old-key saves, then writes durably via `saveEnvelopeNow` (awaited, **rejects on failure** so a failed write keeps the old key) and pings other tabs. In-memory `_key`/`_salt`/`_iterations` swap only **after** the write succeeds → a failed write leaves the old envelope and key intact (no data loss). Other open tabs hold the stale old key; the re-key ping makes their cross-tab handler hit `OperationError` and `lockVault(reason, { flush: false })` (no flush → no clobber of the new envelope). `Journal.vue` + `Journal/db.js` (`saveEnvelopeNow`) only. New-password rules: non-empty, matches confirm, ≥ 6 chars
 - Unit tests for all pure logic (crypto, vault, exporter data layer)
 
 ### Piano Teacher app (as of 2026-06-08)
