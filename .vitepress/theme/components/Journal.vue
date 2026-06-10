@@ -1181,4 +1181,66 @@ onUnmounted(() => {
   mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
 }
+
+/* ══════════════════════════════════════════════
+   Change-password modal (teleported to body)
+══════════════════════════════════════════════ */
+.cp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.cp-modal {
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 14px;
+  padding: 28px 28px 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.5);
+  font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
+  color: #e8e8e8;
+}
+.cp-modal h3 {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f0f0;
+  text-align: center;
+}
+.cp-modal input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 16px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  background: #222;
+  border: 1px solid #666;
+  border-radius: 8px;
+  color: #eee;
+  outline: none;
+  transition: border-color .15s;
+}
+.cp-modal input:focus { border-color: #8888ff; }
+.cp-error {
+  margin: 4px 0 0;
+  color: #ff7070;
+  font-size: 13px;
+}
+.cp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.cp-actions .journal-btn { padding: 10px 22px; }
+.cp-actions .journal-btn-primary:disabled {
+  opacity: .5;
+  cursor: default;
+}
 </style>
