@@ -394,7 +394,7 @@ const expectedNote = computed(() => {
   if (!_state || isComplete.value) return null
   const note = getCurrentNote(_state)
   if (!note) return null
-  return Array.isArray(note.midi) ? note.midi[0] : note.midi
+  return note.midi   // int or int[] — keyColor/generateKeyRects accept both
 })
 
 const keyRects = computed(() =>

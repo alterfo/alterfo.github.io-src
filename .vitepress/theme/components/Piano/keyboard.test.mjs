@@ -98,6 +98,31 @@ test('keyColor: pressed takes priority over expected', () => {
   assert.ok(color.fill.includes('4a9eff') || color.fill === '#4a9eff')
 })
 
+test('keyColor: chord expectedNote array highlights every chord key green', () => {
+  const chord = [60, 64, 67]  // C major triad
+  for (const m of chord) {
+    const color = keyColor(m, { expectedNote: chord })
+    assert.equal(color.stroke, '#22cc22', `midi ${m} should get expected (green) stroke`)
+  }
+})
+
+test('keyColor: chord expectedNote array leaves non-chord key un-highlighted', () => {
+  const chord = [60, 64, 67]
+  const color = keyColor(62, { expectedNote: chord })  // D4 not in the triad
+  assert.notEqual(color.stroke, '#22cc22', 'non-chord key should not get expected stroke')
+})
+
+test('generateKeyRects: chord expectedNote array highlights all chord keys', () => {
+  const chord = [60, 64, 67]
+  const rects = generateKeyRects(520, { expectedNote: chord })
+  for (const m of chord) {
+    const rect = rects.find(r => r.midi === m)
+    assert.equal(rect.stroke, '#22cc22', `midi ${m} rect should be green`)
+  }
+  const other = rects.find(r => r.midi === 62)
+  assert.notEqual(other.stroke, '#22cc22', 'non-chord rect should not be green')
+})
+
 test('generateKeyRects returns 88 objects with required properties', () => {
   const rects = generateKeyRects(520)
   assert.equal(rects.length, 88)

@@ -61,13 +61,15 @@ export function buildKeyLayout(totalWidth) {
 // Returns fill and stroke for a key given current state sets
 // scaleKeys: Set<0..11> of pitch classes in scale (null = show all normal)
 // pressedNotes: Set<midiNum> of currently held notes
-// expectedNote: midiNum | null
+// expectedNote: midiNum | midiNum[] | null  (array = chord: every key in it is "expected")
 export function keyColor(midi, { scaleKeys = null, pressedNotes = new Set(), expectedNote = null } = {}) {
   const black = isBlackKey(midi)
   const pc = midi % 12
 
   const isPressed = pressedNotes.has(midi)
-  const isExpected = expectedNote === midi
+  const isExpected = Array.isArray(expectedNote)
+    ? expectedNote.includes(midi)
+    : midi === expectedNote
   const outOfScale = scaleKeys !== null && !scaleKeys.has(pc)
 
   if (isPressed) {
