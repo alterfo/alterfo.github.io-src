@@ -39,14 +39,10 @@
 
 <script setup>
 import { computed } from 'vue'
-import { arcPath, fillRadius, labelXY, deg2rad } from './lifecircle.js'
+import { buildSegments } from './lifecircle.js'
 
 // Wheel geometry (mirrors the unit-tested helper inputs).
-const CX = 200
-const CY = 200
-const INNER_R = 55
-const MAX_OUTER_R = 155
-const LABEL_R = 170
+const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 
 // 6 spheres = 6 spectrum colors. Hardcoded — they only change with a release.
 const SEGMENTS = [
@@ -58,25 +54,7 @@ const SEGMENTS = [
   { id: 'planner',  title: 'Планировщик',  href: null,        color: '#ff9933', readiness: 4, soon: true },
 ]
 
-// Each sphere spans 56° with a 2° gap on each side (6 × 56 + 6 × 4 = 360).
-const segments = computed(() =>
-  SEGMENTS.map((s, i) => {
-    const startDeg = i * 60 + 2
-    const endDeg = i * 60 + 58
-    const midDeg = i * 60 + 30
-    const fillR = fillRadius(s.readiness, INNER_R, MAX_OUTER_R)
-    const label = labelXY(CX, CY, LABEL_R, midDeg)
-    const dx = Math.cos(deg2rad(midDeg))
-    const anchor = dx > 0.2 ? 'start' : dx < -0.2 ? 'end' : 'middle'
-    return {
-      ...s,
-      bgPath: arcPath(CX, CY, INNER_R, MAX_OUTER_R, startDeg, endDeg),
-      fillPath: arcPath(CX, CY, INNER_R, fillR, startDeg, endDeg),
-      label,
-      anchor,
-    }
-  })
-)
+const segments = computed(() => buildSegments(SEGMENTS, GEOM))
 </script>
 
 <style scoped>

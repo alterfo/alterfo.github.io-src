@@ -29,6 +29,6 @@
   --ds-radius: 8px;
   --ds-glow-violet: 0 0 40px rgba(179, 77, 255, 0.6);
 
-  /* Neutral separator (used by BlogList post divider, Portfolio card borders) */
+  /* Neutral separator (BlogList post divider, Portfolio expertise divider & footer) */
   --ds-border: rgba(255, 255, 255, 0.08);
 }

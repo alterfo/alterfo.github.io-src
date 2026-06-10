@@ -187,11 +187,11 @@ The wheel of life is split into colored spheres; «границы условны
 
 `.vitepress/theme/components/LifeCircle.vue` is the main element of the Portfolio shell — replaces the old `.projects-grid`. A donut «wheel of life» of 6 spheres (= 6 spectrum colors); each sphere's **outer radius encodes its readiness** (1–10), so the wheel is deliberately uneven and reads as «what's developed vs. not». Each sphere is an `<a href>` linking to the project (or a `<g>` for the `soon` planner, which has no link). No `<ClientOnly>` (pure SVG, no DOM API). The 6 segments are **hardcoded** in the component (`SEGMENTS`) — they only change with a release; no props.
 
-- Geometry: `viewBox="-45 -5 490 410"` (widened so outside labels never clip; wheel itself centred at `200,200`). `INNER_R = 55`, `MAX_OUTER_R = 155`, `LABEL_R = 170`. 6 spheres × 56° + 6 × 4° gap = 360°: sphere `i` spans `startDeg = i*60 + 2 … endDeg = i*60 + 58`, midpoint `i*60 + 30`.
+- Geometry: `viewBox="-45 -5 490 410"` (widened so outside labels never clip; wheel itself centred at `200,200`). The `.vue` passes `GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }`. 6 spheres × 56° + 6 × 4° gap = 360°: sphere `i` spans `startDeg = i*60 + 2 … endDeg = i*60 + 58`, midpoint `i*60 + 30`.
 - Per sphere: faint full-radius track (`.seg-bg`, opacity 0.12) + readiness fill (`.seg-fill`, outer radius = `fillRadius(readiness, 55, 155)`) + crisp stroke edge (`.seg-stroke`) + outside two-line label (title + «N/10»). `soon: true` (planner) → dashed track, dim fill, «⟳ скоро» label.
 - Spheres/readiness: Дневник `/journal` 9 (pink), IDEF0 `/idef0` 8 (green), AR Engine `/ar/` 5 (violet), Piano `/piano` 4 (amber), OpenPose `/openpose` 4 (cyan), Планировщик (soon, no href) 4 (orange).
 - Hover: `scale(1.02)` + color-matched `drop-shadow` glow on non-`soon` spheres. `@media (max-width: 480px)` shrinks label font so it stays readable on mobile.
-- Pure geometry helpers live in `.vitepress/theme/components/lifecircle.js` (`deg2rad` with 0° = top/CW, `arcPath` donut segment, `labelXY`, `fillRadius`), unit-tested in `lifecircle.test.mjs`. The SVG markup itself is verified manually (visual artifact, no DOM test).
+- Pure helpers live in `.vitepress/theme/components/lifecircle.js` (`deg2rad` with 0° = top/CW, `arcPath` donut segment, `labelXY`, `fillRadius`, and `buildSegments(defs, geom)` which composes the whole per-sphere render record — paths, label, `text-anchor`), all unit-tested in `lifecircle.test.mjs`. `LifeCircle.vue` only maps `SEGMENTS` through `buildSegments` and renders the result, so the geometry/anchor logic is fully tested; only the static SVG markup is verified manually (visual artifact, no DOM test).
 
 ### Dark theme only
 

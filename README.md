@@ -6,7 +6,7 @@
 
 ## Дизайн-система «Spiral»
 
-Единая визуальная идентичность оболочки-портфолио (Portfolio / Layout / BlogList / CountDown). Спектр из 6 цветов = «сферы круга жизни» (из блога), они же — цвета проектов. Источник правды: CSS-токены в `.vitepress/theme/styles/vars.css` + JS-зеркало `components/spectrum.js` (менять hex в обоих). Particle-фон — один модуль `components/ConnectingParticles.js` (шапка + портфолио); countdown «1000 дней роста» — `CountDown.vue` + чистая дата-математика `countdown.js`. Подробности — в `CLAUDE.md` → «## Design system «Spiral»».
+Единая визуальная идентичность оболочки-портфолио (Portfolio / Layout / BlogList / CountDown). Спектр из 6 цветов = «сферы круга жизни» (из блога), они же — цвета проектов. Источник правды: CSS-токены в `.vitepress/theme/styles/vars.css` + JS-зеркало `components/spectrum.js` (менять hex в обоих). Particle-фон — один модуль `components/ConnectingParticles.js` (шапка + портфолио); countdown «1000 дней роста» — `CountDown.vue` + чистая дата-математика `countdown.js`; колесо жизни «LifeCircle» (`LifeCircle.vue` + геометрия `lifecircle.js`) — 6 сфер-проектов, внешний радиус кодирует готовность (1–10), заменило сетку проектов на главной. Подробности — в `CLAUDE.md` → «## Design system «Spiral»».
 
 ## Структура
 
@@ -16,12 +16,13 @@
   theme/
     index.mts          тема: extends DefaultTheme + кастомный Layout
     Layout.vue         шапка с WebGPU/Canvas particles, слот #layout-top
-    Portfolio.vue      главная страница — сетка проектов
+    Portfolio.vue      главная страница — колесо жизни (LifeCircle) + countdown
     styles/vars.css    дизайн-токены --ds-* (палитра, текст, типографика)
     components/
       spectrum.js          JS-зеркало палитры (SPECTRUM/CANVAS_PALETTE/PROJECT_COLORS)
       ConnectingParticles.js  единый particle-модуль (createField + чистые хелперы)
       CountDown.vue / countdown.js  обратный отсчёт + чистая дата-математика
+      LifeCircle.vue / lifecircle.js  колесо жизни — 6 сфер-проектов, радиус = готовность (SVG + чистая геометрия)
       BlogList.vue         индекс блога (токен-driven)
       IDEF0Editor.vue      редактор функциональных диаграмм (Vue 3, SVG)
       Journal.vue          приватный шифрованный дневник (WebCrypto)

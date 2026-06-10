@@ -30,3 +30,28 @@ export function fillRadius(readiness, innerR, maxOuterR) {
   const clamped = Math.max(0, Math.min(10, readiness))
   return innerR + (maxOuterR - innerR) * (clamped / 10)
 }
+
+// Per-segment render data for the wheel: background track + readiness fill paths,
+// outside label position and its text-anchor. Sphere `i` spans 56° (i*60+2 … i*60+58)
+// with a 4° gap, so 6 × 56 + 6 × 4 = 360°. Pure — unit-tested; the .vue only renders it.
+// `defs` = sphere defs ({ id, title, href, color, readiness, soon? });
+// `geom` = { cx, cy, innerR, maxOuterR, labelR }.
+export function buildSegments(defs, geom) {
+  const { cx, cy, innerR, maxOuterR, labelR } = geom
+  return defs.map((s, i) => {
+    const startDeg = i * 60 + 2
+    const endDeg = i * 60 + 58
+    const midDeg = i * 60 + 30
+    const fillR = fillRadius(s.readiness, innerR, maxOuterR)
+    const label = labelXY(cx, cy, labelR, midDeg)
+    const dx = Math.cos(deg2rad(midDeg))
+    const anchor = dx > 0.2 ? 'start' : dx < -0.2 ? 'end' : 'middle'
+    return {
+      ...s,
+      bgPath: arcPath(cx, cy, innerR, maxOuterR, startDeg, endDeg),
+      fillPath: arcPath(cx, cy, innerR, fillR, startDeg, endDeg),
+      label,
+      anchor,
+    }
+  })
+}
