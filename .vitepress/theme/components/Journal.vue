@@ -527,7 +527,10 @@ function startWaiting() {
       syncStage.value = 'connected'
       try {
         // Fold in any in-progress today's text so it participates in the peer's merge.
-        upsertEntry(vault, todayISO.value, todayText.value)
+        // Guard on non-empty text (like doImport/decryptAndMerge): an unconditional
+        // upsert would stamp an empty today entry with a fresh updatedAt, which LWW
+        // would then let overwrite the peer's real entry for today (data loss).
+        if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
         sendEnvelope(dc, await buildEnvelope())
       } catch {
         syncError.value = 'Не удалось отправить данные на другое устройство.'
