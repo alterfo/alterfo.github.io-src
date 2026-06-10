@@ -14,8 +14,13 @@ import { snapMissingKeypoints } from './OpenPose/skeleton.js'
 import { renderSkeletonOnCanvas, renderSkeletonOnBlack } from './OpenPose/renderer.js'
 import { useSkeletonEditor, addPerson, removePerson, MAX_PERSONS } from './OpenPose/editor.js'
 import { toOpenPoseJSON, downloadJSON, downloadPNG } from './OpenPose/exporter.js'
+import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
 
 const model = usePoseDetection()
+
+// First-visit onboarding help (no unlock screen → fire in onMounted, like IDEF0/Piano).
+const showHelp = ref(false)
 
 // ─────────────────────────────────────────────────────────────
 // Queue
@@ -251,6 +256,7 @@ onMounted(() => {
   // Canvas is kept in the DOM via v-show, so its ref is available now.
   editor = useSkeletonEditor(canvasEl, getSelectedSkeletons, renderSelected)
   nextTick(renderSelected)
+  if (shouldShowOnboarding('openpose:seen-help')) showHelp.value = true
 })
 
 // When the model finishes loading, drain whatever is already queued.
@@ -376,11 +382,38 @@ onUnmounted(() => {
           @click="onExportJSON"
         >⤓ JSON</button>
       </template>
-      <span v-else class="op-toolbar-name">Нет выбранного изображения</span>
+      <template v-else>
+        <span class="op-toolbar-name">Нет выбранного изображения</span>
+        <span class="op-toolbar-spacer" />
+      </template>
+      <button class="op-btn op-btn-sm" @click="showHelp = true" title="Справка">?</button>
     </div>
 
     <!-- Full-page drag overlay -->
     <div v-show="dragging" class="op-drop-overlay">Отпустите, чтобы добавить изображения</div>
+
+    <HelpModal v-model="showHelp">
+      <h2>Редактор поз OpenPose</h2>
+
+      <p>Редактор скелетов-поз для <strong>ControlNet / Stable Diffusion</strong>: загрузи фото — поза определится сама, поправь точки мышью и выгрузи готовый скелет.</p>
+
+      <h3>Как пользоваться</h3>
+      <ul>
+        <li>Перетащи фото в окно (или «Загрузить изображения») — поза найдётся автоматически, до 2 человек на кадр</li>
+        <li>Точки-суставы таскаются мышью — двигай их, чтобы поправить скелет</li>
+        <li>Низкая уверенность распознавания — точка рисуется полой (контуром)</li>
+        <li><strong>＋/− Человек</strong> добавляет/убирает скелет, <strong>↻ Заново</strong> — пересчитать позу</li>
+      </ul>
+
+      <h3>Экспорт</h3>
+      <ul>
+        <li><strong>⤓ PNG</strong> — скелет на чёрном фоне для входа ControlNet (OpenPose)</li>
+        <li><strong>⤓ JSON</strong> — ключевые точки в формате OpenPose v1.3, координаты нормированы 0–1</li>
+      </ul>
+
+      <h3>Приватность</h3>
+      <p>Всё считается прямо в браузере — модель MediaPipe (WASM) работает локально, фотографии никуда не загружаются.</p>
+    </HelpModal>
   </div>
 </template>
 
