@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Engine — Alterfo</title>
-  <meta name="description" content="AR Engine — аудио-реактивный визуализатор на WebGPU: частицы, фигуры Хладни и Nova реагируют на музыку в реальном времени прямо в браузере.">
+  <title>AR Engine — Alterfo</title>
+  <meta name="description" content="AR Engine — аудио-реактивный визуализатор на WebGPU: частицы, фигуры Хладни и Nova реагируют на музыку в реальном времени прямо в браузере.">
   <link rel="canonical" href="https://alterfo.github.io/ar/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="AR Engine — Alterfo">
+  <meta property="og:title" content="AR Engine — Alterfo">
   <meta property="og:description" content="Аудио-реактивный визуализатор на WebGPU: частицы и фигуры реагируют на музыку в реальном времени прямо в браузере.">
   <meta property="og:url" content="https://alterfo.github.io/ar/">
   <meta property="og:image" content="https://alterfo.github.io/og.png">
   <meta property="og:site_name" content="Alterfo">
   <meta property="og:locale" content="ru_RU">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AR Engine — Alterfo">
+  <meta name="twitter:title" content="AR Engine — Alterfo">
   <meta name="twitter:description" content="Аудио-реактивный визуализатор на WebGPU: частицы и фигуры реагируют на музыку в реальном времени прямо в браузере.">
   <meta name="twitter:image" content="https://alterfo.github.io/og.png">
   <style>
@@ -219,7 +219,7 @@
     }
     .icon-btn:hover { border-color: #8b00ff; color: #fff; }
 
-    /* ---- home link (back to portfolio) ---- */
+    /* ---- home link: мини-«колесо жизни» (back to portfolio) ---- */
     #home-link {
       position: absolute;
       top: 12px;
@@ -227,22 +227,20 @@
       z-index: 95;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      background: rgba(10, 0, 30, 0.75);
-      border: 1px solid #333;
-      border-radius: 20px;
-      padding: 5px 14px;
-      color: #aaa;
-      font-size: 0.72rem;
-      letter-spacing: 0.05em;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(10, 0, 30, 0.6);
       text-decoration: none;
-      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      line-height: 0;
     }
-    #home-link:hover {
-      border-color: #8b00ff;
-      color: #fff;
-      background: rgba(139, 0, 255, 0.18);
-    }
+    #home-link svg { transition: transform 0.35s ease; }
+    #home-link:hover svg { transform: rotate(60deg); }
+    #home-link svg path { opacity: 0.4; transition: opacity 0.2s; }
+    #home-link svg path.active { opacity: 1; }
+    #home-link:hover svg path { opacity: 0.85; }
+    #home-link:hover svg path.active { opacity: 1; }
 
     /* ---- track label ---- */
     #track-label {
@@ -330,14 +328,24 @@
   <div id="canvas-wrap">
     <canvas id="canvas" width="960" height="540"></canvas>
 
-    <!-- back to portfolio (internal linking + UX) -->
-    <a id="home-link" href="/" title="На главную">← Главная</a>
+    <!-- back to portfolio: мини-«колесо жизни» (та же геометрия, что HomeMark.vue
+         в VitePress-шапках; AR-сфера подсвечена). Hand-maintained — править руками. -->
+    <a id="home-link" href="/" title="Круг жизни — на главную" aria-label="На главную">
+      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+        <path fill="#ff6688" d="M16.17,11 L16.49,2.01 A14,14,0,0,1,27.87,8.58 L20.24,13.35 A5,5,0,0,0,16.17,11 Z"/>
+        <path fill="#33ff4d" d="M20.41,13.65 L27.48,9.9 A13,13,0,0,1,27.48,22.1 L20.41,18.35 A5,5,0,0,0,20.41,13.65 Z"/>
+        <path class="active" fill="#b34dff" d="M20.24,18.65 L24.48,21.3 A10,10,0,0,1,16.35,25.99 L16.17,21 A5,5,0,0,0,20.24,18.65 Z"/>
+        <path fill="#ffaa22" d="M15.83,21 L15.69,24.99 A9,9,0,0,1,8.37,20.77 L11.76,18.65 A5,5,0,0,0,15.83,21 Z"/>
+        <path fill="#1accff" d="M11.59,18.35 L8.05,20.23 A9,9,0,0,1,8.05,11.77 L11.59,13.65 A5,5,0,0,0,11.59,18.35 Z"/>
+        <path fill="#ff9933" d="M11.76,13.35 L8.37,11.23 A9,9,0,0,1,15.69,7.01 L15.83,11 A5,5,0,0,0,11.76,13.35 Z"/>
+      </svg>
+    </a>
 
     <!-- drag-drop overlay -->
     <div id="drop-overlay" role="button" aria-label="Drop audio files or a folder, or click to browse">
       <div class="drop-icon">🎵</div>
       <div class="drop-text">Drop audio files or a folder here</div>
-      <div class="drop-hint">mp3 · flac · wav · ogg — multi-select &amp; folders supported</div>
+      <div class="drop-hint">mp3 · flac · wav · ogg — multi-select &amp; folders supported</div>
     </div>
     <!-- File inputs live OUTSIDE the overlay: as children, input.click() would bubble
          back to the overlay's click handler and open a second picker. -->
@@ -389,7 +397,7 @@
       <div id="ym-blocked">
         Яндекс Музыка не разрешает встраивание через iframe.<br><br>
         Откройте <a href="https://music.yandex.ru" target="_blank" style="color:#8b00ff">music.yandex.ru</a>
-        в отдельной вкладке браузера, запустите трек, вернитесь и нажмите 🎙 Захват — выберите вкладку с музыкой.
+        в отдельной вкладке браузера, запустите трек, вернитесь и нажмите 🎙 Захват — выберите вкладку с музыкой.
       </div>
       <iframe id="ym-frame" src="about:blank" allow="autoplay; encrypted-media" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
     </div>
@@ -870,7 +878,7 @@
           alert('Please choose an audio file (mp3, flac, wav, ogg…).');
           return;
         }
-        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
         try {
           const { name, duration } = await audioLoadFile(file);
           _trackName = name;
@@ -905,7 +913,7 @@
         const next = !isLoop();
         setLoop(next);
         btnLoop.classList.toggle('active', next);
-        btnLoop.title = next ? 'Loop ON — click to disable' : 'Loop track';
+        btnLoop.title = next ? 'Loop ON — click to disable' : 'Loop track';
       });
 
       /* ---- record button ---- */
@@ -919,7 +927,7 @@
             console.log('[record] started');
           } else {
             btnRec.classList.remove('recording');
-            alert('Не удалось начать запись — кодировщик или muxer недоступен.\n'
+            alert('Не удалось начать запись — кодировщик или muxer недоступен.\n'
                 + 'Открой консоль (F12) и пришли ошибку.');
           }
         } else {
@@ -985,7 +993,7 @@
       btnYmClose.addEventListener('click', _closeYmPanel);
 
       btnYmCapt.addEventListener('click', async () => {
-        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
         try {
           // No preferCurrentTab — user picks any tab (Yandex Music, Spotify, etc.)
           const { name } = await connectStream();
