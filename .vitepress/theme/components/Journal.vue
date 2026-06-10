@@ -68,6 +68,11 @@ function resetIdleTimer() {
 async function lockVault(reason = '', { flush = true } = {}) {
   lockReason.value = reason
   clearTimeout(_saveTimer)
+  // Also cancel db.js's own 300 ms durable-write debounce — clearTimeout(_saveTimer)
+  // only drops the component's 100 ms debounce. Without this, a stale-key write
+  // already scheduled inside saveEnvelope() survives the lock and lands up to 300 ms
+  // later, clobbering a freshly re-keyed envelope (the cross-tab { flush: false } path).
+  cancelPendingSave()
   clearTimeout(_idleTimer)
   // Skip the flush when the in-memory key is stale (password changed in another
   // tab): persisting with the old key would clobber the freshly re-keyed envelope.
@@ -439,7 +444,8 @@ onMounted(async () => {
         // The on-disk envelope no longer decrypts with our key → the password was
         // changed in another tab. Lock WITHOUT flushing (a flush would re-write the
         // old-key envelope and clobber the re-key); the user re-unlocks with the new
-        // password. Pending old-key saves are cancelled by lockVault's clearTimeout.
+        // password. lockVault cancels both pending saves (component debounce +
+        // db.js's durable debounce via cancelPendingSave) so no old-key write lands.
         await lockVault('Пароль был изменён в другой вкладке', { flush: false })
       } else {
         console.warn('[journal] cross-tab sync failed:', err)
