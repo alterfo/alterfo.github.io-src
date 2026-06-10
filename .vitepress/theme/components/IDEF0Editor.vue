@@ -1,6 +1,19 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { loadProject, saveProject } from './IDEF0Editor/db.js'
+import HelpModal from './HelpModal.vue'
+
+// ----- Help / onboarding -----
+const showHelp = ref(false)
+function useOnboarding(key, showRef) {
+  onMounted(() => {
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
+      showRef.value = true
+      localStorage.setItem(key, '1')
+    }
+  })
+}
+useOnboarding('idef0:seen-help', showHelp)
 
 // ----- unique instance ID for SVG pattern -----
 let _seq = 0
@@ -965,6 +978,7 @@ onUnmounted(() => {
       <button class="tb-btn" @click="importJSON">Load</button>
       <button class="tb-btn" @click="exportJSON">Export JSON</button>
       <button class="tb-btn tb-btn-doc" @click="exportDocument">Export Document</button>
+      <button class="tb-btn" @click="showHelp = true" title="Справка">?</button>
     </div>
 
     <!-- ═══ THREE PANELS ═══ -->
@@ -1160,6 +1174,42 @@ onUnmounted(() => {
       </div>
 
     </div>
+
+    <!-- ═══ HELP MODAL ═══ -->
+    <HelpModal v-model="showHelp">
+      <h2>IDEF0 Редактор</h2>
+      <p>Функциональные диаграммы по стандарту FIPS 183</p>
+
+      <h3>Основы</h3>
+      <ul>
+        <li><strong>Блоки</strong> — функции/процессы. Двойной клик → редактировать название</li>
+        <li><strong>Стрелки</strong> — зависимости (ICOM): наведи на блок → потяни за маркер</li>
+        <li><strong>Ctrl+Z / Ctrl+Y</strong> — отмена/повтор</li>
+      </ul>
+
+      <h3>ICOM-типы стрелок</h3>
+      <table>
+        <thead>
+          <tr><th>Маркер</th><th>Сторона</th><th>Тип</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>I</td><td>Левая</td><td>Вход (Input)</td></tr>
+          <tr><td>C</td><td>Верхняя</td><td>Управление (Control)</td></tr>
+          <tr><td>O</td><td>Правая</td><td>Выход (Output)</td></tr>
+          <tr><td>M</td><td>Нижняя</td><td>Механизм (Mechanism)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Иерархия</h3>
+      <ul>
+        <li>Выбери блок → <strong>⊕ Decompose</strong> — создать дочернюю диаграмму</li>
+        <li>Навигатор слева и <strong>↑ Parent</strong> — навигация по диаграммам</li>
+        <li><strong>✕ Декомп.</strong> — удалить декомпозицию блока</li>
+      </ul>
+
+      <h3>Экспорт</h3>
+      <p>JSON · Document — кнопки в тулбаре. Load — импорт JSON-проекта</p>
+    </HelpModal>
   </div>
 </template>
 
