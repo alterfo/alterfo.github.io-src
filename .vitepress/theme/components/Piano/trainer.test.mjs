@@ -571,4 +571,95 @@ describe('rest notes are auto-skipped', () => {
     assert.equal(note.rest, undefined)
     assert.notEqual(note.midi, undefined)
   })
+
+  // A trailing rest (after the last playable note of a non-final measure) must not be
+  // mistaken for end-of-score: the cursor must roll into the next measure, not complete.
+  const trailingRestScore = {
+    id: 'trailing-rest-test',
+    title: 'Trailing rest test',
+    tempo: 60,
+    key: { root: 'C', mode: 'major' },
+    timeSignature: [4, 4],
+    modulations: [],
+    phrases: [{
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { midi: 60, duration: 'h', hand: 'right' },
+          { duration: 'h', hand: 'right', rest: true }, // trailing rest
+        ]},
+        { id: 'm2', notes: [
+          { midi: 62, duration: 'w', hand: 'right' },
+        ]},
+      ],
+    }],
+  }
+
+  it('L1 does not complete early on a trailing rest — rolls to the next measure', () => {
+    const state = createLevel1State(trailingRestScore)
+    const r = checkNoteL1(state, new Set([60]), LONG_HOLD)
+    assert.equal(r, 'note-correct')
+    assert.equal(state.complete, false)
+    assert.equal(getCurrentNote(state).midi, 62) // landed on m2, not past the end
+  })
+
+  it('L2 does not complete early on a trailing rest — rolls to the next measure', () => {
+    const state = createLevel2State(trailingRestScore)
+    const r = checkNoteL2(state, new Set([60]), LONG_HOLD)
+    assert.equal(state.complete, false)
+    assert.equal(getCurrentNote(state).midi, 62)
+    assert.notEqual(r, 'complete')
+  })
+
+  // An entirely-rest measure between two playable measures must be skipped, not treated
+  // as the end of the piece.
+  const allRestMeasureScore = {
+    id: 'all-rest-measure-test',
+    title: 'All-rest measure test',
+    tempo: 60,
+    key: { root: 'C', mode: 'major' },
+    timeSignature: [4, 4],
+    modulations: [],
+    phrases: [{
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [{ midi: 60, duration: 'w', hand: 'right' }] },
+        { id: 'm2', notes: [
+          { duration: 'h', hand: 'right', rest: true },
+          { duration: 'h', hand: 'right', rest: true },
+        ]},
+        { id: 'm3', notes: [{ midi: 62, duration: 'w', hand: 'right' }] },
+      ],
+    }],
+  }
+
+  it('L1 skips an all-rest measure and reaches the following playable measure', () => {
+    const state = createLevel1State(allRestMeasureScore)
+    const r = checkNoteL1(state, new Set([60]), LONG_HOLD)
+    assert.equal(r, 'note-correct')
+    assert.equal(state.complete, false)
+    assert.equal(getCurrentNote(state).midi, 62) // skipped m2 entirely
+  })
+
+  it('a final all-rest measure does complete the piece', () => {
+    const finalRestScore = {
+      id: 'final-rest-test',
+      title: 'Final rest test',
+      tempo: 60,
+      key: { root: 'C', mode: 'major' },
+      timeSignature: [4, 4],
+      modulations: [],
+      phrases: [{
+        id: 'p1',
+        measures: [
+          { id: 'm1', notes: [{ midi: 60, duration: 'w', hand: 'right' }] },
+          { id: 'm2', notes: [{ duration: 'w', hand: 'right', rest: true }] },
+        ],
+      }],
+    }
+    const state = createLevel1State(finalRestScore)
+    const r = checkNoteL1(state, new Set([60]), LONG_HOLD)
+    assert.equal(r, 'complete')
+    assert.equal(state.complete, true)
+  })
 })

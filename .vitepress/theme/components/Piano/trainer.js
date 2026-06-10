@@ -26,15 +26,33 @@ function _getNote(score, phraseIdx, measureIdx, noteIdx) {
   return score.phrases[phraseIdx]?.measures[measureIdx]?.notes[noteIdx] ?? null
 }
 
-// Rest notes (`{ rest: true }`, no midi) can't be "played" — advance the cursor past
-// any leading rests in the current measure so the trainer never stalls on one (e.g. the
-// 2-bar RH rest that opens the Rachmaninoff prelude). Stays within the measure: every
-// built-in measure has playable notes after any leading rest, so this never overshoots.
-function _skipLeadingRests(state) {
-  const measure = state.score.phrases[state.phraseIdx]?.measures[state.measureIdx]
-  if (!measure) return
-  while (state.noteIdx < measure.notes.length && measure.notes[state.noteIdx]?.rest) {
-    state.noteIdx++
+// Rest notes (`{ rest: true }`, no midi) can't be "played". Advance the cursor to the
+// next playable (non-rest) note, rolling across measure/phrase boundaries and skipping
+// any all-rest measures, so the trainer never stalls on a rest (e.g. the 2-bar RH rest
+// that opens the Rachmaninoff prelude) and never ends a piece early on a trailing/empty
+// rest run. `complete` is set only when no playable note remains in the score.
+function _skipRests(state) {
+  while (true) {
+    const phrase = state.score.phrases[state.phraseIdx]
+    const measure = phrase?.measures[state.measureIdx]
+    if (!measure) { state.complete = true; return }
+    if (state.noteIdx < measure.notes.length) {
+      if (!measure.notes[state.noteIdx]?.rest) return // playable note — stop here
+      state.noteIdx++
+      continue
+    }
+    // Past the end of this measure (a trailing rest run) — roll forward.
+    if (state.measureIdx < phrase.measures.length - 1) {
+      state.measureIdx++
+      state.noteIdx = 0
+    } else if (state.phraseIdx < state.score.phrases.length - 1) {
+      state.phraseIdx++
+      state.measureIdx = 0
+      state.noteIdx = 0
+    } else {
+      state.complete = true
+      return
+    }
   }
 }
 
@@ -61,7 +79,7 @@ export function createLevel1State(score) {
     stats: { correct: 0, wrong: 0, streak: 0, longestStreak: 0 },
     complete: false,
   }
-  _skipLeadingRests(state)
+  _skipRests(state)
   return state
 }
 
@@ -93,21 +111,21 @@ export function checkNoteL1(state, midiSet, heldMs, tempoFactor = 1.0) {
 
   if (state.noteIdx < measure.notes.length - 1) {
     state.noteIdx++
-    _skipLeadingRests(state)
-    return 'note-correct'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'note-correct'
   }
   if (state.measureIdx < phrase.measures.length - 1) {
     state.measureIdx++
     state.noteIdx = 0
-    _skipLeadingRests(state)
-    return 'note-correct'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'note-correct'
   }
   if (state.phraseIdx < state.score.phrases.length - 1) {
     state.phraseIdx++
     state.measureIdx = 0
     state.noteIdx = 0
-    _skipLeadingRests(state)
-    return 'note-correct'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'note-correct'
   }
   state.complete = true
   return 'complete'
@@ -116,7 +134,7 @@ export function checkNoteL1(state, midiSet, heldMs, tempoFactor = 1.0) {
 // Reset cursor to start of current measure
 export function repeatSectionL1(state) {
   state.noteIdx = 0
-  _skipLeadingRests(state)
+  _skipRests(state)
 }
 
 // ── Level 2: measure-by-measure ───────────────────────────────────────────────
@@ -131,7 +149,7 @@ export function createLevel2State(score) {
     stats: { correct: 0, wrong: 0, streak: 0, longestStreak: 0 },
     complete: false,
   }
-  _skipLeadingRests(state)
+  _skipRests(state)
   return state
 }
 
@@ -160,24 +178,24 @@ export function checkNoteL2(state, midiSet, heldMs, tempoFactor = 1.0) {
 
   if (state.noteIdx < measure.notes.length - 1) {
     state.noteIdx++
-    _skipLeadingRests(state)
-    return 'note-correct'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'note-correct'
   }
 
   // Measure complete
   state.noteIdx = 0
   if (state.measureIdx < phrase.measures.length - 1) {
     state.measureIdx++
-    _skipLeadingRests(state)
-    return 'measure-complete'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'measure-complete'
   }
 
   // Phrase complete
   state.measureIdx = 0
   if (state.phraseIdx < state.score.phrases.length - 1) {
     state.phraseIdx++
-    _skipLeadingRests(state)
-    return 'phrase-complete'
+    _skipRests(state)
+    return state.complete ? 'complete' : 'phrase-complete'
   }
 
   state.complete = true
@@ -188,7 +206,7 @@ export function checkNoteL2(state, midiSet, heldMs, tempoFactor = 1.0) {
 export function repeatSectionL2(state) {
   state.measureIdx = 0
   state.noteIdx = 0
-  _skipLeadingRests(state)
+  _skipRests(state)
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
