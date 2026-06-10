@@ -200,7 +200,7 @@ describe('loadScore / listScores', () => {
   })
 
   it('all built-in notes have valid duration codes', () => {
-    const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16'])
+    const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16', '8t'])
     for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
@@ -265,6 +265,17 @@ describe('beatsToDurationCode', () => {
 
   it('snaps an in-between value to the nearest code', () => {
     assert.equal(beatsToDurationCode(1.4), 'q.') // 1.5 is closer than 1
+  })
+})
+
+describe('DURATION_BEATS triplet eighth', () => {
+  it("'8t' is one third of a quarter beat", () => {
+    assert.ok(Math.abs(DURATION_BEATS['8t'] - 1 / 3) < 1e-9)
+  })
+
+  it('three triplet eighths fill (within float tolerance) one quarter beat', () => {
+    const sum = DURATION_BEATS['8t'] * 3
+    assert.ok(Math.abs(sum - 1) < 1e-9, `expected ~1 quarter beat, got ${sum}`)
   })
 })
 

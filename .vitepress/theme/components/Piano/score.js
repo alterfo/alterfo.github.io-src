@@ -43,7 +43,8 @@ export function getActiveKey(score, phraseIdx, measureIdx) {
 }
 
 // Duration in quarter-note fractions: w=4 h=2 q=1 8=0.5 16=0.25; dotted variants add 50%
-export const DURATION_BEATS = { w: 4, 'w.': 6, h: 2, 'h.': 3, q: 1, 'q.': 1.5, '8': 0.5, '8.': 0.75, '16': 0.25 }
+// '8t' = triplet eighth = 1/3 of a quarter beat (three of them fill one quarter beat)
+export const DURATION_BEATS = { w: 4, 'w.': 6, h: 2, 'h.': 3, q: 1, 'q.': 1.5, '8': 0.5, '8.': 0.75, '16': 0.25, '8t': 1 / 3 }
 
 // Snap a beat count (in quarter notes) to the nearest VexFlow duration code.
 // Shared by the MusicXML / ABC / MIDI importers.

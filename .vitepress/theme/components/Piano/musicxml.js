@@ -2,18 +2,24 @@
 // Pure functions; no DOM, no Vue. Tested in renderer.test.mjs.
 import { getActiveKey } from './score.js'
 
-const DIVISIONS = 4  // MusicXML units per quarter note (16th=1, 8th=2, q=4, h=8, w=16)
+// 12 units per quarter note (not 4) so a triplet eighth has an integer duration
+// (quarter=12 → triplet eighth = 12/3 = 4). All other durations stay integers too.
+const DIVISIONS = 12
 
+// tuplet: [actualNotes, normalNotes] → emits a <time-modification> (e.g. triplet = 3 in 2).
 const DURATION_MAP = {
-  w:    { div: 16, type: 'whole',   dot: false },
-  h:    { div: 8,  type: 'half',    dot: false },
-  'h.': { div: 12, type: 'half',    dot: true  },
-  q:    { div: 4,  type: 'quarter', dot: false },
-  'q.': { div: 6,  type: 'quarter', dot: true  },
-  '8':  { div: 2,  type: 'eighth',  dot: false },
-  '8.': { div: 3,  type: 'eighth',  dot: true  },
-  '16': { div: 1,  type: '16th',    dot: false },
+  w:    { div: 48, type: 'whole',   dot: false },
+  h:    { div: 24, type: 'half',    dot: false },
+  'h.': { div: 36, type: 'half',    dot: true  },
+  q:    { div: 12, type: 'quarter', dot: false },
+  'q.': { div: 18, type: 'quarter', dot: true  },
+  '8':  { div: 6,  type: 'eighth',  dot: false },
+  '8.': { div: 9,  type: 'eighth',  dot: true  },
+  '16': { div: 3,  type: '16th',    dot: false },
+  '8t': { div: 4,  type: 'eighth',  dot: false, tuplet: [3, 2] },
 }
+
+const FALLBACK_DUR = { div: 12, type: 'quarter', dot: false }
 
 export const FIFTHS_MAP = {
   Cb: -7, Gb: -6, Db: -5, Ab: -4, Eb: -3, Bb: -2, F: -1,
@@ -68,18 +74,28 @@ function noteColor(mIdx, nIdx, cursor) {
 }
 
 function noteXML(note, voice, staff, color, prependChord, fifths) {
-  const { div, type, dot } = DURATION_MAP[note.duration] ?? { div: 4, type: 'quarter', dot: false }
+  const { div, type, dot, tuplet } = DURATION_MAP[note.duration] ?? FALLBACK_DUR
   const colorAttr = color ? ` color="${color}"` : ''
   const dotXML = dot ? '<dot/>' : ''
+  // <time-modification> must precede <notehead>/<staff> in the MusicXML note order.
+  const timeModXML = tuplet
+    ? `<time-modification><actual-notes>${tuplet[0]}</actual-notes><normal-notes>${tuplet[1]}</normal-notes></time-modification>`
+    : ''
   // OSMD reads notehead color from <notehead color="..."> not from the <note color="..."> attribute
   const noteheadXML = color ? `<notehead color="${color}">normal</notehead>` : ''
+
+  // Rest: a single <note> with <rest/> in place of a pitch (no chord tones, no notehead).
+  if (note.rest) {
+    return `<note${colorAttr}><rest/><duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${timeModXML}<staff>${staff}</staff>${lyricXML(note.lyric)}</note>`
+  }
+
   // Lyric attaches to the principal note only — never duplicated on chord tones.
   const lyric = lyricXML(note.lyric)
   const midis = Array.isArray(note.midi) ? note.midi : [note.midi]
   return midis.map((m, idx) => {
     const chordXML = prependChord || idx > 0 ? '<chord/>' : ''
     const lyricForNote = idx === 0 ? lyric : ''
-    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${noteheadXML}<staff>${staff}</staff>${lyricForNote}</note>`
+    return `<note${colorAttr}>${chordXML}${midiPitchXML(m, fifths)}<duration>${div}</duration><voice>${voice}</voice><type>${type}</type>${dotXML}${timeModXML}${noteheadXML}<staff>${staff}</staff>${lyricForNote}</note>`
   }).join('')
 }
 
@@ -120,7 +136,7 @@ export function phraseToMusicXML(phrase, score, phraseIdx = 0, cursor = {}) {
 
     measure.notes.forEach((note, nIdx) => {
       const color = noteColor(mIdx, nIdx, cursor)
-      const { div } = DURATION_MAP[note.duration] ?? { div: 4 }
+      const { div } = DURATION_MAP[note.duration] ?? FALLBACK_DUR
       if (note.hand === 'left') {
         lhXML += noteXML(note, 2, 2, color, false, fifths)
       } else {

@@ -234,3 +234,85 @@ test('phraseToMusicXML: 3/4 time signature in XML', () => {
   const xml = phraseToMusicXML(phrase, score, 0)
   assert.ok(xml.includes('<beats>3</beats><beat-type>4</beat-type>'))
 })
+
+// ── triplet eighths ('8t') ──────────────────────────────────────────────────────
+// A triplet eighth renders as a normal eighth <type> grouped by a <time-modification>
+// 3-in-2; with DIVISIONS=12 each triplet eighth has integer <duration>4 (3 → 12 = quarter).
+test('phraseToMusicXML: triplet eighth → eighth type + 3:2 time-modification', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { midi: 60, duration: '8t', hand: 'right' },
+        { midi: 62, duration: '8t', hand: 'right' },
+        { midi: 64, duration: '8t', hand: 'right' },
+      ],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [1, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.ok(xml.includes('<type>eighth</type>'), 'triplet eighth uses the eighth note type')
+  assert.ok(xml.includes('<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>'))
+  assert.equal((xml.match(/<time-modification>/g) || []).length, 3, 'one time-modification per triplet note')
+})
+
+test('phraseToMusicXML: triplet eighth has integer duration 4 (DIVISIONS=12)', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{ id: 'm1', notes: [{ midi: 60, duration: '8t', hand: 'right' }] }],
+  }
+  const score = { ...simpleScore, timeSignature: [1, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.ok(xml.includes('<duration>4</duration>'))
+})
+
+test('phraseToMusicXML: non-triplet notes carry no time-modification (no regression)', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(!xml.includes('<time-modification>'))
+})
+
+test('phraseToMusicXML: divisions reflect DIVISIONS=12 (quarter=12)', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(xml.includes('<divisions>12</divisions>'))
+  // each plain quarter note → <duration>12</duration>
+  assert.ok(xml.includes('<duration>12</duration>'))
+})
+
+// ── rests (rest: true) ──────────────────────────────────────────────────────────
+test('phraseToMusicXML: rest note emits <rest/> instead of a pitch', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { duration: 'h.', hand: 'right', rest: true },
+      ],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.ok(xml.includes('<rest/>'))
+  assert.ok(!xml.includes('<pitch>'), 'a rest has no pitch')
+  // dotted half rest → half type + dot, integer duration 36 at DIVISIONS=12
+  assert.ok(xml.includes('<type>half</type>'))
+  assert.ok(xml.includes('<dot/>'))
+  assert.ok(xml.includes('<duration>36</duration>'))
+})
+
+test('phraseToMusicXML: rest counts toward grand-staff backup duration', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { duration: 'h.', hand: 'right', rest: true },
+        { midi: 38, duration: 'h.', hand: 'left' },
+      ],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  // backup must rewind the full RH rest (dotted half = 36 divisions) before the LH voice
+  assert.ok(xml.includes('<backup><duration>36</duration></backup>'))
+})
