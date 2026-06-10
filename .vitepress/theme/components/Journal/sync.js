@@ -59,6 +59,7 @@ export async function createOffer(onState) {
       const timer = setTimeout(() => {
         reject(new Error('Тайм-аут соединения (60 с). Проверьте, что оба устройства в одной сети.'))
       }, timeoutMs)
+      pc._syncTimer = timer  // so closeSync can cancel it on teardown
       dc.onopen = () => { clearTimeout(timer); resolve(dc) }
       dc.onerror = (e) => { clearTimeout(timer); reject(e) }
       dc.onmessage = (e) => onEnvelope(e.data)
@@ -92,6 +93,7 @@ export async function acceptOffer(offerBlobStr, onState) {
       const timer = setTimeout(() => {
         reject(new Error('Тайм-аут соединения (60 с). Проверьте, что оба устройства в одной сети.'))
       }, timeoutMs)
+      pc._syncTimer = timer  // so closeSync can cancel it on teardown
       pc.ondatachannel = (e) => {
         const dc = e.channel
         pc._syncDc = dc
@@ -114,6 +116,7 @@ export function sendEnvelope(dc, envelopeStr) {
 // safe to call on a half-open or already-closed pc, on modal close / unmount / lock.
 export function closeSync(pc) {
   if (!pc) return
+  if (pc._syncTimer) { clearTimeout(pc._syncTimer); pc._syncTimer = null }
   try {
     if (pc._syncDc && pc._syncDc.readyState !== 'closed') pc._syncDc.close()
   } catch { /* already gone */ }

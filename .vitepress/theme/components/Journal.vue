@@ -459,7 +459,6 @@ const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallba
 
 // Live connection handles (browser-only; null on SSR / before a role is chosen).
 let _syncPc = null
-let _syncDc = null
 let _syncConn = null              // object returned by createOffer / acceptOffer
 let _pendingSyncEnvelope = null   // last envelope received over the channel (for password retry)
 
@@ -481,7 +480,6 @@ const syncStageLabel = computed(() => {
 function syncReset() {
   closeSync(_syncPc)
   _syncPc = null
-  _syncDc = null
   _syncConn = null
   _pendingSyncEnvelope = null
   syncRole.value = null
@@ -526,7 +524,6 @@ function startWaiting() {
   syncStage.value = 'waiting'
   _syncConn.waitForChannel(onReceiveEnvelope)
     .then(async (dc) => {
-      _syncDc = dc
       syncStage.value = 'connected'
       try {
         // Fold in any in-progress today's text so it participates in the peer's merge.
@@ -724,7 +721,6 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onSyncEscape)
   closeSync(_syncPc)
   _syncPc = null
-  _syncDc = null
   _syncConn = null
   _key = null
   _salt = null
