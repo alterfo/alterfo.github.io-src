@@ -4,6 +4,7 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveE
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
+import { closeSync } from './Journal/sync.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -98,6 +99,10 @@ async function lockVault(reason = '', { flush = true } = {}) {
   // (re-keying an empty vault → permanent data loss). Also clears the typed
   // passwords from memory on auto-lock.
   closeChangePwd()
+  // Tear down any live P2P sync session too (same reasoning: the modal is teleported
+  // to <body>, and a half-open RTCPeerConnection must not survive a lock).
+  showSync.value = false
+  syncReset()
 }
 
 watch(phase, (p) => {
@@ -434,6 +439,73 @@ async function doChangePassword() {
   }
 }
 
+// ---- P2P sync (WebRTC, same-LAN, no server) ----
+// Live device↔device sync: only the encrypted envelope crosses the channel; the
+// receiver re-enters the journal password to decrypt the peer's envelope (its salt
+// differs, so the in-memory key can't). All RTCPeerConnection work happens inside
+// click handlers (Task 3/4) — nothing at module top level, so SSR stays safe.
+const showSync = ref(false)
+const syncRole = ref(null)        // null | 'offer' | 'answer'
+const syncStage = ref('idle')     // 'idle' | 'blob-ready' | 'waiting' | 'connected' | 'merged' | 'error'
+const syncBlob = ref('')          // our blob (offer/answer) to hand to the peer
+const syncPeerBlob = ref('')      // the peer's blob pasted in
+const syncPass = ref('')          // journal password — decrypts the peer's envelope
+const syncError = ref('')
+const syncResult = ref('')        // human summary after a merge
+
+// Live connection handles (browser-only; null on SSR / before a role is chosen).
+let _syncPc = null
+let _syncDc = null
+
+const syncStageLabel = computed(() => ({
+  'blob-ready': 'Код готов — передайте его на другое устройство.',
+  waiting: 'Ждём соединения…',
+  connected: 'Соединено — обмен данными…',
+  merged: 'Готово.',
+}[syncStage.value] || ''))
+
+// Tear down any live connection and clear all sync state. Idempotent — safe on
+// modal close, lock, and unmount (closeSync no-ops on a null/closed pc).
+function syncReset() {
+  closeSync(_syncPc)
+  _syncPc = null
+  _syncDc = null
+  syncRole.value = null
+  syncStage.value = 'idle'
+  syncBlob.value = ''
+  syncPeerBlob.value = ''
+  syncPass.value = ''
+  syncError.value = ''
+  syncResult.value = ''
+}
+
+function openSync() {
+  syncReset()
+  showSync.value = true
+}
+
+function closeSyncModal() {
+  showSync.value = false
+  syncReset()
+}
+
+// Pick initiator ('offer') or responder ('answer'). The actual createOffer/
+// acceptOffer wiring lands in Task 3 — here we only record the chosen role.
+function chooseSyncRole(role) {
+  syncError.value = ''
+  syncRole.value = role
+}
+
+// Close the modal on Escape (the change-password modal closes on backdrop only;
+// the spec asks for Escape too). Listener is attached only while the modal is open.
+function onSyncEscape(e) {
+  if (e.key === 'Escape') closeSyncModal()
+}
+watch(showSync, (open) => {
+  if (open) document.addEventListener('keydown', onSyncEscape)
+  else document.removeEventListener('keydown', onSyncEscape)
+})
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
@@ -486,6 +558,10 @@ onUnmounted(() => {
   clearTimeout(_statusTimer)
   clearTimeout(_idleTimer)
   IDLE_EVENTS.forEach(e => document.removeEventListener(e, resetIdleTimer))
+  document.removeEventListener('keydown', onSyncEscape)
+  closeSync(_syncPc)
+  _syncPc = null
+  _syncDc = null
   _key = null
   _salt = null
   _pendingImportStr = null
@@ -585,6 +661,7 @@ onUnmounted(() => {
           <!-- Sync -->
           <div class="journal-sync-section">
             <div class="journal-section-label">Синхронизация</div>
+            <button class="journal-btn journal-btn-sync" @click="openSync">📡 Синхронизация</button>
             <button class="journal-btn journal-btn-sync" @click="doExport">↑ Экспорт .journal</button>
             <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">↓ Импорт .journal</button>
             <div v-if="importPhase === 'idle' && importError" class="journal-error">{{ importError }}</div>
@@ -704,6 +781,50 @@ onUnmounted(() => {
             <button class="journal-btn journal-btn-primary" :disabled="cpLoading" @click="doChangePassword">
               {{ cpLoading ? 'Сохраняю…' : 'Сменить' }}
             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Sync modal (teleported to body) -->
+    <Teleport to="body">
+      <div v-if="showSync && phase === 'unlocked'" class="cp-backdrop" @click.self="closeSyncModal">
+        <div class="cp-modal sync-modal">
+          <h3>📡 Синхронизация устройств</h3>
+
+          <!-- Role selection -->
+          <template v-if="syncRole === null">
+            <p class="sync-desc">
+              Прямое P2P-соединение между вашими устройствами в одной сети&nbsp;— без серверов и облака.
+              Код передаётся на другое устройство копипастой: через мессенджер, AirDrop или файл.
+            </p>
+            <input
+              v-model="syncPass"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Пароль дневника"
+            />
+            <div class="sync-hint">
+              Нужен для расшифровки данных с другого устройства&nbsp;— тот же пароль, что и на нём.
+            </div>
+            <div class="sync-role-actions">
+              <button class="journal-btn journal-btn-primary" @click="chooseSyncRole('offer')">Создать код</button>
+              <button class="journal-btn journal-btn-sync sync-role-btn" @click="chooseSyncRole('answer')">
+                Ввести код с другого устройства
+              </button>
+            </div>
+          </template>
+
+          <!-- Offer / answer flow (wired in Task 3/4) -->
+          <template v-else>
+            <p v-if="syncStageLabel" class="sync-stage-line">{{ syncStageLabel }}</p>
+            <p v-if="syncResult" class="sync-result-line">{{ syncResult }}</p>
+          </template>
+
+          <p v-if="syncError" class="cp-error">{{ syncError }}</p>
+
+          <div class="cp-actions">
+            <button class="journal-btn journal-btn-cancel" @click="closeSyncModal">Закрыть</button>
           </div>
         </div>
       </div>
@@ -1333,5 +1454,45 @@ onUnmounted(() => {
 .cp-actions .journal-btn-primary:disabled {
   opacity: .5;
   cursor: default;
+}
+
+/* ══════════════════════════════════════════════
+   Sync modal (teleported to body; reuses cp-backdrop/cp-modal)
+══════════════════════════════════════════════ */
+.sync-modal { max-width: 440px; }
+.sync-modal h3 { text-align: left; }
+.sync-desc {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.sync-hint {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  margin: -4px 0 0;
+}
+.sync-role-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.sync-role-actions .journal-btn {
+  width: 100%;
+  text-align: center;
+  padding: 11px 14px;
+  font-size: 14px;
+}
+.sync-stage-line {
+  font-size: 13px;
+  color: #bbb;
+  margin: 4px 0 0;
+}
+.sync-result-line {
+  font-size: 13px;
+  color: #77cc77;
+  margin: 8px 0 0;
 }
 </style>
