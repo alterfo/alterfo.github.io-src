@@ -216,7 +216,60 @@ function dueClass(task) {
 }
 
 function openTask(id) {
-  selectedTaskId.value = id // detail panel opens on this in Task 10
+  selectedTaskId.value = id // opens the detail panel (Task 10)
+}
+
+// ---- Task detail panel (Task 10) ----
+
+// The task bound to the right-side detail drawer (null = closed). Tombstoned tasks never show.
+const selectedTask = computed(() => {
+  const t = state.tasks.find(t => t.id === selectedTaskId.value)
+  return t && !t.deleted ? t : null
+})
+
+// Field edit → updateTask (bumps updatedAt → the autosave watcher re-encrypts + persists).
+function editField(field, value) {
+  if (!selectedTask.value) return
+  updateTask(selectedTask.value.id, { [field]: value })
+}
+
+// Comma-separated text → deduped, trimmed tag array.
+function editTags(text) {
+  if (!selectedTask.value) return
+  const tags = [...new Set(text.split(',').map(s => s.trim()).filter(Boolean))]
+  updateTask(selectedTask.value.id, { tags })
+}
+
+function removeTag(tag) {
+  if (!selectedTask.value) return
+  updateTask(selectedTask.value.id, { tags: selectedTask.value.tags.filter(t => t !== tag) })
+}
+
+function closeDetail() {
+  selectedTaskId.value = null
+}
+
+// Delete = tombstone (deleted:true) so the removal propagates through the tasks.json merge.
+function deleteSelectedTask() {
+  const t = selectedTask.value
+  if (!t) return
+  if (confirm(`Удалить задачу «${t.title || 'без названия'}»?`)) {
+    updateTask(t.id, { deleted: true })
+    selectedTaskId.value = null
+  }
+}
+
+// Close on outside-click — but not when clicking a card/row (those switch the selection) or
+// inside the panel itself.
+function onDocMouseDown(e) {
+  if (!selectedTaskId.value) return
+  if (e.target.closest?.('.planner-detail')) return
+  if (e.target.closest?.('.planner-card, .planner-row')) return
+  closeDetail()
+}
+// Close on Esc.
+function onDocKeyDown(e) {
+  if (e.key === 'Escape' && selectedTaskId.value) closeDetail()
 }
 
 // ---- List view (Task 9) ----
@@ -315,12 +368,16 @@ const stopAutosave = watch(
 )
 
 onMounted(async () => {
+  document.addEventListener('mousedown', onDocMouseDown)
+  document.addEventListener('keydown', onDocKeyDown)
   const salt = await loadSalt()
   hasVault.value = salt != null
   phase.value = 'locked'
 })
 
 onUnmounted(() => {
+  document.removeEventListener('mousedown', onDocMouseDown)
+  document.removeEventListener('keydown', onDocKeyDown)
   stopAutosave()
   cryptoKey.value = null
 })
@@ -593,6 +650,76 @@ onUnmounted(() => {
           </div>
         </div>
       </main>
+
+      <!-- Task detail panel (Task 10) — right-side drawer, opens on card/row click -->
+      <aside v-if="selectedTask" class="planner-detail">
+        <header class="planner-detail-head">
+          <input
+            class="planner-detail-title"
+            :value="selectedTask.title"
+            placeholder="Без названия"
+            @input="editField('title', $event.target.value)"
+          />
+          <button class="planner-detail-close" title="Закрыть" @click="closeDetail">✕</button>
+        </header>
+
+        <div class="planner-detail-body">
+          <label class="planner-field">
+            <span class="planner-field-label">Статус</span>
+            <select :value="selectedTask.status" @change="editField('status', $event.target.value)">
+              <option v-for="s in STATUS" :key="s.id" :value="s.id">{{ s.label }}</option>
+            </select>
+          </label>
+
+          <label class="planner-field">
+            <span class="planner-field-label">Приоритет</span>
+            <select :value="selectedTask.priority" @change="editField('priority', $event.target.value)">
+              <option v-for="(p, id) in PRIORITY" :key="id" :value="id">{{ p.label }}</option>
+            </select>
+          </label>
+
+          <label class="planner-field">
+            <span class="planner-field-label">Срок</span>
+            <input
+              type="date"
+              :value="selectedTask.dueDate || ''"
+              @change="editField('dueDate', $event.target.value || null)"
+            />
+          </label>
+
+          <label class="planner-field">
+            <span class="planner-field-label">Теги</span>
+            <input
+              class="planner-detail-tags-input"
+              :value="selectedTask.tags.join(', ')"
+              placeholder="через запятую"
+              @change="editTags($event.target.value)"
+            />
+          </label>
+          <div v-if="selectedTask.tags.length" class="planner-detail-chips">
+            <span v-for="tag in selectedTask.tags" :key="tag" class="planner-detail-chip">
+              #{{ tag }}
+              <button class="planner-detail-chip-x" title="Убрать тег" @click="removeTag(tag)">✕</button>
+            </span>
+          </div>
+
+          <label class="planner-field planner-field-note">
+            <span class="planner-field-label">
+              Заметка <em class="planner-note-hint">(приватная, не попадает в tasks.json)</em>
+            </span>
+            <textarea
+              class="planner-detail-note"
+              :value="selectedTask.note"
+              placeholder="Личные заметки — шифруются и остаются только на устройстве."
+              @input="editField('note', $event.target.value)"
+            ></textarea>
+          </label>
+        </div>
+
+        <footer class="planner-detail-foot">
+          <button class="planner-detail-delete" @click="deleteSelectedTask">Удалить задачу</button>
+        </footer>
+      </aside>
     </div>
   </div>
 </template>
@@ -667,6 +794,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 240px 1fr;
   min-height: 0;
+  position: relative; /* anchors the absolute detail drawer */
 }
 
 /* Sidebar */
@@ -1056,4 +1184,158 @@ onUnmounted(() => {
   padding: 28px 10px;
   color: #94a3b8;
 }
+
+/* Task detail panel (right-side drawer) */
+.planner-detail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  background: #ffffff;
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, .12);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  z-index: 20;
+}
+.planner-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.planner-detail-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: transparent;
+  outline: none;
+}
+.planner-detail-title:hover { border-color: #e2e8f0; }
+.planner-detail-title:focus { border-color: #2563eb; background: #fff; }
+.planner-detail-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.planner-detail-close:hover { background: #f1f5f9; color: #334155; }
+
+.planner-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.planner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.planner-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.planner-note-hint {
+  font-style: normal;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #94a3b8;
+}
+.planner-field select,
+.planner-field input[type="date"],
+.planner-detail-tags-input {
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  outline: none;
+}
+.planner-field select:focus,
+.planner-field input:focus,
+.planner-detail-tags-input:focus { border-color: #2563eb; }
+
+.planner-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: -8px;
+}
+.planner-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 5px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+.planner-detail-chip-x {
+  background: none;
+  border: none;
+  color: #818cf8;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.planner-detail-chip-x:hover { color: #4338ca; }
+
+.planner-field-note { flex: 1; min-height: 0; }
+.planner-detail-note {
+  flex: 1;
+  min-height: 160px;
+  resize: vertical;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.planner-detail-note:focus { border-color: #2563eb; }
+
+.planner-detail-foot {
+  padding: 12px 14px;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.planner-detail-delete {
+  width: 100%;
+  padding: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  color: #dc2626;
+  font-size: 13px;
+  cursor: pointer;
+}
+.planner-detail-delete:hover { background: #fee2e2; }
 </style>
