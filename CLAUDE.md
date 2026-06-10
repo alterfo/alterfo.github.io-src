@@ -171,7 +171,7 @@ Client-side, encrypted project/task planner at `/planner`. Projects hold tasks w
 | File | Purpose |
 |------|---------|
 | `Planner/constants.js` | `STATUS` (array — preserves kanban column order), `PRIORITY` (label+color), `makeId()` (`randomUUID().slice(0,8)`), `todayISO(date)` (**local** `'YYYY-MM-DD'` from `Date` getters, NOT `toISOString()` which is UTC and shifts the day) |
-| `Planner/store.js` | Module-level `reactive({projects,tasks})` **singleton** (mirrors `IDEF0Editor/model.js`, NOT a `useXxx()` composable) + `selectedProjectId`/`selectedTaskId` refs; CRUD (`addProject`/`renameProject`/`removeProject`, `addTask`/`updateTask`/`removeTask`); `loadData`/`getSnapshot`/`resetState`. **Pure helpers** (take plain args, no reactivity → node-testable): `isOverdue`, `isDueToday`, `visibleTasks` (drops `deleted` tombstones; `tag` single / `tags` multi-OR / `priority` / `status` / `hideDone`), `sortTasks` (priority/status by rank not alphabetical, null `dueDate` sorts last), `projectForFile` (**strips `note`** — security), `mergeFromFile` / `mergeProjectsFromFile` (LWW from the plaintext file, never touch `note`; clamp unknown `priority`/`status` to safe defaults), `mergeVaultTasks` (full task-level LWW of a decrypted remote vault for **cross-tab sync** — note-aware, since the remote IS the encrypted vault) |
+| `Planner/store.js` | Module-level `reactive({projects,tasks})` **singleton** (mirrors `IDEF0Editor/model.js`, NOT a `useXxx()` composable) + `selectedProjectId`/`selectedTaskId` refs; CRUD (`addProject`/`renameProject`/`removeProject` (**tombstones** project + its tasks, never hard-splices), `addTask`/`updateTask`/`removeTask`); `loadData`/`getSnapshot`/`resetState`. **Pure helpers** (take plain args, no reactivity → node-testable): `isOverdue`, `isDueToday`, `visibleTasks` (drops `deleted` tombstones; `tag` single / `tags` multi-OR / `priority` / `status` / `hideDone`), `sortTasks` (priority/status by rank not alphabetical, null `dueDate` sorts last), `projectForFile` (**strips `note`** — security), `mergeFromFile` / `mergeProjectsFromFile` (LWW from the plaintext file, never touch `note`; clamp unknown `priority`/`status` to safe defaults; project deletion is **monotonic** — a file can tombstone but never resurrect a known project), `mergeVaultTasks` (full task-level LWW of a decrypted remote vault for **cross-tab sync** — note-aware, since the remote IS the encrypted vault) |
 | `Planner/db.js` | Encrypted IndexedDB `planner` v1, three stores (`keyPath:'id'`): `vault` (`{id:'data',env}`), `meta` (salt as plain array), `fs` (dir handle). `loadSalt`/`saveSalt`, `writeVault` (**awaited, non-debounced** — used by the create-vault guard so the record exists before the screen unlocks, closing the wrong-passphrase-on-empty-vault race), `saveVault` (**debounced 300 ms** → `encryptJSON`→`packEnvelope`→put + `localStorage` cross-tab ping), `loadVault` (wrong key → `decryptJSON` rejects → "wrong passphrase"), `saveDirHandle`/`loadDirHandle` (handle stored **directly** — structured-cloneable, do NOT serialize), `initCrossTabSync` |
 | `Planner/fsbridge.js` | File System Access API. `fsSupported` (Chrome/Edge only), `pickDirectory`/`ensurePermission` (**must run inside a click gesture**), `checkPermission` (no prompt — safe on start), `writeTasksJson` (atomic via `createWritable`→`close`), `readTasksJson` (→ `null` if missing/invalid). No file-watch API → re-read on window `focus` |
 | `Planner/exporter.js` | `exportEnvelope` → download `.planner` envelope file; `readEnvelopeFile` → string (mirrors `Journal/exporter.js`) |
@@ -183,12 +183,14 @@ Identical to the journal: `PBKDF2(passphrase, salt=16 bytes, iterations=600000, 
 ### Data model
 
 ```js
-Project = { id, name, color, createdAt }
+Project = { id, name, color, deleted, createdAt }
 Task = { id, projectId, title, status, priority, dueDate, tags, note, deleted, createdAt, updatedAt }
 // status: 'todo' | 'in-progress' | 'done'   priority: 'low' | 'medium' | 'high'
 // dueDate: 'YYYY-MM-DD' | null   tags: string[]   note: PRIVATE (encrypted only, NEVER in tasks.json)
 // deleted: tombstone   timestamps: epoch-ms numbers
 ```
+
+`removeProject` **tombstones** (sets `deleted:true` on the project AND bumps `deleted:true` on its tasks) — it never hard-splices. A hard delete is incompatible with the "absence ≠ deletion" merge model: a cross-tab sync or a stale `tasks.json` would re-add the project/tasks as "unknown ids" and silently resurrect them. The UI renders `liveProjects` (`state.projects.filter(p => !p.deleted)`), so tombstoned projects vanish from the sidebar/filters while still propagating the deletion.
 
 ### tasks.json contract (agent-editable on disk — read this before editing tasks)
 
@@ -197,7 +199,7 @@ Task = { id, projectId, title, status, priority, dueDate, tags, note, deleted, c
 ```json
 {
   "_readme": "Edit tasks below. To signal a change set updatedAt to Date.now() (epoch ms). Set deleted:true to remove. Notes are private and not shown here.",
-  "projects": [{ "id": "...", "name": "...", "color": "...", "createdAt": 0 }],
+  "projects": [{ "id": "...", "name": "...", "color": "...", "deleted": false, "createdAt": 0 }],
   "tasks": [{ "id": "...", "projectId": "...", "title": "...", "status": "todo", "priority": "high", "dueDate": "2026-06-15", "tags": ["seo"], "deleted": false, "createdAt": 0, "updatedAt": 0 }]
 }
 ```
@@ -207,7 +209,7 @@ Task = { id, projectId, title, status, priority, dueDate, tags, note, deleted, c
 - To signal an edit, **bump `updatedAt` to `Date.now()`** (epoch ms). On the app's next window `focus`, `mergeFromFile` runs single-user LWW: a file task wins **only if `updatedAt` is strictly greater** than the app's copy; equal-or-older file versions are ignored.
 - A **new** task object (id the app hasn't seen) is added with `note:''`.
 - To **delete**, set `deleted:true` (and bump `updatedAt`) — a tombstone. **Absence ≠ deletion**: a task missing from the file is KEPT (no data loss), so removing a line never deletes anything.
-- Project name/color edits flow back via `mergeProjectsFromFile` (file is source of truth for known ids; unknown ids added; locals absent from the file kept).
+- Project name/color edits flow back via `mergeProjectsFromFile` (file is source of truth for known ids; unknown ids added; locals absent from the file kept). Project **deletion is monotonic**: a file `deleted:true` tombstones a known project, but a file can never un-delete a local tombstone (projects carry no `updatedAt`/LWW, so "deletion wins" prevents a stale file from resurrecting a deleted project). There is no project-restore UI.
 
 ### Page + registration
 

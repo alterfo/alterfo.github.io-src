@@ -191,17 +191,25 @@ async function reconnectFolder() {
 }
 
 // Read tasks.json and LWW-merge agent edits back into state. No-op when not actively synced.
+// Returns true iff the merge actually changed local state. The change check matters: without it
+// every window focus would re-encrypt the vault AND rewrite tasks.json even when nothing was
+// edited on disk — needless churn that also keeps re-touching the file an agent may be watching.
 async function pullFromFile() {
-  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
+  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return false
   try {
     const file = await readTasksJson(dirHandle.value)
-    if (!file) return
+    if (!file) return false
     const tasks = mergeFromFile(state.tasks, file.tasks || [])
     const projects = mergeProjectsFromFile(state.projects, file.projects || [])
+    if (JSON.stringify({ projects, tasks }) === JSON.stringify({ projects: state.projects, tasks: state.tasks })) {
+      return false // nothing changed on disk → leave state (and the vault) untouched
+    }
     loadData({ projects, tasks }) // mutates state → autosave watcher re-encrypts the vault
+    return true
   } catch (e) {
     console.warn('[planner] pullFromFile failed:', e)
     fsStatus.value = 'reconnect' // permission likely lapsed
+    return false
   }
 }
 
@@ -226,14 +234,27 @@ function scheduleFsWrite() {
 }
 
 // No file-watch API → re-read tasks.json on window focus and merge (fsbridge.js gotcha #3).
+// Only write the reconciled file back when the pull actually merged a change — a plain focus
+// with no on-disk edits must not rewrite tasks.json (which would clobber an agent mid-write).
 async function onWindowFocus() {
   if (fsStatus.value !== 'synced' || !cryptoKey.value) return
-  await pullFromFile()
-  await writeTasksNow()
+  if (await pullFromFile()) await writeTasksNow()
 }
 
 // Colors cycled through for newly created projects.
 const PROJECT_PALETTE = ['#1accff', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
+
+// Non-tombstoned projects — the only ones shown in the sidebar / filters. Deleted projects are
+// kept in `state.projects` as tombstones (so the deletion propagates through the merges) but
+// must never render.
+const liveProjects = computed(() => state.projects.filter(p => !p.deleted))
+
+// If the selected project gets tombstoned (locally or via a cross-tab / file merge), drop the
+// selection so the main pane never points at a hidden project.
+watch(
+  () => state.projects.find(p => p.id === selectedProjectId.value)?.deleted,
+  isDeleted => { if (selectedProjectId.value && isDeleted) selectedProjectId.value = null }
+)
 
 // Distinct tags across the selected project's live tasks (drives the filter chips).
 const allTags = computed(() => {
@@ -255,7 +276,7 @@ function selectProject(id) {
 }
 
 function newProject() {
-  const color = PROJECT_PALETTE[state.projects.length % PROJECT_PALETTE.length]
+  const color = PROJECT_PALETTE[liveProjects.value.length % PROJECT_PALETTE.length]
   const p = addProject('Новый проект', color)
   selectedProjectId.value = p.id
   startRename(p.id, p.name)
@@ -668,7 +689,7 @@ onUnmounted(() => {
 
         <div class="planner-project-list">
           <div
-            v-for="p in state.projects"
+            v-for="p in liveProjects"
             :key="p.id"
             class="planner-project"
             :class="{ active: selectedProjectId === p.id }"
@@ -696,7 +717,7 @@ onUnmounted(() => {
               >✕</button>
             </template>
           </div>
-          <p v-if="!state.projects.length" class="planner-sidebar-empty">Нет проектов</p>
+          <p v-if="!liveProjects.length" class="planner-sidebar-empty">Нет проектов</p>
         </div>
 
         <button class="planner-new-project" @click="newProject">+ Новый проект</button>
@@ -832,7 +853,7 @@ onUnmounted(() => {
             <div class="planner-list-filters">
               <select v-model="listProjectFilter" class="planner-filter-select">
                 <option :value="null">Все проекты</option>
-                <option v-for="p in state.projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+                <option v-for="p in liveProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
               <select v-model="listPriorityFilter" class="planner-filter-select">
                 <option :value="null">Любой приоритет</option>

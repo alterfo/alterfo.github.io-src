@@ -52,6 +52,7 @@ describe('addProject / addTask defaults', () => {
     assert.equal(p.name, 'Site')
     assert.equal(p.color, '#1accff')
     assert.ok(p.id)
+    assert.equal(p.deleted, false)
     assert.equal(typeof p.createdAt, 'number')
     assert.equal(state.projects.length, 1)
   })
@@ -97,15 +98,21 @@ describe('removeTask / removeProject', () => {
     assert.equal(state.tasks.length, 0)
   })
 
-  it('removeProject drops the project and its tasks', () => {
+  it('removeProject tombstones the project and its tasks (no hard splice → no resurrection)', () => {
     const p = addProject('Site', '#fff')
-    addTask(p.id, 'a')
-    addTask(p.id, 'b')
-    addTask('other', 'keep me')
+    const a = addTask(p.id, 'a')
+    const b = addTask(p.id, 'b')
+    const other = addTask('other', 'keep me')
     removeProject(p.id)
-    assert.equal(state.projects.length, 0)
-    assert.equal(state.tasks.length, 1)
-    assert.equal(state.tasks[0].projectId, 'other')
+    // The project stays in the array as a tombstone so the deletion can propagate through the
+    // merges, but it is flagged deleted (and filtered out of the UI via liveProjects).
+    assert.equal(state.projects.length, 1)
+    assert.equal(state.projects[0].deleted, true)
+    // Its tasks are tombstoned with a bumped updatedAt (so the task LWW merge adopts the delete).
+    assert.equal(state.tasks.find(t => t.id === a.id).deleted, true)
+    assert.equal(state.tasks.find(t => t.id === b.id).deleted, true)
+    // A task in a different project is untouched.
+    assert.equal(state.tasks.find(t => t.id === other.id).deleted, false)
   })
 
   it('renameProject updates the name', () => {
@@ -310,13 +317,14 @@ describe('projectForFile (security: strips note)', () => {
     assert.equal(JSON.stringify(file).includes('TOP SECRET'), false)
   })
 
-  it('projects carry only id/name/color/createdAt', () => {
+  it('projects carry only id/name/color/deleted/createdAt (no extra fields)', () => {
     const snap = {
-      projects: [{ id: 'p1', name: 'Site', color: '#fff', createdAt: 1, extra: 'x' }],
+      projects: [{ id: 'p1', name: 'Site', color: '#fff', deleted: false, createdAt: 1, extra: 'x' }],
       tasks: [],
     }
     const file = projectForFile(snap)
-    assert.deepEqual(Object.keys(file.projects[0]).sort(), ['color', 'createdAt', 'id', 'name'])
+    assert.deepEqual(Object.keys(file.projects[0]).sort(), ['color', 'createdAt', 'deleted', 'id', 'name'])
+    assert.equal(file.projects[0].deleted, false)
   })
 })
 
@@ -549,6 +557,55 @@ describe('mergeProjectsFromFile', () => {
     const file = [null, { name: 'no id' }, { id: 'p2', name: 'B', color: '#000', createdAt: 2 }]
     const merged = mergeProjectsFromFile(local, file)
     assert.deepEqual(merged.map(p => p.id).sort(), ['p1', 'p2'])
+  })
+
+  it('a file deleted:true tombstones a known local project', () => {
+    const local = [{ id: 'p1', name: 'A', color: '#fff', deleted: false, createdAt: 1 }]
+    const file = [{ id: 'p1', name: 'A', color: '#fff', deleted: true, createdAt: 1 }]
+    const merged = mergeProjectsFromFile(local, file)
+    assert.equal(merged.find(p => p.id === 'p1').deleted, true)
+  })
+
+  it('deletion is MONOTONIC: a stale file (deleted:false) can NOT resurrect a local tombstone', () => {
+    const local = [{ id: 'p1', name: 'A', color: '#fff', deleted: true, createdAt: 1 }]
+    const file = [{ id: 'p1', name: 'A', color: '#fff', deleted: false, createdAt: 1 }]
+    const merged = mergeProjectsFromFile(local, file)
+    assert.equal(merged.find(p => p.id === 'p1').deleted, true) // stays deleted
+  })
+
+  it('a known project absent from the file keeps its local tombstone (absence ≠ restoration)', () => {
+    const local = [{ id: 'p1', name: 'A', color: '#fff', deleted: true, createdAt: 1 }]
+    const merged = mergeProjectsFromFile(local, [])
+    assert.equal(merged.find(p => p.id === 'p1').deleted, true)
+  })
+})
+
+// A project deleted in one tab must NOT come back when the other tab merges in the deleting
+// tab's snapshot (the bug both review passes flagged: hard-delete + "absence ≠ deletion" merges
+// silently resurrected the project and its tasks). With tombstones the deletion survives.
+describe('cross-tab / file project deletion does not resurrect', () => {
+  it('deleting a project + tombstoning its tasks survives a round-trip merge', () => {
+    // Tab A starts with a project and two tasks, then deletes the project.
+    resetState()
+    const p = addProject('Site', '#fff')
+    const a = addTask(p.id, 'a')
+    addTask(p.id, 'b')
+    removeProject(p.id)
+    const snapshotA = getSnapshot() // what Tab A persists to the shared vault / writes to disk
+
+    // Tab B still has the project + tasks LIVE; it merges Tab A's snapshot in.
+    const localProjects = [{ id: p.id, name: 'Site', color: '#fff', deleted: false, createdAt: 1 }]
+    const localTasks = [
+      task({ id: a.id, projectId: p.id, deleted: false, updatedAt: 1 }),
+      task({ id: 'b2', projectId: p.id, deleted: false, updatedAt: 1 }),
+    ]
+    const mergedProjects = mergeProjectsFromFile(localProjects, snapshotA.projects)
+    const mergedTasks = mergeVaultTasks(localTasks, snapshotA.tasks)
+
+    // The project is now a tombstone in Tab B (filtered out of the UI), not a live project.
+    assert.equal(mergedProjects.find(x => x.id === p.id).deleted, true)
+    // Its tasks that exist in both are tombstoned by the newer updatedAt from Tab A.
+    assert.equal(mergedTasks.find(t => t.id === a.id).deleted, true)
   })
 })
 

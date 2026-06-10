@@ -14,7 +14,7 @@ export const selectedTaskId = ref(null)
 // ---- Project CRUD ----
 
 export function addProject(name, color) {
-  const project = { id: makeId(), name, color, createdAt: Date.now() }
+  const project = { id: makeId(), name, color, deleted: false, createdAt: Date.now() }
   state.projects.push(project)
   return project
 }
@@ -25,10 +25,19 @@ export function renameProject(id, name) {
 }
 
 export function removeProject(id) {
-  const idx = state.projects.findIndex(p => p.id === id)
-  if (idx !== -1) state.projects.splice(idx, 1)
-  // Drop the project's tasks too (no orphans).
-  state.tasks = state.tasks.filter(t => t.projectId !== id)
+  // Tombstone (deleted:true) rather than hard-splice. A hard delete is incompatible with the
+  // "absence ≠ deletion" merge model: a cross-tab sync or a stale tasks.json would re-add the
+  // project (and its tasks) as "unknown ids", silently resurrecting it. The project tombstone
+  // propagates monotonically through mergeProjectsFromFile; the tasks tombstone via LWW.
+  const p = state.projects.find(p => p.id === id)
+  if (p) p.deleted = true
+  const now = Date.now()
+  for (const t of state.tasks) {
+    if (t.projectId === id && !t.deleted) {
+      t.deleted = true
+      t.updatedAt = now
+    }
+  }
   if (selectedProjectId.value === id) selectedProjectId.value = null
 }
 
@@ -147,6 +156,7 @@ export function projectForFile(state) {
       id: p.id,
       name: p.name,
       color: p.color,
+      deleted: p.deleted,
       createdAt: p.createdAt,
     })),
     tasks: (state.tasks || []).map(t => ({
@@ -218,6 +228,10 @@ export function mergeFromFile(localTasks, fileTasks) {
 //   - file project with unknown id → added (agent created it)
 //   - file project with known id   → its name/color are taken as the on-disk source of truth
 //     (so an agent's rename / recolor on disk flows back in)
+//   - deletion is MONOTONIC: a file's deleted:true tombstones a known project, but a file
+//     can never un-delete a local tombstone. Projects have no updatedAt, so without this
+//     "deletion wins" rule a stale tasks.json (written before the delete landed) or a
+//     cross-tab merge would resurrect a deleted project. There is no project-restore UI.
 //   - local projects absent from the file are KEPT (absence ≠ deletion)
 export function mergeProjectsFromFile(localProjects, fileProjects) {
   const merged = (localProjects || []).map(p => ({ ...p }))
@@ -231,6 +245,7 @@ export function mergeProjectsFromFile(localProjects, fileProjects) {
         id: f.id,
         name: f.name ?? '',
         color: f.color ?? '#94a3b8',
+        deleted: f.deleted === true,
         createdAt: f.createdAt ?? Date.now(),
       }
       merged.push(project)
@@ -238,6 +253,7 @@ export function mergeProjectsFromFile(localProjects, fileProjects) {
     } else {
       if (f.name != null) l.name = f.name
       if (f.color != null) l.color = f.color
+      if (f.deleted === true) l.deleted = true // monotonic — never resurrect a tombstone
     }
   }
   return merged
