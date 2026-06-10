@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { phraseToMusicXML, midiPitchXML, FIFTHS_MAP, lyricXML } from './musicxml.js'
+import { phraseToMusicXML, midiPitchXML, FIFTHS_MAP, lyricXML, computeBeamSpecs, beamGroupDiv } from './musicxml.js'
 
 // ── midiPitchXML ──────────────────────────────────────────────────────────────
 test('midiPitchXML: C4 (60) in C major', () =>
@@ -277,6 +277,100 @@ test('phraseToMusicXML: divisions reflect DIVISIONS=12 (quarter=12)', () => {
   assert.ok(xml.includes('<divisions>12</divisions>'))
   // each plain quarter note → <duration>12</duration>
   assert.ok(xml.includes('<duration>12</duration>'))
+})
+
+// ── beams (computeBeamSpecs + XML emission) ─────────────────────────────────────
+
+test('beamGroupDiv: quarter beat for simple meters, dotted quarter for compound', () => {
+  assert.equal(beamGroupDiv(4, 4), 12)
+  assert.equal(beamGroupDiv(3, 4), 12)
+  assert.equal(beamGroupDiv(2, 2), 24)
+  assert.equal(beamGroupDiv(6, 8), 18)
+})
+
+test('computeBeamSpecs: triplet eighths beam in threes with tuplet start/stop', () => {
+  const notes = Array.from({ length: 9 }, (_, i) => ({ midi: 50 + i, duration: '8t', hand: 'left' }))
+  const specs = computeBeamSpecs(notes, 12)
+  assert.deepEqual(specs.map(s => s.beam),
+    ['begin', 'continue', 'end', 'begin', 'continue', 'end', 'begin', 'continue', 'end'])
+  assert.deepEqual(specs.map(s => s.tuplet ?? null),
+    ['start', null, 'stop', 'start', null, 'stop', 'start', null, 'stop'])
+})
+
+test('computeBeamSpecs: plain eighths group by beat boundary', () => {
+  // four eighths in 2/4 → two beat groups of two
+  const notes = Array.from({ length: 4 }, (_, i) => ({ midi: 60 + i, duration: '8', hand: 'right' }))
+  const specs = computeBeamSpecs(notes, 12)
+  assert.deepEqual(specs.map(s => s.beam), ['begin', 'end', 'begin', 'end'])
+})
+
+test('computeBeamSpecs: quarters get no beams; a rest breaks a group', () => {
+  assert.deepEqual(
+    computeBeamSpecs([{ midi: 60, duration: 'q' }, { midi: 62, duration: 'q' }], 12),
+    [null, null])
+  // eighth | eighth-rest | eighth eighth → lone first eighth keeps its flag,
+  // the pair after the rest beams together
+  const specs = computeBeamSpecs([
+    { midi: 60, duration: '8' },
+    { duration: '8', rest: true },
+    { midi: 64, duration: '8' },
+    { midi: 65, duration: '8' },
+  ], 12)
+  assert.deepEqual(specs.map(s => s?.beam ?? null), [null, null, 'begin', 'end'])
+})
+
+test('computeBeamSpecs: dotted eighth + 16th beam together, 16th gets a level-2 hook', () => {
+  const specs = computeBeamSpecs([
+    { midi: 60, duration: '8.' },
+    { midi: 62, duration: '16' },
+  ], 12)
+  assert.deepEqual(specs.map(s => s.beam), ['begin', 'end'])
+  assert.equal(specs[0].beam2, undefined)
+  assert.equal(specs[1].beam2, 'backward hook')
+})
+
+test('computeBeamSpecs: run of 16ths carries both beam levels', () => {
+  const specs = computeBeamSpecs(
+    Array.from({ length: 4 }, (_, i) => ({ midi: 60 + i, duration: '16' })), 12)
+  assert.deepEqual(specs.map(s => s.beam), ['begin', 'continue', 'continue', 'end'])
+  assert.deepEqual(specs.map(s => s.beam2), ['begin', 'continue', 'continue', 'end'])
+})
+
+test('phraseToMusicXML: triplet measure emits beam + tuplet elements', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: Array.from({ length: 9 }, (_, i) => ({ midi: 50 + i, duration: '8t', hand: 'left' })),
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [3, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.equal((xml.match(/<beam number="1">begin<\/beam>/g) || []).length, 3)
+  assert.equal((xml.match(/<beam number="1">end<\/beam>/g) || []).length, 3)
+  assert.equal((xml.match(/<tuplet number="1" type="start"\/>/g) || []).length, 3)
+  assert.equal((xml.match(/<tuplet number="1" type="stop"\/>/g) || []).length, 3)
+})
+
+test('phraseToMusicXML: beams attach to the principal chord note only', () => {
+  const phrase = {
+    id: 'p1',
+    measures: [{
+      id: 'm1',
+      notes: [
+        { midi: [60, 64], duration: '8', hand: 'right' },
+        { midi: [62, 65], duration: '8', hand: 'right' },
+      ],
+    }],
+  }
+  const score = { ...simpleScore, timeSignature: [1, 4], phrases: [phrase] }
+  const xml = phraseToMusicXML(phrase, score, 0)
+  assert.equal((xml.match(/<beam /g) || []).length, 2, 'one beam per chord event, not per chord tone')
+})
+
+test('phraseToMusicXML: quarter notes emit no beam elements (no regression)', () => {
+  const xml = phraseToMusicXML(simpleSinglePhrase, simpleScore, 0)
+  assert.ok(!xml.includes('<beam'))
 })
 
 // ── rests (rest: true) ──────────────────────────────────────────────────────────

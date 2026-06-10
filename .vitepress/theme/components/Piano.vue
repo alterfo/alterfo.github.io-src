@@ -78,7 +78,7 @@ async function onImportFile(event) {
   try {
     if (name.endsWith('.mxl')) {
       // .mxl is a zip container, not text — we only parse uncompressed MusicXML.
-      throw new Error('сжатый MusicXML (.mxl) не поддерживается — экспортируйте несжатый .xml')
+      throw new Error('сжатый MusicXML (.mxl) не поддерживается — экспортируйте несжатый .xml')
     } else if (name.endsWith('.xml')) {
       const { parseMusicXML } = await import('./Piano/importer/musicxml.js')
       addImportedScore(parseMusicXML(await file.text()))
@@ -401,6 +401,11 @@ const activeKey = computed(() =>
 const scaleKeys = computed(() => activeKey.value ? getScaleKeys(activeKey.value) : null)
 
 const expectedNote = computed(() => {
+  // Touch the cursor refs so this recomputes as the cursor advances. `_state` is a
+  // plain (non-reactive) object, so without these reads the only reactive dependency
+  // is `isComplete` — the computed would cache the value from the first render (when
+  // `_state` was still null → null) and the green "next note" key would never light up.
+  void phraseIdx.value; void measureIdx.value; void noteIdx.value
   if (!_state || isComplete.value) return null
   const note = getCurrentNote(_state)
   if (!note) return null
@@ -733,17 +738,17 @@ onUnmounted(() => {
 
       <h3>Подключение</h3>
       <ul>
-        <li>Подключи MIDI-клавиатуру — браузер подхватит автоматически (Web MIDI API)</li>
+        <li>Подключи MIDI-клавиатуру — браузер подхватит автоматически (Web MIDI API)</li>
         <li>Firefox: включи <code>dom.webmidi.enabled</code> в about:config</li>
         <li>Safari: Web MIDI не поддерживается</li>
       </ul>
 
       <h3>Цветовая подсказка (клавиатура)</h3>
       <ul>
-        <li>🟢 <strong>Зелёная клавиша</strong> — следующая ожидаемая нота</li>
-        <li>🔵 <strong>Синяя клавиша</strong> — нажатая тобой нота</li>
-        <li>⬜ <strong>Серая клавиша</strong> — нота не из текущей тональности</li>
-        <li>🔴 <strong>Красная нота</strong> на нотном стане — неверная нота (повтор такта)</li>
+        <li>🟢 <strong>Зелёная клавиша</strong> — следующая ожидаемая нота</li>
+        <li>🔵 <strong>Синяя клавиша</strong> — нажатая тобой нота</li>
+        <li>⬜ <strong>Серая клавиша</strong> — нота не из текущей тональности</li>
+        <li>🔴 <strong>Красная нота</strong> на нотном стане — неверная нота (повтор такта)</li>
       </ul>
 
       <h3>Режимы обучения</h3>
@@ -752,17 +757,17 @@ onUnmounted(() => {
           <tr><th>Режим</th><th>Как работает</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>Нота</strong></td><td>Нота за нотой — ошибка возвращает к началу текущего такта</td></tr>
-          <tr><td><strong>Такт</strong></td><td>Такт за тактом — ошибка возвращает к началу текущей фразы</td></tr>
+          <tr><td><strong>Нота</strong></td><td>Нота за нотой — ошибка возвращает к началу текущего такта</td></tr>
+          <tr><td><strong>Такт</strong></td><td>Такт за тактом — ошибка возвращает к началу текущей фразы</td></tr>
         </tbody>
       </table>
 
       <h3>Управление</h3>
       <ul>
-        <li><strong>Темп</strong> — 50% / 75% / 100% от оригинального</li>
-        <li><strong>HD звук</strong> — загружает сэмплы реального рояля (~15 MB)</li>
-        <li><strong>Повтор</strong> — начать текущий такт/фразу заново</li>
-        <li><strong>Метроном</strong> — визуальные доли такта</li>
+        <li><strong>Темп</strong> — 50% / 75% / 100% от оригинального</li>
+        <li><strong>HD звук</strong> — загружает сэмплы реального рояля (~15 MB)</li>
+        <li><strong>Повтор</strong> — начать текущий такт/фразу заново</li>
+        <li><strong>Метроном</strong> — визуальные доли такта</li>
       </ul>
     </HelpModal>
 

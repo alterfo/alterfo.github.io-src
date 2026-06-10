@@ -38,6 +38,18 @@ async function getOSMD(container) {
   })
   _osmd.zoom = 1.0
 
+  // Beaming comes from explicit <beam> elements in the generated MusicXML
+  // (computeBeamSpecs in musicxml.js) — triplets group in threes, plain eighths by
+  // beat. OSMD's AutoBeamNotes is deliberately NOT enabled: it ignores tuplet
+  // boundaries and produces crooked two-note beams across the prelude's arpeggios.
+
+  // Spread crowded passages evenly. Dense LH runs under sustained RH chords (e.g. the
+  // Rachmaninoff prelude's triplet-eighth arpeggios) otherwise bunch up where VexFlow
+  // aligns them to the wide RH note heads. Larger min-distance + voice multiplier gives
+  // each note breathing room; the stave scrolls horizontally so extra width is fine.
+  _osmd.rules.MinNoteDistance = 4
+  _osmd.rules.VoiceSpacingMultiplierVexflow = 1.1
+
   return _osmd
 }
 
