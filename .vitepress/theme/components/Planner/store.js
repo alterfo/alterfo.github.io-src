@@ -201,6 +201,36 @@ export function mergeFromFile(localTasks, fileTasks) {
   return merged
 }
 
+// Merge the file's projects back into local projects (kept deliberately simple — projects
+// carry no updatedAt, so there is no LWW). Returns a NEW array; never mutates inputs.
+//   - file project with unknown id → added (agent created it)
+//   - file project with known id   → its name/color are taken as the on-disk source of truth
+//     (so an agent's rename / recolor on disk flows back in)
+//   - local projects absent from the file are KEPT (absence ≠ deletion)
+export function mergeProjectsFromFile(localProjects, fileProjects) {
+  const merged = (localProjects || []).map(p => ({ ...p }))
+  const byId = new Map(merged.map(p => [p.id, p]))
+
+  for (const f of fileProjects || []) {
+    if (!f || !f.id) continue
+    const l = byId.get(f.id)
+    if (!l) {
+      const project = {
+        id: f.id,
+        name: f.name ?? '',
+        color: f.color ?? '#94a3b8',
+        createdAt: f.createdAt ?? Date.now(),
+      }
+      merged.push(project)
+      byId.set(project.id, project)
+    } else {
+      if (f.name != null) l.name = f.name
+      if (f.color != null) l.color = f.color
+    }
+  }
+  return merged
+}
+
 // ---- Persistence glue ----
 
 export function loadData(data) {

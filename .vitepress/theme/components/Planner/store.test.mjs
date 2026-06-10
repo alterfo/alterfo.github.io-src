@@ -14,6 +14,7 @@ import {
   sortTasks,
   projectForFile,
   mergeFromFile,
+  mergeProjectsFromFile,
   loadData,
   getSnapshot,
   resetState,
@@ -356,6 +357,58 @@ describe('mergeFromFile (LWW, note-safe)', () => {
     const file = [{ id: 'a', dueDate: null, updatedAt: 200 }]
     const merged = mergeFromFile(local, file)
     assert.equal(merged.find(t => t.id === 'a').dueDate, null)
+  })
+})
+
+describe('mergeProjectsFromFile', () => {
+  it('adds a project that exists only in the file', () => {
+    const local = [{ id: 'p1', name: 'Site', color: '#fff', createdAt: 1 }]
+    const file = [{ id: 'p2', name: 'Agent project', color: '#000', createdAt: 2 }]
+    const merged = mergeProjectsFromFile(local, file)
+    assert.equal(merged.length, 2)
+    const added = merged.find(p => p.id === 'p2')
+    assert.equal(added.name, 'Agent project')
+    assert.equal(added.color, '#000')
+  })
+
+  it('takes the file name/color as the source of truth for a known project', () => {
+    const local = [{ id: 'p1', name: 'Old', color: '#fff', createdAt: 1 }]
+    const file = [{ id: 'p1', name: 'Renamed', color: '#123', createdAt: 1 }]
+    const merged = mergeProjectsFromFile(local, file)
+    const p = merged.find(x => x.id === 'p1')
+    assert.equal(p.name, 'Renamed')
+    assert.equal(p.color, '#123')
+  })
+
+  it('keeps a local project absent from the file (absence ≠ deletion)', () => {
+    const local = [
+      { id: 'p1', name: 'A', color: '#fff', createdAt: 1 },
+      { id: 'p2', name: 'B', color: '#000', createdAt: 1 },
+    ]
+    const file = [{ id: 'p1', name: 'A', color: '#fff', createdAt: 1 }]
+    const merged = mergeProjectsFromFile(local, file)
+    assert.equal(merged.length, 2)
+    assert.ok(merged.find(p => p.id === 'p2'))
+  })
+
+  it('does not mutate the input array or its projects', () => {
+    const original = { id: 'p1', name: 'Old', color: '#fff', createdAt: 1 }
+    const local = [original]
+    mergeProjectsFromFile(local, [{ id: 'p1', name: 'New', color: '#000', createdAt: 1 }])
+    assert.equal(original.name, 'Old')
+    assert.equal(original.color, '#fff')
+    assert.equal(local.length, 1)
+  })
+
+  it('is idempotent', () => {
+    const local = [{ id: 'p1', name: 'A', color: '#fff', createdAt: 1 }]
+    const file = [
+      { id: 'p1', name: 'A2', color: '#111', createdAt: 1 },
+      { id: 'p2', name: 'B', color: '#222', createdAt: 2 },
+    ]
+    const once = mergeProjectsFromFile(local, file)
+    const twice = mergeProjectsFromFile(once, file)
+    assert.deepEqual(twice, once)
   })
 })
 

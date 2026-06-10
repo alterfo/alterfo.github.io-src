@@ -11,18 +11,28 @@
 // is wired and testable end-to-end.
 
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { deriveKey, randomBytes } from './crypto.js'
-import { loadSalt, saveSalt, loadVault, saveVault } from './Planner/db.js'
+import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
+import { loadSalt, saveSalt, loadVault, saveVault, saveDirHandle, loadDirHandle } from './Planner/db.js'
 import { STATUS, PRIORITY } from './Planner/constants.js'
+import {
+  fsSupported, pickDirectory, checkPermission, ensurePermission, writeTasksJson, readTasksJson,
+} from './Planner/fsbridge.js'
+import { exportEnvelope, readEnvelopeFile } from './Planner/exporter.js'
 import {
   state, loadData, getSnapshot, resetState,
   selectedProjectId, selectedTaskId,
   addProject, renameProject, removeProject, addTask, updateTask,
   visibleTasks, sortTasks, isOverdue, isDueToday,
+  projectForFile, mergeFromFile, mergeProjectsFromFile,
 } from './Planner/store.js'
 
 // ---- In-memory key (never persisted) ----
 const cryptoKey = ref(null)
+// The vault salt, kept in memory only so Export can re-pack the envelope. Like the key, it
+// is loaded on unlock / generated on create and dropped on lock; only the at-rest envelope
+// (which embeds the salt) is ever persisted.
+let _salt = null
+const ITERATIONS = 600000
 
 // ---- Reactive UI state ----
 const phase = ref('loading')      // 'loading' | 'locked' | 'unlocked'
@@ -47,6 +57,7 @@ async function createVault() {
   try {
     const salt = randomBytes(16)
     await saveSalt(salt)
+    _salt = salt
     cryptoKey.value = await deriveKey(passphrase.value, salt)
     resetState() // start empty
     // Persist the (empty) vault immediately so a wrong passphrase on the next visit is
@@ -82,10 +93,14 @@ async function unlock() {
     // A wrong key makes loadVault → decryptJSON reject; caught below.
     const snapshot = await loadVault(key)
     cryptoKey.value = key
+    _salt = salt
     if (snapshot) loadData(snapshot)
     else resetState() // record not written yet (created but never saved) → empty
     phase.value = 'unlocked'
     clearInputs()
+    // If a folder is already connected (granted handle restored on mount), pull any agent
+    // edits made while locked, then push the merged state back to disk.
+    if (fsStatus.value === 'synced') { await pullFromFile(); await writeTasksNow() }
   } catch {
     error.value = 'Неверный пароль или повреждённые данные.'
     cryptoKey.value = null
@@ -97,6 +112,8 @@ async function unlock() {
 // ---- Lock: drop the key and all decrypted state from memory ----
 function lockVault() {
   cryptoKey.value = null      // null first so the autosave watcher skips the reset below
+  _salt = null
+  clearTimeout(_fsTimer)      // cancel any pending tasks.json write (now gated by cryptoKey anyway)
   resetState()
   phase.value = 'locked'
   clearInputs()
@@ -121,15 +138,97 @@ const viewMode = ref('kanban') // 'kanban' | 'list'
 // Active tag-filter chip (null = no filter).
 const activeTag = ref(null)
 
-// FS folder status — full bridge wiring lands in Task 11; default = no folder.
+// ---- File System Access bridge (Task 11) ----
+// The connected directory handle (FileSystemDirectoryHandle | null). Restored from IndexedDB
+// on mount; re-picked via the FS chip. tasks.json is the PLAINTEXT, note-free projection.
+const dirHandle = ref(null)
 const fsStatus = ref('none') // 'none' | 'reconnect' | 'synced'
 const fsChip = computed(() => {
   switch (fsStatus.value) {
-    case 'synced': return { cls: 'fs-synced', label: '● Синхронизировано' }
-    case 'reconnect': return { cls: 'fs-reconnect', label: '● Переподключить' }
-    default: return { cls: 'fs-none', label: '● Нет папки' }
+    case 'synced': return { cls: 'fs-synced', label: '● ' + (dirHandle.value?.name || 'Синхронизировано') }
+    case 'reconnect': return { cls: 'fs-reconnect', label: '● Переподключить папку' }
+    default: return { cls: 'fs-none', label: '● Подключить папку' }
   }
 })
+
+// Chip click dispatches based on current status. All paths run inside this user gesture so
+// showDirectoryPicker / requestPermission are allowed (see fsbridge.js gotcha #1).
+function onFsChipClick() {
+  if (!fsSupported) return
+  if (fsStatus.value === 'reconnect') reconnectFolder()
+  else connectFolder() // 'none' → pick; 'synced' → re-pick (switch folders)
+}
+
+// Connect (or switch) the synced folder, persist the handle, and seed tasks.json.
+async function connectFolder() {
+  if (!fsSupported) return
+  try {
+    const handle = await pickDirectory()
+    dirHandle.value = handle
+    await saveDirHandle(handle)
+    fsStatus.value = 'synced'
+    // Pull any tasks.json the agent already created, then write the current state.
+    await pullFromFile()
+    await writeTasksNow()
+  } catch (e) {
+    if (e?.name !== 'AbortError') console.warn('[planner] connectFolder failed:', e)
+  }
+}
+
+// Re-grant permission on a restored handle (post-reload it often reports 'prompt').
+async function reconnectFolder() {
+  if (!dirHandle.value) return connectFolder()
+  try {
+    if (!(await ensurePermission(dirHandle.value))) return
+    fsStatus.value = 'synced'
+    await pullFromFile()
+    await writeTasksNow()
+  } catch (e) {
+    console.warn('[planner] reconnectFolder failed:', e)
+  }
+}
+
+// Read tasks.json and LWW-merge agent edits back into state. No-op when not actively synced.
+async function pullFromFile() {
+  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
+  try {
+    const file = await readTasksJson(dirHandle.value)
+    if (!file) return
+    const tasks = mergeFromFile(state.tasks, file.tasks || [])
+    const projects = mergeProjectsFromFile(state.projects, file.projects || [])
+    loadData({ projects, tasks }) // mutates state → autosave watcher re-encrypts the vault
+  } catch (e) {
+    console.warn('[planner] pullFromFile failed:', e)
+    fsStatus.value = 'reconnect' // permission likely lapsed
+  }
+}
+
+// Write the plaintext (note-free) projection to tasks.json. Guarded so a locked or
+// disconnected app never writes an empty file over a populated one.
+async function writeTasksNow() {
+  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
+  try {
+    await writeTasksJson(dirHandle.value, projectForFile(state))
+  } catch (e) {
+    console.warn('[planner] writeTasksJson failed:', e)
+    fsStatus.value = 'reconnect'
+  }
+}
+
+// Debounced tasks.json write (mirrors the 300 ms vault save) driven by the autosave watcher.
+let _fsTimer = null
+function scheduleFsWrite() {
+  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
+  clearTimeout(_fsTimer)
+  _fsTimer = setTimeout(writeTasksNow, 300)
+}
+
+// No file-watch API → re-read tasks.json on window focus and merge (fsbridge.js gotcha #3).
+async function onWindowFocus() {
+  if (fsStatus.value !== 'synced' || !cryptoKey.value) return
+  await pullFromFile()
+  await writeTasksNow()
+}
 
 // Colors cycled through for newly created projects.
 const PROJECT_PALETTE = ['#1accff', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
@@ -354,30 +453,120 @@ function onDrop(e, statusId) {
   if (id) updateTask(id, { status: statusId })
 }
 
-// Export / Import are wired in Task 11 (FS sync + encrypted .planner files).
-function onExport() {}
-function onImport() {}
+// ---- Export / Import encrypted .planner files (Task 11) ----
+
+// Export = re-pack the current snapshot into a fresh envelope and download it. Only the
+// { salt, iterations, iv, ciphertext } envelope leaves memory — never the key or plaintext.
+async function onExport() {
+  if (!cryptoKey.value || !_salt) return
+  try {
+    const { iv, ciphertext } = await encryptJSON(cryptoKey.value, getSnapshot())
+    exportEnvelope(packEnvelope({ salt: _salt, iterations: ITERATIONS, iv, ciphertext }), 'planner')
+  } catch (e) {
+    console.warn('[planner] export failed:', e)
+  }
+}
+
+// Import flow: pick a .planner file → prompt for its passphrase → decrypt → LWW-merge.
+const importPhase = ref('idle') // 'idle' | 'awaiting-passphrase' | 'merging'
+const importPassphrase = ref('')
+const importError = ref('')
+let _pendingImportStr = null
+const fileInputEl = ref(null)
+
+function onImport() {
+  importError.value = ''
+  if (fileInputEl.value) {
+    fileInputEl.value.value = '' // allow re-picking the same file
+    fileInputEl.value.click()
+  }
+}
+
+async function onImportFileChange(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  try {
+    _pendingImportStr = await readEnvelopeFile(file)
+    importPassphrase.value = ''
+    importError.value = ''
+    importPhase.value = 'awaiting-passphrase'
+  } catch {
+    importError.value = 'Не удалось прочитать файл.'
+    importPhase.value = 'idle'
+  }
+}
+
+async function doImport() {
+  if (!_pendingImportStr || !cryptoKey.value || importPhase.value === 'merging') return
+  if (!importPassphrase.value.trim()) {
+    importError.value = 'Введите пароль импортируемого файла.'
+    return
+  }
+  importPhase.value = 'merging'
+  importError.value = ''
+  try {
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(_pendingImportStr)
+    const importKey = await deriveKey(importPassphrase.value, salt, iterations)
+    const imported = await decryptJSON(importKey, { iv, ciphertext })
+    const tasks = mergeFromFile(state.tasks, imported.tasks || [])
+    const projects = mergeProjectsFromFile(state.projects, imported.projects || [])
+    loadData({ projects, tasks }) // autosave watcher persists; FS write is scheduled too
+    importPassphrase.value = ''
+    _pendingImportStr = null
+    importPhase.value = 'idle'
+  } catch {
+    importError.value = 'Не удалось расшифровать — проверьте пароль.'
+    importPhase.value = 'awaiting-passphrase'
+  }
+}
+
+function cancelImport() {
+  _pendingImportStr = null
+  importPassphrase.value = ''
+  importError.value = ''
+  importPhase.value = 'idle'
+}
 
 // ---- Autosave: re-encrypt on every state change while unlocked ----
 // getSnapshot() reads every reactive field of `state` (via JSON.stringify), so the getter is
 // tracked deeply; saveVault is itself debounced (300 ms) in db.js.
 const stopAutosave = watch(
   () => getSnapshot(),
-  s => { if (cryptoKey.value) saveVault(cryptoKey.value, s) },
+  s => {
+    if (!cryptoKey.value) return
+    saveVault(cryptoKey.value, s)
+    scheduleFsWrite() // mirror the change into tasks.json when a folder is connected
+  },
   { deep: true }
 )
 
 onMounted(async () => {
   document.addEventListener('mousedown', onDocMouseDown)
   document.addEventListener('keydown', onDocKeyDown)
+  window.addEventListener('focus', onWindowFocus)
   const salt = await loadSalt()
   hasVault.value = salt != null
+  // Restore a previously connected folder (handle survives reload; permission may not).
+  if (fsSupported) {
+    try {
+      const handle = await loadDirHandle()
+      if (handle) {
+        dirHandle.value = handle
+        // 'granted' → auto-sync once unlocked; 'prompt'/'denied' → show "Reconnect folder".
+        fsStatus.value = (await checkPermission(handle)) === 'granted' ? 'synced' : 'reconnect'
+      }
+    } catch (e) {
+      console.warn('[planner] restore folder failed:', e)
+    }
+  }
   phase.value = 'locked'
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', onDocMouseDown)
   document.removeEventListener('keydown', onDocKeyDown)
+  window.removeEventListener('focus', onWindowFocus)
+  clearTimeout(_fsTimer)
   stopAutosave()
   cryptoKey.value = null
 })
@@ -476,11 +665,49 @@ onUnmounted(() => {
         <button class="planner-new-project" @click="newProject">+ Новый проект</button>
 
         <div class="planner-sidebar-footer">
-          <div class="planner-fs-chip" :class="fsChip.cls">{{ fsChip.label }}</div>
+          <button
+            v-if="fsSupported"
+            class="planner-fs-chip"
+            :class="fsChip.cls"
+            :title="fsStatus === 'synced' ? 'Сменить папку' : 'Подключить локальную папку для tasks.json'"
+            @click="onFsChipClick"
+          >{{ fsChip.label }}</button>
+
           <div class="planner-footer-actions">
             <button class="planner-btn-sm" @click="onExport">Экспорт</button>
             <button class="planner-btn-sm" @click="onImport">Импорт</button>
           </div>
+
+          <!-- Hidden picker for .planner import -->
+          <input
+            ref="fileInputEl"
+            type="file"
+            accept=".planner"
+            style="display:none"
+            @change="onImportFileChange"
+          />
+
+          <!-- Import passphrase dialog -->
+          <div v-if="importPhase !== 'idle'" class="planner-import-dialog">
+            <div class="planner-import-label">Пароль импортируемого файла:</div>
+            <input
+              v-model="importPassphrase"
+              type="password"
+              class="planner-import-input"
+              placeholder="Пароль"
+              autocomplete="off"
+              @keydown.enter="doImport"
+            />
+            <div class="planner-import-actions">
+              <button class="planner-btn-sm planner-import-merge" :disabled="importPhase === 'merging'" @click="doImport">
+                {{ importPhase === 'merging' ? 'Расшифровка…' : 'Объединить' }}
+              </button>
+              <button class="planner-btn-sm" @click="cancelImport">Отмена</button>
+            </div>
+            <p v-if="importError" class="planner-import-error">{{ importError }}</p>
+          </div>
+          <p v-if="importError && importPhase === 'idle'" class="planner-import-error">{{ importError }}</p>
+
           <button class="planner-btn-sm planner-lock-btn" @click="lockVault">🔒 Заблокировать</button>
         </div>
       </aside>
@@ -899,10 +1126,46 @@ onUnmounted(() => {
   padding: 5px 8px;
   border-radius: 6px;
   text-align: center;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.planner-fs-chip:hover { filter: brightness(1.15); }
 .planner-fs-chip.fs-none { background: #273449; color: #94a3b8; }
 .planner-fs-chip.fs-reconnect { background: #3b2f14; color: #f59e0b; }
 .planner-fs-chip.fs-synced { background: #14321f; color: #34d399; }
+
+/* Import passphrase dialog (sidebar footer) */
+.planner-import-dialog {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.planner-import-label { font-size: 12px; color: #94a3b8; }
+.planner-import-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  font-size: 13px;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  color: #e2e8f0;
+  outline: none;
+}
+.planner-import-input:focus { border-color: #7fb3d3; }
+.planner-import-actions { display: flex; gap: 7px; }
+.planner-import-merge { background: #2563eb; color: #fff; }
+.planner-import-merge:hover { background: #1d4ed8; }
+.planner-import-error { margin: 4px 0 0; color: #f87171; font-size: 12px; }
 .planner-footer-actions { display: flex; gap: 8px; }
 .planner-btn-sm {
   flex: 1;
