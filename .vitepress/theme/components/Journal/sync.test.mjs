@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { packBlob, unpackBlob, receiveAndMerge } from './sync.js'
+import { packBlob, unpackBlob, receiveAndMerge, diffVaultDates } from './sync.js'
 
 describe('packBlob / unpackBlob', () => {
   it('round-trips a plain SDP string', () => {
@@ -70,4 +70,55 @@ describe('receiveAndMerge', () => {
     const m2 = receiveAndMerge(b, a)
     assert.deepEqual(m1.entries, m2.entries)
   })
+})
+
+describe('diffVaultDates', () => {
+  const ts = (offset = 0) => new Date(Date.now() + offset).toISOString()
+
+  function makeVault(entries = {}) {
+    return { version: 1, entries, createdAt: '2026-01-01T00:00:00.000Z' }
+  }
+
+  it('counts a brand-new date as added, not updated', () => {
+    const t = ts()
+    const before = makeVault({ '2026-06-01': { text: 'A', words: 1, createdAt: t, updatedAt: t } })
+    const after = makeVault({
+      '2026-06-01': { text: 'A', words: 1, createdAt: t, updatedAt: t },
+      '2026-06-02': { text: 'B', words: 1, createdAt: t, updatedAt: t },
+    })
+    assert.deepEqual(diffVaultDates(before, after), { added: 1, updated: 0 })
+  })
+
+  it('counts a changed date as updated (newer updatedAt)', () => {
+    const old = ts(-5000); const newer = ts()
+    const before = makeVault({ '2026-06-01': { text: 'old', words: 1, createdAt: old, updatedAt: old } })
+    const after = makeVault({ '2026-06-01': { text: 'new', words: 1, createdAt: old, updatedAt: newer } })
+    assert.deepEqual(diffVaultDates(before, after), { added: 0, updated: 1 })
+  })
+
+  it('reports nothing when before and after are identical', () => {
+    const t = ts()
+    const v = makeVault({ '2026-06-01': { text: 'A', words: 1, createdAt: t, updatedAt: t } })
+    assert.deepEqual(diffVaultDates(v, mergeIdentity(v)), { added: 0, updated: 0 })
+  })
+
+  it('mixes added and updated in one diff', () => {
+    const old = ts(-5000); const newer = ts()
+    const before = makeVault({ '2026-06-01': { text: 'a', words: 1, createdAt: old, updatedAt: old } })
+    const after = makeVault({
+      '2026-06-01': { text: 'a2', words: 1, createdAt: old, updatedAt: newer },
+      '2026-06-02': { text: 'b', words: 1, createdAt: newer, updatedAt: newer },
+    })
+    assert.deepEqual(diffVaultDates(before, after), { added: 1, updated: 1 })
+  })
+
+  it('treats missing vault/entries as empty (no throw)', () => {
+    assert.deepEqual(diffVaultDates(null, null), { added: 0, updated: 0 })
+    assert.deepEqual(diffVaultDates(undefined, { entries: {} }), { added: 0, updated: 0 })
+  })
+
+  // The post-merge vault keeps a date when nothing changed → identity diff.
+  function mergeIdentity(v) {
+    return makeVault({ ...v.entries })
+  }
 })

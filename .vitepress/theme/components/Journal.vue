@@ -4,7 +4,7 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveE
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
-import { createOffer, acceptOffer, closeSync } from './Journal/sync.js'
+import { createOffer, acceptOffer, closeSync, sendEnvelope, receiveAndMerge, diffVaultDates } from './Journal/sync.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -454,12 +454,14 @@ const syncError = ref('')
 const syncResult = ref('')        // human summary after a merge
 const syncConnState = ref('')     // raw pc.connectionState (from onState) for the status line
 const syncCopied = ref(false)     // brief copied-feedback flag on the copy button
+const syncRetry = ref(false)      // true after a received envelope failed to decrypt → show password + retry
 const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallback
 
 // Live connection handles (browser-only; null on SSR / before a role is chosen).
 let _syncPc = null
 let _syncDc = null
 let _syncConn = null              // object returned by createOffer / acceptOffer
+let _pendingSyncEnvelope = null   // last envelope received over the channel (for password retry)
 
 const syncStageLabel = computed(() => {
   if (syncStage.value === 'waiting') {
@@ -481,6 +483,7 @@ function syncReset() {
   _syncPc = null
   _syncDc = null
   _syncConn = null
+  _pendingSyncEnvelope = null
   syncRole.value = null
   syncStage.value = 'idle'
   syncBlob.value = ''
@@ -490,6 +493,7 @@ function syncReset() {
   syncResult.value = ''
   syncConnState.value = ''
   syncCopied.value = false
+  syncRetry.value = false
 }
 
 function openSync() {
@@ -514,23 +518,77 @@ function onSyncState(state) {
   }
 }
 
-// Wait for the DataChannel to open, then mark the session connected. The
-// envelope send/receive (decrypt + merge) is wired in Task 4 — for now the
-// channel simply opening is the success signal the UI reports.
+// Wait for the DataChannel to open; once open, send our encrypted envelope and
+// mark the session connected. Both peers send — the LWW merge is commutative, so
+// each side converges to the same vault without a round trip. Only the packed
+// envelope crosses the channel (never plaintext).
 function startWaiting() {
   syncStage.value = 'waiting'
   _syncConn.waitForChannel(onReceiveEnvelope)
-    .then((dc) => { _syncDc = dc; syncStage.value = 'connected' })
+    .then(async (dc) => {
+      _syncDc = dc
+      syncStage.value = 'connected'
+      try {
+        // Fold in any in-progress today's text so it participates in the peer's merge.
+        upsertEntry(vault, todayISO.value, todayText.value)
+        sendEnvelope(dc, await buildEnvelope())
+      } catch {
+        syncError.value = 'Не удалось отправить данные на другое устройство.'
+      }
+    })
     .catch((e) => {
       syncError.value = (e && e.message) || 'Ошибка соединения.'
       syncStage.value = 'error'
     })
 }
 
-// Placeholder seam for Task 4: the peer's encrypted envelope arrives here.
-// eslint-disable-next-line no-unused-vars
+// The peer's encrypted envelope arrives here. Keep it so the user can retry with
+// a corrected password (decryption is the only thing that can fail per-attempt).
 function onReceiveEnvelope(envelopeStr) {
-  // Decrypt with syncPass + LWW merge + persist lands in Task 4.
+  _pendingSyncEnvelope = envelopeStr
+  decryptAndMerge(envelopeStr)
+}
+
+// Decrypt the peer's envelope with the journal password (re-derive from the
+// SENDER's salt — each device has its own, so the in-memory key can't decrypt a
+// peer's envelope; this mirrors doImport), LWW-merge, persist durably, and refresh
+// the editor. A wrong password (OperationError) leaves the channel open for retry.
+async function decryptAndMerge(envelopeStr) {
+  syncError.value = ''
+  try {
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
+    const key = await deriveKey(syncPass.value, salt, iterations)
+    const importedVault = await decryptJSON(key, { iv, ciphertext })
+    // Fold in any in-progress today's text before merging so it participates in LWW.
+    if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
+    const merged = receiveAndMerge(vault, importedVault)
+    const { added, updated } = diffVaultDates(vault, merged)
+    Object.assign(vault, merged)
+    todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
+    await persistVault()
+    const total = added + updated
+    syncResult.value = total === 0
+      ? 'Данные уже синхронизированы.'
+      : `Объединено ${total} записей (${updated} обновлено)`
+    syncRetry.value = false
+    _pendingSyncEnvelope = null
+    syncStage.value = 'merged'
+  } catch (err) {
+    if (err?.name === 'OperationError') {
+      // Wrong password — keep the channel open so the user can fix it and retry.
+      syncError.value = 'Неверный пароль — введите пароль дневника со второго устройства.'
+      syncRetry.value = true
+    } else {
+      syncError.value = 'Не удалось обработать данные с другого устройства.'
+    }
+  }
+}
+
+// Retry decryption of the already-received envelope after the user corrects the password.
+function retrySyncDecrypt() {
+  if (!_pendingSyncEnvelope) return
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  decryptAndMerge(_pendingSyncEnvelope)
 }
 
 // Initiator: generate the offer blob, then await the peer's answer.
@@ -975,6 +1033,20 @@ onUnmounted(() => {
 
             <p v-if="syncStageLabel" class="sync-stage-line">{{ syncStageLabel }}</p>
             <p v-if="syncResult" class="sync-result-line">{{ syncResult }}</p>
+
+            <!-- Wrong-password retry: the envelope is already received; re-derive
+                 with a corrected password without tearing down the channel. -->
+            <template v-if="syncRetry">
+              <div class="sync-block-label">Пароль дневника со второго устройства:</div>
+              <input
+                v-model="syncPass"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Пароль дневника"
+                @keydown.enter="retrySyncDecrypt"
+              />
+              <button class="journal-btn journal-btn-primary sync-go-btn" @click="retrySyncDecrypt">Повторить</button>
+            </template>
           </template>
 
           <p v-if="syncError" class="cp-error">{{ syncError }}</p>

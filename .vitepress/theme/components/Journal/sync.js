@@ -129,3 +129,22 @@ import { mergeVaults } from './vault.js'
 export function receiveAndMerge(currentVault, importedVault) {
   return mergeVaults(currentVault, importedVault)
 }
+
+// Pure diff of two vaults by date entry (testable). Compares the pre-merge vault
+// (`before`) against the post-merge vault (`after`) and reports what the merge
+// brought in, so the UI can summarize a sync as «Объединено N записей (M обновлено)»:
+//   added   — dates present in `after` but not in `before`
+//   updated — dates present in both whose entry actually changed (text/updatedAt)
+export function diffVaultDates(before, after) {
+  const beforeEntries = (before && before.entries) || {}
+  const afterEntries = (after && after.entries) || {}
+  let added = 0
+  let updated = 0
+  for (const date of Object.keys(afterEntries)) {
+    const b = beforeEntries[date]
+    if (!b) { added++; continue }
+    const a = afterEntries[date]
+    if (a.updatedAt !== b.updatedAt || a.text !== b.text) updated++
+  }
+  return { added, updated }
+}
