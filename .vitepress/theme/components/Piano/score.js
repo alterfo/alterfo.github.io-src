@@ -238,39 +238,39 @@ const ODE_TO_JOY = {
       id: 'p1',
       measures: [
         { id: 'm1', notes: [
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'Freu-' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'de'    },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'schö-' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'ner'   },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm2', notes: [
-          { midi: 67, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'Göt-' },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'ter-' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'fun-' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'ken'  },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm3', notes: [
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'Toch-' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'ter'   },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'aus'   },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'E-'    },
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm4', notes: [
-          { midi: 64, duration: 'q.', hand: 'right' },
-          { midi: 62, duration: '8',  hand: 'right' },
-          { midi: 62, duration: 'h',  hand: 'right' },
+          { midi: 64, duration: 'q.', hand: 'right', lyric: 'ly-' },
+          { midi: 62, duration: '8',  hand: 'right', lyric: 'si-' },
+          { midi: 62, duration: 'h',  hand: 'right', lyric: 'um'  },
           { midi: 45, duration: 'q',  hand: 'left'  }, // A2
           { midi: 52, duration: 'q',  hand: 'left'  }, // E3
           { midi: 50, duration: 'h',  hand: 'left'  }, // D3
@@ -281,39 +281,39 @@ const ODE_TO_JOY = {
       id: 'p2',
       measures: [
         { id: 'm5', notes: [
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'Wir'  },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'be-'  },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'tre-' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'ten'  },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm6', notes: [
-          { midi: 67, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'feu-'  },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'er-'   },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'trun-' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'ken'   },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm7', notes: [
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'Himm-' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'li-'   },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'sche'  },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'dein'  },
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm8', notes: [
-          { midi: 62, duration: 'q.', hand: 'right' },
-          { midi: 61, duration: '8',  hand: 'right' },
-          { midi: 61, duration: 'h',  hand: 'right' },
+          { midi: 62, duration: 'q.', hand: 'right', lyric: 'Hei-' },
+          { midi: 61, duration: '8',  hand: 'right', lyric: 'lig-' },
+          { midi: 61, duration: 'h',  hand: 'right', lyric: 'tum'  },
           { midi: 45, duration: 'q',  hand: 'left'  }, // A2
           { midi: 52, duration: 'q',  hand: 'left'  }, // E3
           { midi: 45, duration: 'h',  hand: 'left'  }, // A2
@@ -324,21 +324,21 @@ const ODE_TO_JOY = {
       id: 'p3',
       measures: [
         { id: 'm9', notes: [
-          { midi: 62, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 61, duration: 'q', hand: 'right' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'Dei-' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'ne'   },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'Zau-' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'ber'  },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
         ]},
         { id: 'm10', notes: [
-          { midi: 62, duration: 'q',  hand: 'right' },
-          { midi: 64, duration: '8',  hand: 'right' },
-          { midi: 66, duration: '8',  hand: 'right' },
-          { midi: 64, duration: 'q',  hand: 'right' },
-          { midi: 62, duration: 'q',  hand: 'right' },
+          { midi: 62, duration: 'q',  hand: 'right', lyric: 'bin-' },
+          { midi: 64, duration: '8',  hand: 'right', lyric: 'den'  },
+          { midi: 66, duration: '8',  hand: 'right' }, // passing tone — melisma, no syllable
+          { midi: 64, duration: 'q',  hand: 'right', lyric: 'wie-' },
+          { midi: 62, duration: 'q',  hand: 'right', lyric: 'der'  },
           { midi: 50, duration: 'q',  hand: 'left'  }, // D3
           { midi: 50, duration: '8',  hand: 'left'  }, // D3
           { midi: 57, duration: '8',  hand: 'left'  }, // A3
@@ -346,11 +346,11 @@ const ODE_TO_JOY = {
           { midi: 50, duration: 'q',  hand: 'left'  }, // D3
         ]},
         { id: 'm11', notes: [
-          { midi: 61, duration: 'q',  hand: 'right' },
-          { midi: 62, duration: 'q',  hand: 'right' },
-          { midi: 64, duration: '8',  hand: 'right' },
-          { midi: 66, duration: '8',  hand: 'right' },
-          { midi: 64, duration: 'q',  hand: 'right' },
+          { midi: 61, duration: 'q',  hand: 'right', lyric: 'was'   },
+          { midi: 62, duration: 'q',  hand: 'right', lyric: 'die'   },
+          { midi: 64, duration: '8',  hand: 'right', lyric: 'Mo-'   },
+          { midi: 66, duration: '8',  hand: 'right', lyric: 'de'    },
+          { midi: 64, duration: 'q',  hand: 'right', lyric: 'streng' },
           { midi: 45, duration: 'q',  hand: 'left'  }, // A2
           { midi: 45, duration: 'q',  hand: 'left'  }, // A2
           { midi: 45, duration: '8',  hand: 'left'  }, // A2
@@ -358,8 +358,8 @@ const ODE_TO_JOY = {
           { midi: 45, duration: 'q',  hand: 'left'  }, // A2
         ]},
         { id: 'm12', notes: [
-          { midi: 62, duration: 'h.',  hand: 'right' },
-          { midi: 61, duration: 'q',   hand: 'right' },
+          { midi: 62, duration: 'h.',  hand: 'right', lyric: 'ge-'   },
+          { midi: 61, duration: 'q',   hand: 'right', lyric: 'teilt' },
           { midi: 50, duration: 'h.',  hand: 'left'  }, // D3
           { midi: 45, duration: 'q',   hand: 'left'  }, // A2
         ]},
@@ -369,37 +369,37 @@ const ODE_TO_JOY = {
       id: 'p4',
       measures: [
         { id: 'm13', notes: [
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 67, duration: 'q', hand: 'right' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'Al-'  },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'le'   },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'Men-' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'schen' },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm14', notes: [
-          { midi: 67, duration: 'q', hand: 'right' },
-          { midi: 66, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
+          { midi: 67, duration: 'q', hand: 'right', lyric: 'wer-' },
+          { midi: 66, duration: 'q', hand: 'right', lyric: 'den'  },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'Brü-' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'der'  },
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
           { midi: 50, duration: 'q', hand: 'left'  }, // D3
           { midi: 57, duration: 'q', hand: 'left'  }, // A3
         ]},
         { id: 'm15', notes: [
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 61, duration: 'q', hand: 'right' },
-          { midi: 62, duration: 'q', hand: 'right' },
-          { midi: 64, duration: 'q', hand: 'right' },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'wo'   },
+          { midi: 61, duration: 'q', hand: 'right', lyric: 'dein' },
+          { midi: 62, duration: 'q', hand: 'right', lyric: 'sanf-' },
+          { midi: 64, duration: 'q', hand: 'right', lyric: 'ter'  },
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
           { midi: 45, duration: 'q', hand: 'left'  }, // A2
           { midi: 52, duration: 'q', hand: 'left'  }, // E3
         ]},
         { id: 'm16', notes: [
-          { midi: 62, duration: 'w', hand: 'right' },
+          { midi: 62, duration: 'w', hand: 'right', lyric: 'Flügel weilt' },
           { midi: 50, duration: 'w', hand: 'left'  }, // D3
         ]},
       ],

@@ -243,6 +243,62 @@ describe('loadScore / listScores', () => {
     }
   })
 
+  it('ODE_TO_JOY lyrics are attached only to right-hand notes', () => {
+    const score = loadScore('ode-to-joy')
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        for (const note of measure.notes) {
+          if (note.hand === 'left') {
+            assert.equal(note.lyric, undefined,
+              `${measure.id}: left-hand note must not carry a lyric`)
+          }
+        }
+      }
+    }
+  })
+
+  it('ODE_TO_JOY syllable count per measure never exceeds RH note count', () => {
+    // A lyric may only sit on a RH note; a RH note may be left lyric-less
+    // (melisma) or a lyric may combine several syllables on one note — but
+    // there can never be more lyric'd notes than there are RH notes.
+    const score = loadScore('ode-to-joy')
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        const rh = measure.notes.filter(n => n.hand === 'right')
+        const lyricked = rh.filter(n => n.lyric)
+        assert.ok(lyricked.length <= rh.length,
+          `${measure.id}: more lyrics than RH notes`)
+      }
+    }
+  })
+
+  it('ODE_TO_JOY lyrics reconstruct the Schiller "An die Freude" text', () => {
+    const score = loadScore('ode-to-joy')
+    const fragments = []
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        for (const note of measure.notes) {
+          if (note.hand === 'right' && note.lyric) fragments.push(note.lyric)
+        }
+      }
+    }
+    // Join word-fragments: a trailing '-' glues to the next syllable,
+    // otherwise the syllable ends a word (insert a space).
+    let text = ''
+    for (const frag of fragments) {
+      if (frag.endsWith('-')) text += frag.slice(0, -1)
+      else text += frag + ' '
+    }
+    text = text.trim()
+    assert.equal(
+      text,
+      'Freude schöner Götterfunken Tochter aus Elysium ' +
+      'Wir betreten feuertrunken Himmlische dein Heiligtum ' +
+      'Deine Zauber binden wieder was die Mode streng geteilt ' +
+      'Alle Menschen werden Brüder wo dein sanfter Flügel weilt',
+    )
+  })
+
   it('RACHMANINOFF_PRELUDE_D all measures have both right- and left-hand notes', () => {
     const score = loadScore('rachmaninoff-prelude-d')
     for (const phrase of score.phrases) {
