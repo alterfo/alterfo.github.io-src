@@ -2,18 +2,19 @@
 
 ## Project overview
 
-VitePress-based personal site with four fully client-side apps:
+VitePress-based personal site with five fully client-side apps:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day mechanic, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 - `/openpose` — OpenPose pose editor (MediaPipe Tasks Vision / BlazePose, WASM in-browser, drag-edit skeletons, ControlNet PNG + OpenPose v1.3 JSON export)
+- `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, File System Access bridge → plaintext agent-editable `tasks.json`)
 
 ## Key paths
 
 - `.vitepress/theme/components/IDEF0Editor.vue` — root Vue component wrapped in `<ClientOnly>`, SVG-based editor
 - `.vitepress/theme/components/IDEF0Editor/` — editor modules (see below)
 - `idef0.md` — page that mounts the editor
-- `.vitepress/theme/components/crypto.js` — shared WebCrypto substrate (PBKDF2 → AES-GCM); reused by journal and future modules
+- `.vitepress/theme/components/crypto.js` — shared WebCrypto substrate (PBKDF2 → AES-GCM); reused by journal **and planner**
 - `.vitepress/theme/components/Journal.vue` — journal root component (`<ClientOnly>`): unlock screen, editor, sync UI
 - `.vitepress/theme/components/Journal/` — journal modules (see below)
 - `journal.md` — page that mounts the journal (`layout: false`)
@@ -23,6 +24,9 @@ VitePress-based personal site with four fully client-side apps:
 - `.vitepress/theme/components/OpenPoseEditor.vue` — OpenPose root component (`<ClientOnly>`): batch-upload queue, canvas preview, drag-edit toolbar, PNG/JSON export
 - `.vitepress/theme/components/OpenPose/` — OpenPose modules (see below)
 - `openpose.md` — page that mounts the editor (`layout: false`)
+- `.vitepress/theme/components/PlannerEditor.vue` — planner root component (`<ClientOnly>`): unlock screen, project sidebar, kanban/list views, task detail panel, FS sync + export/import
+- `.vitepress/theme/components/Planner/` — planner modules (see below)
+- `planner.md` — page that mounts the planner (`layout: false`)
 - `posts.data.ts` — VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts `excerpt` via `extractExcerpt()` (first non-heading/list/blockquote/HTML line, strips inline Markdown, truncates to 120 chars; returns `''` if no qualifying paragraph found); `buildPost()` throws at build time if `date` or `title` frontmatter fields are absent or if `date` is unparseable
 - `.vitepress/theme/components/BlogList.vue` — blog index component; groups posts by year (`groupedPosts` computed), renders year sections with per-post title, ISO-attributed `<time>`, and optional excerpt; uses hardcoded `rgba()` values instead of `var(--vp-c-*)` tokens to match the dark portfolio theme
 
@@ -158,6 +162,61 @@ Client-side pose editor at `/openpose`: batch-upload images, auto-detect skeleto
 - `@mediapipe/tasks-vision` is loaded via dynamic `import()` inside `initModel()` (same lazy pattern as the Piano importers) so it stays out of the shared `app` chunk and never runs during SSR — it lands in a lazy `vision_bundle.[hash].js` chunk. No `manualChunks` entry needed (dynamic-import auto-splitting). Namespace export resolved defensively as `vision.X ?? vision.default?.X`.
 - `OpenPoseEditor.vue` is registered as a **static** import in `index.mts` (unlike `Piano.vue`'s `defineAsyncComponent`), but only the light OpenPose modules land in the shared chunk — the heavy MediaPipe runtime stays lazy via the dynamic import above.
 
+## Planner app
+
+Client-side, encrypted project/task planner at `/planner`. Projects hold tasks with status, priority, due date, tags, and a **private note**. Everything is encrypted at rest with the **shared** `components/crypto.js` (PBKDF2 → AES-GCM, identical model to the journal) and persisted in IndexedDB. The distinguishing feature is a **File System Access bridge** that writes a *plaintext* `tasks.json` (everything **except** notes) to a user-chosen local folder so an agent (Claude Code) can read/edit tasks directly on disk; edits flow back into the app on window `focus` via a deterministic last-write-wins merge.
+
+### Planner modules
+
+| File | Purpose |
+|------|---------|
+| `Planner/constants.js` | `STATUS` (array — preserves kanban column order), `PRIORITY` (label+color), `makeId()` (`randomUUID().slice(0,8)`), `todayISO(date)` (**local** `'YYYY-MM-DD'` from `Date` getters, NOT `toISOString()` which is UTC and shifts the day) |
+| `Planner/store.js` | Module-level `reactive({projects,tasks})` **singleton** (mirrors `IDEF0Editor/model.js`, NOT a `useXxx()` composable) + `selectedProjectId`/`selectedTaskId` refs; CRUD (`addProject`/`renameProject`/`removeProject`, `addTask`/`updateTask`/`removeTask`); `loadData`/`getSnapshot`/`resetState`. **Pure helpers** (take plain args, no reactivity → node-testable): `isOverdue`, `isDueToday`, `visibleTasks` (drops `deleted` tombstones; `tag` single / `tags` multi-OR / `priority` / `status` / `hideDone`), `sortTasks` (priority/status by rank not alphabetical, null `dueDate` sorts last), `projectForFile` (**strips `note`** — security), `mergeFromFile` / `mergeProjectsFromFile` (LWW, never touch `note`) |
+| `Planner/db.js` | Encrypted IndexedDB `planner` v1, three stores (`keyPath:'id'`): `vault` (`{id:'data',env}`), `meta` (salt as plain array), `fs` (dir handle). `loadSalt`/`saveSalt`, `saveVault` (**debounced 300 ms** → `encryptJSON`→`packEnvelope`→put + `localStorage` cross-tab ping), `loadVault` (wrong key → `decryptJSON` rejects → "wrong passphrase"), `saveDirHandle`/`loadDirHandle` (handle stored **directly** — structured-cloneable, do NOT serialize), `initCrossTabSync` |
+| `Planner/fsbridge.js` | File System Access API. `fsSupported` (Chrome/Edge only), `pickDirectory`/`ensurePermission` (**must run inside a click gesture**), `checkPermission` (no prompt — safe on start), `writeTasksJson` (atomic via `createWritable`→`close`), `readTasksJson` (→ `null` if missing/invalid). No file-watch API → re-read on window `focus` |
+| `Planner/exporter.js` | `exportEnvelope` → download `.planner` envelope file; `readEnvelopeFile` → string (mirrors `Journal/exporter.js`) |
+
+### Crypto model (shared with journal)
+
+Identical to the journal: `PBKDF2(passphrase, salt=16 bytes, iterations=600000, SHA-256)` → AES-GCM 256; `iv` = 12 random bytes per encrypt; at-rest envelope `{salt,iterations,iv,ciphertext}` base64 — **no key, no plaintext ever persisted**. The derived key lives only in memory (`cryptoKey` ref in `PlannerEditor.vue`, re-derived on unlock; the in-memory `_salt` is kept for export and dropped on Lock).
+
+### Data model
+
+```js
+Project = { id, name, color, createdAt }
+Task = { id, projectId, title, status, priority, dueDate, tags, note, deleted, createdAt, updatedAt }
+// status: 'todo' | 'in-progress' | 'done'   priority: 'low' | 'medium' | 'high'
+// dueDate: 'YYYY-MM-DD' | null   tags: string[]   note: PRIVATE (encrypted only, NEVER in tasks.json)
+// deleted: tombstone   timestamps: epoch-ms numbers
+```
+
+### tasks.json contract (agent-editable on disk — read this before editing tasks)
+
+`projectForFile(state)` writes a plaintext projection to the connected folder's `tasks.json`. Shape:
+
+```json
+{
+  "_readme": "Edit tasks below. To signal a change set updatedAt to Date.now() (epoch ms). Set deleted:true to remove. Notes are private and not shown here.",
+  "projects": [{ "id": "...", "name": "...", "color": "...", "createdAt": 0 }],
+  "tasks": [{ "id": "...", "projectId": "...", "title": "...", "status": "todo", "priority": "high", "dueDate": "2026-06-15", "tags": ["seo"], "deleted": false, "createdAt": 0, "updatedAt": 0 }]
+}
+```
+
+**Rules for an agent editing this file:**
+- **`note` is NEVER in `tasks.json`** (a `store.test.mjs` `projectForFile` test enforces this) — there is no way to read or write a private note from disk.
+- To signal an edit, **bump `updatedAt` to `Date.now()`** (epoch ms). On the app's next window `focus`, `mergeFromFile` runs single-user LWW: a file task wins **only if `updatedAt` is strictly greater** than the app's copy; equal-or-older file versions are ignored.
+- A **new** task object (id the app hasn't seen) is added with `note:''`.
+- To **delete**, set `deleted:true` (and bump `updatedAt`) — a tombstone. **Absence ≠ deletion**: a task missing from the file is KEPT (no data loss), so removing a line never deletes anything.
+- Project name/color edits flow back via `mergeProjectsFromFile` (file is source of truth for known ids; unknown ids added; locals absent from the file kept).
+
+### Page + registration
+
+`planner.md` (`layout: false`, dark header with `← Главная`) → `<ClientOnly><PlannerEditor/></ClientOnly>`. `PlannerEditor` is a **static** `app.component(...)` registration in `.vitepress/theme/index.mts` (like OpenPose, unlike the async Piano). Nav entry in `config.mts`; the homepage `LifeCircle.vue` planner sphere now links to `/planner` (no longer `soon`).
+
+### Tests
+
+`node --test .vitepress/theme/components/Planner/store.test.mjs` (pure helpers incl. note-stripping + merge cases) and the shared `crypto.test.mjs`. `db.js`/`fsbridge.js`/`exporter.js` are browser-only (IndexedDB / FS Access / Blob) → `node --check` only; runtime behaviour verified manually in a Chromium browser.
+
 ## Design system «Spiral»
 
 Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue / BlogList.vue / CountDown.vue). The internal UI of Journal / Piano / IDEF0 / OpenPose is **not** part of this system — those keep their own styling.
@@ -285,3 +344,13 @@ There is no light theme and none is planned. If `color-mix` is unsupported on a 
 - Add / remove person (max 2), re-detect; live canvas preview updates on edit
 - Dual export: black-background ControlNet PNG (`renderSkeletonOnBlack` → `downloadPNG`) + OpenPose v1.3 JSON with coords normalized 0–1 (`toOpenPoseJSON` → `downloadJSON`)
 - Unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton mapping, renderer with mocked canvas, editor pure helpers, exporter JSON)
+
+### Planner app (as of 2026-06-10)
+
+- Encrypted, fully client-side project/task planner at `/planner` reusing the **shared** `components/crypto.js` substrate (PBKDF2 → AES-GCM; only the `{salt,iterations,iv,ciphertext}` envelope is persisted — no key, no plaintext)
+- Module-level `reactive({projects,tasks})` store singleton (mirrors `IDEF0Editor/model.js`) with pure, node-testable helpers (`isOverdue`, `isDueToday`, `visibleTasks`, `sortTasks`, `projectForFile`, `mergeFromFile`, `mergeProjectsFromFile`)
+- Encrypted IndexedDB persistence (`planner` DB: `vault`/`meta`/`fs` stores; debounced 300 ms save; cross-tab sync via localStorage); unlock screen with create-vault / unlock / lock; wrong passphrase → decrypt rejects → clear error
+- Project sidebar (add/rename/delete, color dots, live task counts); kanban view (native HTML5 drag-and-drop, no library) + sortable/filterable list view; task detail panel with private `note` textarea
+- **File System Access bridge** (`fsbridge.js`, Chrome/Edge only, degrades gracefully): "Connect folder" writes a plaintext `tasks.json` (**notes stripped**) the agent can edit; re-read + LWW merge on window `focus`; reconnect flow for lapsed permissions on reload
+- Encrypted file export/import: `.planner` envelope download + import → decrypt (passphrase prompt) → LWW merge → save
+- Unit tests: `node --test .vitepress/theme/components/Planner/store.test.mjs` (pure helpers incl. note-stripping + merge) + shared `crypto.test.mjs`; `db.js`/`fsbridge.js`/`exporter.js` are browser-only → `node --check` + manual browser verification
