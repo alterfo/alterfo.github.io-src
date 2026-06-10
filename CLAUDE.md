@@ -183,6 +183,16 @@ The wheel of life is split into colored spheres; «границы условны
 
 `.vitepress/theme/components/CountDown.vue` renders 4 progress rings (Days/Hours/Minutes/Seconds), restyled under `--ds-*` tokens and colored from `SPECTRUM`. It is mounted in the Portfolio hero (`<CountDown class="hero-countdown" :countdownDays="1000" />`, default epoch — do **not** pass `startDate`). Pure date math is extracted to `.vitepress/theme/components/countdown.js`: `computeRemaining(startMs, days, nowMs)` and `ringOffset(value, max, circumference)`, unit-tested in `countdown.test.mjs`. Epoch: default `startDate = new Date(1742688224657)` (23/03/2025) + 1000 days → target ≈ 18/12/2027. **Do not change the epoch** (user decision — preserve the «1000 дней роста» history).
 
+### LifeCircle «колесо жизни»
+
+`.vitepress/theme/components/LifeCircle.vue` is the main element of the Portfolio shell — replaces the old `.projects-grid`. A donut «wheel of life» of 6 spheres (= 6 spectrum colors); each sphere's **outer radius encodes its readiness** (1–10), so the wheel is deliberately uneven and reads as «what's developed vs. not». Each sphere is an `<a href>` linking to the project (or a `<g>` for the `soon` planner, which has no link). No `<ClientOnly>` (pure SVG, no DOM API). The 6 segments are **hardcoded** in the component (`SEGMENTS`) — they only change with a release; no props.
+
+- Geometry: `viewBox="-45 -5 490 410"` (widened so outside labels never clip; wheel itself centred at `200,200`). `INNER_R = 55`, `MAX_OUTER_R = 155`, `LABEL_R = 170`. 6 spheres × 56° + 6 × 4° gap = 360°: sphere `i` spans `startDeg = i*60 + 2 … endDeg = i*60 + 58`, midpoint `i*60 + 30`.
+- Per sphere: faint full-radius track (`.seg-bg`, opacity 0.12) + readiness fill (`.seg-fill`, outer radius = `fillRadius(readiness, 55, 155)`) + crisp stroke edge (`.seg-stroke`) + outside two-line label (title + «N/10»). `soon: true` (planner) → dashed track, dim fill, «⟳ скоро» label.
+- Spheres/readiness: Дневник `/journal` 9 (pink), IDEF0 `/idef0` 8 (green), AR Engine `/ar/` 5 (violet), Piano `/piano` 4 (amber), OpenPose `/openpose` 4 (cyan), Планировщик (soon, no href) 4 (orange).
+- Hover: `scale(1.02)` + color-matched `drop-shadow` glow on non-`soon` spheres. `@media (max-width: 480px)` shrinks label font so it stays readable on mobile.
+- Pure geometry helpers live in `.vitepress/theme/components/lifecircle.js` (`deg2rad` with 0° = top/CW, `arcPath` donut segment, `labelXY`, `fillRadius`), unit-tested in `lifecircle.test.mjs`. The SVG markup itself is verified manually (visual artifact, no DOM test).
+
 ### Dark theme only
 
 There is no light theme and none is planned. If `color-mix` is unsupported on a target browser, fall back to `rgba()` with hex from the tokens.
@@ -193,7 +203,7 @@ There is no light theme and none is planned. If `color-mix` is unsupported on a 
 - IDEF0 model unit tests: `node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs`
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
 - OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
-- Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs` (palette completeness, particle helpers, countdown date math)
+- Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs` (palette completeness, particle helpers, countdown date math, wheel-of-life geometry)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`
