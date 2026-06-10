@@ -4,6 +4,18 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveE
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
+import HelpModal from './HelpModal.vue'
+
+// ---- Help / onboarding (shown on first unlock, never on the password screen) ----
+const showHelp = ref(false)
+function useOnboarding(key, showRef) {
+  watch(phase, (p) => {
+    if (p === 'unlocked' && typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
+      showRef.value = true
+      localStorage.setItem(key, '1')
+    }
+  })
+}
 
 // ---- Volatile session state (never persisted) ----
 let _key = null
@@ -12,6 +24,7 @@ let _iterations = 600000
 
 // ---- Reactive UI state ----
 const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
+useOnboarding('journal:seen-help', showHelp)
 const hasVault = ref(false)
 const passphraseInput = ref('')
 const error = ref('')
@@ -570,6 +583,9 @@ onUnmounted(() => {
           <!-- Change password -->
           <button class="journal-btn journal-btn-sync" @click="showChangePassword = true">🔑 Сменить пароль</button>
 
+          <!-- Help -->
+          <button class="journal-btn journal-btn-sync" @click="showHelp = true" title="Справка">? Справка</button>
+
           <!-- Sync -->
           <div class="journal-sync-section">
             <div class="journal-section-label">Синхронизация</div>
@@ -696,6 +712,52 @@ onUnmounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- ═══ HELP MODAL ═══ -->
+    <HelpModal v-model="showHelp">
+      <h2>Зашифрованный дневник</h2>
+
+      <h3>Почему это безопасно</h3>
+      <p>Дневник использует <strong>E2EE — сквозное шифрование прямо в браузере</strong>. Данные никогда не покидают устройство в читаемом виде.</p>
+
+      <p><strong>Ключ выводится из пароля через PBKDF2:</strong></p>
+      <ul>
+        <li>600 000 итераций хеширования SHA-256 — это намеренно медленно</li>
+        <li>Перебор 1 000 000 паролей занял бы ~десятки часов на современном GPU</li>
+        <li>Случайная соль (16 байт) исключает атаки по радужным таблицам</li>
+        <li>Один и тот же пароль → разные ключи на разных устройствах</li>
+      </ul>
+
+      <p><strong>Шифрование AES-GCM 256:</strong></p>
+      <ul>
+        <li>Военный стандарт, используется везде от TLS до хранилищ паролей</li>
+        <li>Аутентифицированное шифрование: изменение хоть одного байта → расшифровка провалится</li>
+        <li>Каждое сохранение использует уникальный IV (12 байт) → одинаковый текст → разный шифротекст</li>
+        <li>Ключ <strong>нигде не хранится</strong> — только в памяти на время сессии; при перезагрузке нужно вводить пароль снова</li>
+      </ul>
+
+      <p>Что хранится в IndexedDB и <code>.journal</code> файлах: <code>{ соль, итерации, IV, шифротекст }</code> — без ключа это бесполезные байты.</p>
+
+      <h3>Работа с записями</h3>
+      <ul>
+        <li>Пиши в поле ниже — автосохранение каждые 300 мс</li>
+        <li><strong>Цель: 500 слов в день</strong> — прогресс-бар показывает прогресс</li>
+        <li>Прошлые записи — в левой панели</li>
+      </ul>
+
+      <h3>Стрик</h3>
+      <p>Последовательные дни с ≥500 словами. Сегодняшний день не прерывает стрик до полуночи.</p>
+
+      <h3>Синхронизация</h3>
+      <ul>
+        <li><strong>Экспорт</strong> — скачивает <code>.journal</code> файл (зашифрован, нет открытого текста)</li>
+        <li><strong>Импорт</strong> — загружает файл, сливает с текущими данными по принципу «побеждает последнее обновление»</li>
+        <li>Для резервного копирования между устройствами используй файловый обмен</li>
+      </ul>
+
+      <h3>Смена пароля</h3>
+      <p>Sidebar → <strong>Сменить пароль</strong>: введи текущий, новый (дважды) → дневник будет зашифрован новым ключом с новой солью.</p>
+    </HelpModal>
   </div>
 </template>
 
