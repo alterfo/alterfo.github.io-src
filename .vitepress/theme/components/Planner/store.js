@@ -99,6 +99,15 @@ export function visibleTasks(tasks, { projectId = null, tag = null, tags = null,
 const PRIORITY_RANK = { low: 0, medium: 1, high: 2 }
 const STATUS_RANK = { todo: 0, 'in-progress': 1, done: 2 }
 
+// Allow-lists for enum fields. Values arriving from an agent-edited tasks.json or an imported
+// .planner file are untrusted — an unknown priority/status would make PRIORITY[task.priority]
+// undefined in the template (crashing the whole board) and drop the task from every kanban
+// column. Clamp unknown values to a safe default at every ingestion boundary instead.
+const VALID_PRIORITIES = new Set(['low', 'medium', 'high'])
+const VALID_STATUSES = new Set(['todo', 'in-progress', 'done'])
+const clampPriority = (p, fallback = 'medium') => (VALID_PRIORITIES.has(p) ? p : fallback)
+const clampStatus = (s, fallback = 'todo') => (VALID_STATUSES.has(s) ? s : fallback)
+
 // Pure list-view sort. Returns a NEW array (never mutates the input).
 //   field: 'title' | 'project' | 'priority' | 'due' | 'status' | 'tags'
 //   dir:   'asc' | 'desc'
@@ -175,8 +184,8 @@ export function mergeFromFile(localTasks, fileTasks) {
         id: f.id,
         projectId: f.projectId ?? null,
         title: f.title ?? '',
-        status: f.status ?? 'todo',
-        priority: f.priority ?? 'medium',
+        status: clampStatus(f.status),
+        priority: clampPriority(f.priority),
         dueDate: f.dueDate ?? null,
         tags: Array.isArray(f.tags) ? [...f.tags] : [],
         note: '', // private note never travels through the file
@@ -189,8 +198,8 @@ export function mergeFromFile(localTasks, fileTasks) {
     } else if (f.updatedAt > l.updatedAt) {
       // File copy is newer → patch shared fields ONLY (note stays as-is).
       l.title = f.title ?? l.title
-      l.status = f.status ?? l.status
-      l.priority = f.priority ?? l.priority
+      l.status = clampStatus(f.status, l.status)
+      l.priority = clampPriority(f.priority, l.priority)
       l.dueDate = f.dueDate !== undefined ? f.dueDate : l.dueDate
       l.tags = Array.isArray(f.tags) ? [...f.tags] : l.tags
       // Only an explicit `deleted` in the file changes the flag (mirrors the dueDate guard
@@ -229,6 +238,43 @@ export function mergeProjectsFromFile(localProjects, fileProjects) {
     } else {
       if (f.name != null) l.name = f.name
       if (f.color != null) l.color = f.color
+    }
+  }
+  return merged
+}
+
+// Full task-level LWW merge of a DECRYPTED remote vault snapshot into local tasks — used for
+// cross-tab sync, where the "remote" is the same encrypted vault another tab just wrote to the
+// shared IndexedDB. Unlike mergeFromFile (the plaintext on-disk projection, where `note` must
+// never travel), here the remote IS the full encrypted vault, so `note` is merged too.
+// Returns a NEW array; never mutates inputs.
+//   - remote task with unknown id → added (clamped enums)
+//   - remote task newer (updatedAt) → adopt all fields incl. note (clamped enums)
+//   - local-only / older-or-equal → kept as-is
+export function mergeVaultTasks(localTasks, remoteTasks) {
+  const merged = (localTasks || []).map(t => ({ ...t }))
+  const byId = new Map(merged.map(t => [t.id, t]))
+
+  for (const r of remoteTasks || []) {
+    if (!r || !r.id) continue
+    const l = byId.get(r.id)
+    if (!l) {
+      const task = {
+        ...r,
+        status: clampStatus(r.status),
+        priority: clampPriority(r.priority),
+        tags: Array.isArray(r.tags) ? [...r.tags] : [],
+        note: typeof r.note === 'string' ? r.note : '',
+      }
+      merged.push(task)
+      byId.set(task.id, task)
+    } else if ((r.updatedAt || 0) > (l.updatedAt || 0)) {
+      Object.assign(l, r, {
+        status: clampStatus(r.status, l.status),
+        priority: clampPriority(r.priority, l.priority),
+        tags: Array.isArray(r.tags) ? [...r.tags] : l.tags,
+        note: typeof r.note === 'string' ? r.note : l.note,
+      })
     }
   }
   return merged

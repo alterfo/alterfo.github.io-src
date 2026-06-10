@@ -12,7 +12,7 @@
 
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
-import { loadSalt, saveSalt, writeVault, loadVault, saveVault, saveDirHandle, loadDirHandle } from './Planner/db.js'
+import { loadSalt, saveSalt, writeVault, loadVault, saveVault, saveDirHandle, loadDirHandle, initCrossTabSync } from './Planner/db.js'
 import { STATUS, PRIORITY } from './Planner/constants.js'
 import {
   fsSupported, pickDirectory, checkPermission, ensurePermission, writeTasksJson, readTasksJson,
@@ -23,7 +23,7 @@ import {
   selectedProjectId, selectedTaskId,
   addProject, renameProject, removeProject, addTask, updateTask,
   visibleTasks, sortTasks, isOverdue, isDueToday,
-  projectForFile, mergeFromFile, mergeProjectsFromFile,
+  projectForFile, mergeFromFile, mergeProjectsFromFile, mergeVaultTasks,
 } from './Planner/store.js'
 
 // ---- In-memory key (never persisted) ----
@@ -309,6 +309,12 @@ const kanbanColumns = computed(() =>
   }))
 )
 
+// Safe PRIORITY lookup for the template: an unknown priority (e.g. a typo in an agent-edited
+// tasks.json that slipped past clamping) must not throw `undefined.color` and blank the board.
+function priorityOf(p) {
+  return PRIORITY[p] || PRIORITY.medium
+}
+
 // Due-chip color: red if overdue, amber if due today, else neutral grey.
 function dueClass(task) {
   if (isOverdue(task)) return 'due-overdue'
@@ -532,20 +538,48 @@ function cancelImport() {
 // ---- Autosave: re-encrypt on every state change while unlocked ----
 // getSnapshot() reads every reactive field of `state` (via JSON.stringify), so the getter is
 // tracked deeply; saveVault is itself debounced (300 ms) in db.js.
+// _applyingRemote is set while we adopt another tab's just-saved snapshot (cross-tab sync):
+// that data is already persisted in the shared IndexedDB, so re-saving would be redundant AND
+// would emit another 'planner:saved' ping, ping-ponging the two tabs forever. Skip the save
+// for remote-applied changes; genuine user edits still save normally.
+let _applyingRemote = false
 const stopAutosave = watch(
   () => getSnapshot(),
   s => {
-    if (!cryptoKey.value) return
+    if (!cryptoKey.value || _applyingRemote) return
     saveVault(cryptoKey.value, s)
     scheduleFsWrite() // mirror the change into tasks.json when a folder is connected
   },
   { deep: true }
 )
 
+// ---- Cross-tab sync: another tab saved → reload its snapshot and LWW-merge it in ----
+// Both tabs share the same encrypted IndexedDB record, so we just re-decrypt it and merge
+// (task-level LWW, notes included). The merge is applied under _applyingRemote so the autosave
+// watcher does not bounce the change straight back to the other tab.
+let _cleanupSync = () => {}
+async function onCrossTabSave() {
+  if (!cryptoKey.value) return
+  try {
+    const snapshot = await loadVault(cryptoKey.value)
+    if (!snapshot) return
+    const tasks = mergeVaultTasks(state.tasks, snapshot.tasks || [])
+    const projects = mergeProjectsFromFile(state.projects, snapshot.projects || [])
+    _applyingRemote = true
+    loadData({ projects, tasks })
+    await nextTick() // let the autosave watcher fire (and skip) before re-enabling saves
+  } catch (e) {
+    console.warn('[planner] cross-tab sync failed:', e)
+  } finally {
+    _applyingRemote = false
+  }
+}
+
 onMounted(async () => {
   document.addEventListener('mousedown', onDocMouseDown)
   document.addEventListener('keydown', onDocKeyDown)
   window.addEventListener('focus', onWindowFocus)
+  _cleanupSync = initCrossTabSync(onCrossTabSave)
   const salt = await loadSalt()
   hasVault.value = salt != null
   // Restore a previously connected folder (handle survives reload; permission may not).
@@ -568,6 +602,7 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', onDocMouseDown)
   document.removeEventListener('keydown', onDocKeyDown)
   window.removeEventListener('focus', onWindowFocus)
+  _cleanupSync()
   clearTimeout(_fsTimer)
   stopAutosave()
   cryptoKey.value = null
@@ -765,8 +800,8 @@ onUnmounted(() => {
                   <div class="planner-card-top">
                     <span
                       class="planner-card-prio"
-                      :style="{ background: PRIORITY[task.priority].color }"
-                      :title="PRIORITY[task.priority].label"
+                      :style="{ background: priorityOf(task.priority).color }"
+                      :title="priorityOf(task.priority).label"
                     ></span>
                     <span class="planner-card-title">{{ task.title }}</span>
                   </div>
@@ -859,9 +894,9 @@ onUnmounted(() => {
                   <td class="col-prio">
                     <span
                       class="planner-card-prio"
-                      :style="{ background: PRIORITY[task.priority].color }"
+                      :style="{ background: priorityOf(task.priority).color }"
                     ></span>
-                    {{ PRIORITY[task.priority].label }}
+                    {{ priorityOf(task.priority).label }}
                   </td>
                   <td class="col-due">
                     <span v-if="task.dueDate" class="planner-card-due" :class="dueClass(task)">{{ task.dueDate }}</span>

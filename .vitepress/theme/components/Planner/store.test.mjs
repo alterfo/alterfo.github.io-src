@@ -17,6 +17,7 @@ import {
   projectForFile,
   mergeFromFile,
   mergeProjectsFromFile,
+  mergeVaultTasks,
   loadData,
   getSnapshot,
   resetState,
@@ -420,6 +421,75 @@ describe('mergeFromFile (LWW, note-safe)', () => {
     const file = [null, { title: 'no id here' }, { id: 'b', title: 'ok', updatedAt: 200 }]
     const merged = mergeFromFile(local, file)
     assert.deepEqual(merged.map(t => t.id).sort(), ['a', 'b'])
+  })
+
+  it('clamps an invalid priority/status on a NEW file task to safe defaults', () => {
+    const file = [{ id: 'b', title: 'bad enums', priority: 'urgent', status: 'blocked', updatedAt: 200 }]
+    const merged = mergeFromFile([], file)
+    const t = merged.find(x => x.id === 'b')
+    assert.equal(t.priority, 'medium')
+    assert.equal(t.status, 'todo')
+  })
+
+  it('an invalid priority/status in a newer file UPDATE falls back to the local value', () => {
+    const local = [task({ id: 'a', priority: 'high', status: 'done', updatedAt: 100 })]
+    const file = [{ id: 'a', priority: 'urgent', status: 'blocked', updatedAt: 200 }]
+    const merged = mergeFromFile(local, file)
+    const t = merged.find(x => x.id === 'a')
+    assert.equal(t.priority, 'high') // bad value rejected, local kept
+    assert.equal(t.status, 'done')
+  })
+})
+
+describe('mergeVaultTasks (cross-tab full LWW, note-aware)', () => {
+  it('adds a remote-only task including its note', () => {
+    const local = [task({ id: 'a', updatedAt: 100 })]
+    const remote = [task({ id: 'b', note: 'secret', updatedAt: 200 })]
+    const merged = mergeVaultTasks(local, remote)
+    assert.equal(merged.length, 2)
+    assert.equal(merged.find(t => t.id === 'b').note, 'secret')
+  })
+
+  it('newer remote task overwrites note too (unlike mergeFromFile)', () => {
+    const local = [task({ id: 'a', note: 'old note', title: 'Old', updatedAt: 100 })]
+    const remote = [task({ id: 'a', note: 'new note', title: 'New', updatedAt: 200 })]
+    const merged = mergeVaultTasks(local, remote)
+    const t = merged.find(x => x.id === 'a')
+    assert.equal(t.title, 'New')
+    assert.equal(t.note, 'new note')
+  })
+
+  it('older-or-equal remote task is ignored (local wins)', () => {
+    const local = [task({ id: 'a', title: 'Local', note: 'keep', updatedAt: 300 })]
+    const remote = [task({ id: 'a', title: 'Remote', note: 'drop', updatedAt: 100 })]
+    const merged = mergeVaultTasks(local, remote)
+    assert.equal(merged.find(t => t.id === 'a').title, 'Local')
+    assert.equal(merged.find(t => t.id === 'a').note, 'keep')
+  })
+
+  it('local-only task is kept', () => {
+    const local = [task({ id: 'a', updatedAt: 100 }), task({ id: 'b', updatedAt: 100 })]
+    const remote = [task({ id: 'a', updatedAt: 50 })]
+    const merged = mergeVaultTasks(local, remote)
+    assert.deepEqual(merged.map(t => t.id).sort(), ['a', 'b'])
+  })
+
+  it('clamps invalid enums from a remote snapshot', () => {
+    const remote = [task({ id: 'b', priority: 'urgent', status: 'blocked', updatedAt: 200 })]
+    const merged = mergeVaultTasks([], remote)
+    const t = merged.find(x => x.id === 'b')
+    assert.equal(t.priority, 'medium')
+    assert.equal(t.status, 'todo')
+  })
+
+  it('does not mutate inputs and is idempotent', () => {
+    const original = task({ id: 'a', title: 'Old', updatedAt: 100 })
+    const local = [original]
+    const remote = [task({ id: 'a', title: 'New', updatedAt: 200 })]
+    const once = mergeVaultTasks(local, remote)
+    assert.equal(original.title, 'Old') // input untouched
+    const twice = mergeVaultTasks(once, remote)
+    assert.deepEqual(twice, once)
   })
 })
 
