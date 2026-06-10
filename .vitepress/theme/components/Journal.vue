@@ -348,6 +348,59 @@ function closeChangePwd() {
   cpLoading.value = false
 }
 
+// Re-key the vault: verify the current password, then re-encrypt the in-memory
+// vault under a freshly derived key (new salt). The journal data is unchanged —
+// only the encryption envelope is replaced. Crypto/db modules are untouched:
+// encryptJSON returns { iv, ciphertext }, so we pack with the new salt directly.
+async function doChangePassword() {
+  cpError.value = ''
+  if (!cpNew.value) { cpError.value = 'Введите новый пароль'; return }
+  if (cpNew.value !== cpConfirm.value) { cpError.value = 'Пароли не совпадают'; return }
+  if (cpNew.value.length < 6) { cpError.value = 'Пароль слишком короткий (минимум 6 символов)'; return }
+
+  cpLoading.value = true
+  try {
+    // 1. Verify the current password: re-derive from the stored envelope's own
+    //    salt/iterations and decrypt — a wrong password throws OperationError.
+    const currentEnvelope = await loadEnvelope()
+    if (!currentEnvelope) { cpError.value = 'Хранилище не найдено'; return }
+    const { salt: oldSalt, iterations: oldIterations, iv: oldIv, ciphertext: oldCt } = unpackEnvelope(currentEnvelope)
+    const testKey = await deriveKey(cpCurrent.value, oldSalt, oldIterations)
+    await decryptJSON(testKey, { iv: oldIv, ciphertext: oldCt })
+
+    // 2. Fresh salt + new key — full re-keying, not just re-encryption.
+    const newSalt = randomBytes(16)
+    const newIterations = 600000
+    const newKey = await deriveKey(cpNew.value, newSalt, newIterations)
+
+    // 3. Re-encrypt the current in-memory vault (fold in any in-progress text first).
+    upsertEntry(vault, todayISO.value, todayText.value)
+    const { iv, ciphertext } = await encryptJSON(newKey, vault)
+    const packed = packEnvelope({ salt: newSalt, iterations: newIterations, iv, ciphertext })
+
+    // 4. Drop any pending debounced (old-key) write so it cannot clobber the
+    //    re-keyed envelope, then write durably (awaited, no cross-tab ping).
+    clearTimeout(_saveTimer)
+    cancelPendingSave()
+    await saveEnvelopeQuiet(packed)
+
+    // 5. Swap in-memory key material only after the write succeeds — if step 4
+    //    threw, IndexedDB still holds the old envelope and _key is unchanged.
+    _key = newKey
+    _salt = newSalt
+    _iterations = newIterations
+    closeChangePwd()
+  } catch (e) {
+    if (e?.name === 'OperationError') {
+      cpError.value = 'Неверный текущий пароль'
+    } else {
+      cpError.value = 'Ошибка: ' + (e?.message || e)
+    }
+  } finally {
+    cpLoading.value = false
+  }
+}
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
