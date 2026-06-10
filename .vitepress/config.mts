@@ -26,6 +26,60 @@ function canonicalFor(rel: string): string {
   return SITE_URL + (p === '/' ? '/' : p)
 }
 
+// Reusable Person node for JSON-LD (nested as author refs; @context added at top level).
+const PERSON = {
+  '@type': 'Person',
+  name: AUTHOR,
+  alternateName: 'alterfo',
+  url: SITE_URL,
+  jobTitle: 'Software Engineer',
+  knowsAbout: ['Music', 'Audio DSP', 'AI', 'RAG', 'Frontend Development', 'Solution Architecture'],
+  sameAs: ['https://github.com/alterfo'],
+}
+
+// Client-side tool pages → schema.org applicationCategory.
+const TOOL_CATEGORY: Record<string, string> = {
+  'idef0.md': 'BusinessApplication',
+  'planner.md': 'BusinessApplication',
+  'journal.md': 'LifestyleApplication',
+  'piano.md': 'MultimediaApplication',
+  'openpose.md': 'DesignApplication',
+}
+
+// Build the per-page JSON-LD object (or null if the page type has none).
+function jsonLdFor(rel: string, title: string, desc: string, url: string): Record<string, unknown> | null {
+  if (rel === 'index.md') {
+    return { '@context': 'https://schema.org', ...PERSON }
+  }
+  if (rel in TOOL_CATEGORY) {
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: title,
+      description: desc,
+      url,
+      applicationCategory: TOOL_CATEGORY[rel],
+      operatingSystem: 'Web',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      author: PERSON,
+    }
+  }
+  if (rel.startsWith('posts/')) {
+    const m = rel.slice('posts/'.length).match(/^(\d{4}-\d{2}-\d{2})/)
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: title,
+      description: desc,
+      url,
+      inLanguage: 'ru-RU',
+      author: PERSON,
+      ...(m ? { datePublished: m[1] } : {}),
+    }
+  }
+  return null
+}
+
 export default defineConfig({
   title: 'Alterfo',
   titleTemplate: ':title — Alterfo',
@@ -79,6 +133,10 @@ export default defineConfig({
       ['meta', { name: 'twitter:description', content: desc }],
       ['meta', { name: 'twitter:image', content: SITE_URL + '/og.png' }],
     )
+    const ld = jsonLdFor(pageData.relativePath, title, desc, url)
+    if (ld) {
+      pageData.frontmatter.head.push(['script', { type: 'application/ld+json' }, JSON.stringify(ld)])
+    }
   },
   // Old VuePress posts used /posts/:year/:month/:day/:slug.
   // New VitePress posts live at /posts/YYYY-MM-DD-slug.
