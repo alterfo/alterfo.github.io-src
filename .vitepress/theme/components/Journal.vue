@@ -4,6 +4,7 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeQuiet, saveE
 import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVaults } from './Journal/vault.js'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
+import { createOffer, acceptOffer, closeSync, sendEnvelope, receiveAndMerge, diffVaultDates } from './Journal/sync.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -98,6 +99,10 @@ async function lockVault(reason = '', { flush = true } = {}) {
   // (re-keying an empty vault → permanent data loss). Also clears the typed
   // passwords from memory on auto-lock.
   closeChangePwd()
+  // Tear down any live P2P sync session too (same reasoning: the modal is teleported
+  // to <body>, and a half-open RTCPeerConnection must not survive a lock).
+  showSync.value = false
+  syncReset()
 }
 
 watch(phase, (p) => {
@@ -434,6 +439,236 @@ async function doChangePassword() {
   }
 }
 
+// ---- P2P sync (WebRTC, same-LAN, no server) ----
+// Live device↔device sync: only the encrypted envelope crosses the channel; the
+// receiver re-enters the journal password to decrypt the peer's envelope (its salt
+// differs, so the in-memory key can't). All RTCPeerConnection work happens inside
+// click handlers (Task 3/4) — nothing at module top level, so SSR stays safe.
+const showSync = ref(false)
+const syncRole = ref(null)        // null | 'offer' | 'answer'
+const syncStage = ref('idle')     // 'idle' | 'blob-ready' | 'waiting' | 'connected' | 'merged' | 'error'
+const syncBlob = ref('')          // our blob (offer/answer) to hand to the peer
+const syncPeerBlob = ref('')      // the peer's blob pasted in
+const syncPass = ref('')          // journal password — decrypts the peer's envelope
+const syncError = ref('')
+const syncResult = ref('')        // human summary after a merge
+const syncConnState = ref('')     // raw pc.connectionState (from onState) for the status line
+const syncCopied = ref(false)     // brief copied-feedback flag on the copy button
+const syncRetry = ref(false)      // true after a received envelope failed to decrypt → show password + retry
+const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallback
+
+// Live connection handles (browser-only; null on SSR / before a role is chosen).
+let _syncPc = null
+let _syncConn = null              // object returned by createOffer / acceptOffer
+let _pendingSyncEnvelope = null   // last envelope received over the channel (for password retry)
+
+const syncStageLabel = computed(() => {
+  if (syncStage.value === 'waiting') {
+    return syncConnState.value === 'connecting'
+      ? 'Устанавливаем соединение…'
+      : 'Ждём подключения второго устройства…'
+  }
+  return ({
+    'blob-ready': 'Код готов — передайте его на другое устройство.',
+    connected: 'Соединено.',
+    merged: 'Готово.',
+  }[syncStage.value] || '')
+})
+
+// Tear down any live connection and clear all sync state. Idempotent — safe on
+// modal close, lock, and unmount (closeSync no-ops on a null/closed pc).
+function syncReset() {
+  closeSync(_syncPc)
+  _syncPc = null
+  _syncConn = null
+  _pendingSyncEnvelope = null
+  syncRole.value = null
+  syncStage.value = 'idle'
+  syncBlob.value = ''
+  syncPeerBlob.value = ''
+  syncPass.value = ''
+  syncError.value = ''
+  syncResult.value = ''
+  syncConnState.value = ''
+  syncCopied.value = false
+  syncRetry.value = false
+}
+
+function openSync() {
+  syncReset()
+  showSync.value = true
+}
+
+function closeSyncModal() {
+  showSync.value = false
+  syncReset()
+}
+
+// --- Role selection + blob exchange ---
+// onState mirrors pc.connectionState into the status line; a hard 'failed'
+// surfaces as a recoverable error. The waitForChannel timeout (sync.js) covers
+// the silent case where the peer never finishes connecting.
+function onSyncState(state) {
+  syncConnState.value = state
+  if (state === 'failed' && syncStage.value !== 'merged') {
+    syncError.value = 'Соединение не удалось установить. Проверьте, что оба устройства в одной сети.'
+    syncStage.value = 'error'
+  }
+}
+
+// Wait for the DataChannel to open; once open, send our encrypted envelope and
+// mark the session connected. Both peers send — the LWW merge is commutative, so
+// each side converges to the same vault without a round trip. Only the packed
+// envelope crosses the channel (never plaintext).
+function startWaiting() {
+  syncStage.value = 'waiting'
+  _syncConn.waitForChannel(onReceiveEnvelope)
+    .then(async (dc) => {
+      syncStage.value = 'connected'
+      try {
+        // Fold in any in-progress today's text so it participates in the peer's merge.
+        // Guard on non-empty text (like doImport/decryptAndMerge): an unconditional
+        // upsert would stamp an empty today entry with a fresh updatedAt, which LWW
+        // would then let overwrite the peer's real entry for today (data loss).
+        if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
+        sendEnvelope(dc, await buildEnvelope())
+      } catch {
+        syncError.value = 'Не удалось отправить данные на другое устройство.'
+      }
+    })
+    .catch((e) => {
+      syncError.value = (e && e.message) || 'Ошибка соединения.'
+      syncStage.value = 'error'
+    })
+}
+
+// The peer's encrypted envelope arrives here. Keep it so the user can retry with
+// a corrected password (decryption is the only thing that can fail per-attempt).
+function onReceiveEnvelope(envelopeStr) {
+  _pendingSyncEnvelope = envelopeStr
+  decryptAndMerge(envelopeStr)
+}
+
+// Decrypt the peer's envelope with the journal password (re-derive from the
+// SENDER's salt — each device has its own, so the in-memory key can't decrypt a
+// peer's envelope; this mirrors doImport), LWW-merge, persist durably, and refresh
+// the editor. A wrong password (OperationError) leaves the channel open for retry.
+async function decryptAndMerge(envelopeStr) {
+  syncError.value = ''
+  try {
+    const { salt, iterations, iv, ciphertext } = unpackEnvelope(envelopeStr)
+    const key = await deriveKey(syncPass.value, salt, iterations)
+    const importedVault = await decryptJSON(key, { iv, ciphertext })
+    // Fold in any in-progress today's text before merging so it participates in LWW.
+    if (todayText.value.trim()) upsertEntry(vault, todayISO.value, todayText.value)
+    const merged = receiveAndMerge(vault, importedVault)
+    const { added, updated } = diffVaultDates(vault, merged)
+    Object.assign(vault, merged)
+    todayText.value = vault.entries[todayISO.value]?.text ?? todayText.value
+    await persistVault()
+    const total = added + updated
+    syncResult.value = total === 0
+      ? 'Данные уже синхронизированы.'
+      : `Объединено ${total} записей (${updated} обновлено)`
+    syncRetry.value = false
+    _pendingSyncEnvelope = null
+    syncStage.value = 'merged'
+  } catch (err) {
+    if (err?.name === 'OperationError') {
+      // Wrong password — keep the channel open so the user can fix it and retry.
+      syncError.value = 'Неверный пароль — введите пароль дневника со второго устройства.'
+      syncRetry.value = true
+    } else {
+      syncError.value = 'Не удалось обработать данные с другого устройства.'
+    }
+  }
+}
+
+// Retry decryption of the already-received envelope after the user corrects the password.
+function retrySyncDecrypt() {
+  if (!_pendingSyncEnvelope) return
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  decryptAndMerge(_pendingSyncEnvelope)
+}
+
+// Initiator: generate the offer blob, then await the peer's answer.
+async function startOffer() {
+  syncError.value = ''
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  syncRole.value = 'offer'
+  syncStage.value = 'idle'
+  try {
+    _syncConn = await createOffer(onSyncState)
+    _syncPc = _syncConn.pc
+    syncBlob.value = _syncConn.blobStr
+    syncStage.value = 'blob-ready'
+  } catch {
+    syncError.value = 'Не удалось создать код соединения.'
+    syncRole.value = null
+  }
+}
+
+// Initiator step 2: accept the answer blob pasted back from the peer.
+async function submitAnswer() {
+  syncError.value = ''
+  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте ответ со второго устройства.'; return }
+  try {
+    await _syncConn.acceptAnswer(syncPeerBlob.value.trim())
+  } catch {
+    syncError.value = 'Неверный код ответа — проверьте и вставьте заново.'
+    return
+  }
+  startWaiting()
+}
+
+// Responder: choose the answer role; the offer blob is pasted next.
+function startAnswer() {
+  syncError.value = ''
+  if (!syncPass.value.trim()) { syncError.value = 'Введите пароль дневника.'; return }
+  syncRole.value = 'answer'
+  syncStage.value = 'idle'
+}
+
+// Responder step 2: accept the offer blob, produce the answer, and wait.
+async function submitOffer() {
+  syncError.value = ''
+  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте код с первого устройства.'; return }
+  try {
+    _syncConn = await acceptOffer(syncPeerBlob.value.trim(), onSyncState)
+  } catch {
+    syncError.value = 'Неверный код — проверьте и вставьте заново.'
+    return
+  }
+  _syncPc = _syncConn.pc
+  syncBlob.value = _syncConn.blobStr
+  startWaiting()
+}
+
+// Copy our blob to the clipboard, with a select()+execCommand fallback.
+async function copySyncBlob() {
+  try {
+    await navigator.clipboard.writeText(syncBlob.value)
+    syncCopied.value = true
+  } catch {
+    const el = _syncBlobTextarea.value
+    if (el) {
+      el.focus(); el.select()
+      try { document.execCommand('copy'); syncCopied.value = true } catch { /* clipboard unavailable */ }
+    }
+  }
+  if (syncCopied.value) setTimeout(() => { syncCopied.value = false }, 1500)
+}
+
+// Close the modal on Escape (the change-password modal closes on backdrop only;
+// the spec asks for Escape too). Listener is attached only while the modal is open.
+function onSyncEscape(e) {
+  if (e.key === 'Escape') closeSyncModal()
+}
+watch(showSync, (open) => {
+  if (open) document.addEventListener('keydown', onSyncEscape)
+  else document.removeEventListener('keydown', onSyncEscape)
+})
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
@@ -486,6 +721,10 @@ onUnmounted(() => {
   clearTimeout(_statusTimer)
   clearTimeout(_idleTimer)
   IDLE_EVENTS.forEach(e => document.removeEventListener(e, resetIdleTimer))
+  document.removeEventListener('keydown', onSyncEscape)
+  closeSync(_syncPc)
+  _syncPc = null
+  _syncConn = null
   _key = null
   _salt = null
   _pendingImportStr = null
@@ -585,6 +824,7 @@ onUnmounted(() => {
           <!-- Sync -->
           <div class="journal-sync-section">
             <div class="journal-section-label">Синхронизация</div>
+            <button class="journal-btn journal-btn-sync" @click="openSync">📡 Синхронизация</button>
             <button class="journal-btn journal-btn-sync" @click="doExport">↑ Экспорт .journal</button>
             <button class="journal-btn journal-btn-sync" @click="triggerImportPicker">↓ Импорт .journal</button>
             <div v-if="importPhase === 'idle' && importError" class="journal-error">{{ importError }}</div>
@@ -704,6 +944,114 @@ onUnmounted(() => {
             <button class="journal-btn journal-btn-primary" :disabled="cpLoading" @click="doChangePassword">
               {{ cpLoading ? 'Сохраняю…' : 'Сменить' }}
             </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Sync modal (teleported to body) -->
+    <Teleport to="body">
+      <div v-if="showSync && phase === 'unlocked'" class="cp-backdrop" @click.self="closeSyncModal">
+        <div class="cp-modal sync-modal">
+          <h3>📡 Синхронизация устройств</h3>
+
+          <!-- Role selection -->
+          <template v-if="syncRole === null">
+            <p class="sync-desc">
+              Прямое P2P-соединение между вашими устройствами в одной сети&nbsp;— без серверов и облака.
+              Код передаётся на другое устройство копипастой: через мессенджер, AirDrop или файл.
+            </p>
+            <input
+              v-model="syncPass"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Пароль дневника"
+            />
+            <div class="sync-hint">
+              Нужен для расшифровки данных с другого устройства&nbsp;— тот же пароль, что и на нём.
+            </div>
+            <div class="sync-role-actions">
+              <button class="journal-btn journal-btn-primary" @click="startOffer">Создать код</button>
+              <button class="journal-btn journal-btn-sync sync-role-btn" @click="startAnswer">
+                Ввести код с другого устройства
+              </button>
+            </div>
+          </template>
+
+          <!-- Offer / answer blob exchange -->
+          <template v-else>
+            <!-- Initiator: show our offer, then take the peer's answer -->
+            <template v-if="syncRole === 'offer'">
+              <div class="sync-block-label">Ваш код — передайте его на другое устройство:</div>
+              <textarea
+                ref="_syncBlobTextarea"
+                class="sync-blob"
+                readonly
+                :value="syncBlob"
+                @focus="$event.target.select()"
+              ></textarea>
+              <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
+              </button>
+              <template v-if="syncStage === 'blob-ready'">
+                <div class="sync-block-label">Вставьте ответ со второго устройства:</div>
+                <textarea
+                  v-model="syncPeerBlob"
+                  class="sync-blob"
+                  placeholder="Ответный код…"
+                ></textarea>
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitAnswer">Подключиться</button>
+              </template>
+            </template>
+
+            <!-- Responder: take the offer, then show our answer -->
+            <template v-else-if="syncRole === 'answer'">
+              <template v-if="syncStage === 'idle'">
+                <div class="sync-block-label">Вставьте код с первого устройства:</div>
+                <textarea
+                  v-model="syncPeerBlob"
+                  class="sync-blob"
+                  placeholder="Код приглашения…"
+                ></textarea>
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitOffer">Создать ответ</button>
+              </template>
+              <template v-else>
+                <div class="sync-block-label">Ваш ответ — вставьте его на первом устройстве:</div>
+                <textarea
+                  ref="_syncBlobTextarea"
+                  class="sync-blob"
+                  readonly
+                  :value="syncBlob"
+                  @focus="$event.target.select()"
+                ></textarea>
+                <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                  {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
+                </button>
+              </template>
+            </template>
+
+            <p v-if="syncStageLabel" class="sync-stage-line">{{ syncStageLabel }}</p>
+            <p v-if="syncResult" class="sync-result-line">{{ syncResult }}</p>
+
+            <!-- Wrong-password retry: the envelope is already received; re-derive
+                 with a corrected password without tearing down the channel. -->
+            <template v-if="syncRetry">
+              <div class="sync-block-label">Пароль дневника со второго устройства:</div>
+              <input
+                v-model="syncPass"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Пароль дневника"
+                @keydown.enter="retrySyncDecrypt"
+              />
+              <button class="journal-btn journal-btn-primary sync-go-btn" @click="retrySyncDecrypt">Повторить</button>
+            </template>
+          </template>
+
+          <p v-if="syncError" class="cp-error">{{ syncError }}</p>
+
+          <div class="cp-actions">
+            <button class="journal-btn journal-btn-cancel" @click="closeSyncModal">Закрыть</button>
           </div>
         </div>
       </div>
@@ -1333,5 +1681,75 @@ onUnmounted(() => {
 .cp-actions .journal-btn-primary:disabled {
   opacity: .5;
   cursor: default;
+}
+
+/* ══════════════════════════════════════════════
+   Sync modal (teleported to body; reuses cp-backdrop/cp-modal)
+══════════════════════════════════════════════ */
+.sync-modal { max-width: 440px; }
+.sync-modal h3 { text-align: left; }
+.sync-desc {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.sync-hint {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  margin: -4px 0 0;
+}
+.sync-role-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.sync-role-actions .journal-btn {
+  width: 100%;
+  text-align: center;
+  padding: 11px 14px;
+  font-size: 14px;
+}
+.sync-stage-line {
+  font-size: 13px;
+  color: #bbb;
+  margin: 4px 0 0;
+}
+.sync-result-line {
+  font-size: 13px;
+  color: #77cc77;
+  margin: 8px 0 0;
+}
+.sync-block-label {
+  font-size: 12px;
+  color: #aaa;
+  margin: 14px 0 6px;
+}
+.sync-blob {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  resize: vertical;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  background: #222;
+  border: 1px solid #555;
+  border-radius: 8px;
+  color: #cfcfcf;
+  padding: 9px 11px;
+  outline: none;
+  word-break: break-all;
+}
+.sync-blob:focus { border-color: #8888ff; }
+.sync-copy-btn {
+  margin-top: 6px;
+  text-align: center;
+}
+.sync-go-btn {
+  margin-top: 10px;
+  width: 100%;
 }
 </style>
