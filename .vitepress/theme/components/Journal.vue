@@ -331,6 +331,23 @@ function cancelImport() {
   importPhase.value = 'idle'
 }
 
+// ---- Change password (re-key) ----
+const showChangePassword = ref(false)
+const cpCurrent = ref('')
+const cpNew = ref('')
+const cpConfirm = ref('')
+const cpError = ref('')
+const cpLoading = ref(false)
+
+function closeChangePwd() {
+  showChangePassword.value = false
+  cpCurrent.value = ''
+  cpNew.value = ''
+  cpConfirm.value = ''
+  cpError.value = ''
+  cpLoading.value = false
+}
+
 // ---- Cross-tab sync ----
 let _cleanupSync = () => {}
 
@@ -464,6 +481,9 @@ onUnmounted(() => {
           <!-- Lock -->
           <button class="journal-btn journal-btn-lock" @click="lockVault()">🔒 Заблокировать</button>
 
+          <!-- Change password -->
+          <button class="journal-btn journal-btn-sync" @click="showChangePassword = true">🔑 Сменить пароль</button>
+
           <!-- Sync -->
           <div class="journal-sync-section">
             <div class="journal-section-label">Синхронизация</div>
@@ -571,6 +591,25 @@ onUnmounted(() => {
 
       </div><!-- /journal-body -->
     </div><!-- /journal-layout -->
+
+    <!-- Change-password modal -->
+    <Teleport to="body">
+      <div v-if="showChangePassword" class="cp-backdrop" @click.self="closeChangePwd">
+        <div class="cp-modal">
+          <h3>Сменить пароль</h3>
+          <input v-model="cpCurrent" type="password" autocomplete="current-password" placeholder="Текущий пароль" />
+          <input v-model="cpNew" type="password" autocomplete="new-password" placeholder="Новый пароль" />
+          <input v-model="cpConfirm" type="password" autocomplete="new-password" placeholder="Повторите новый" />
+          <p v-if="cpError" class="cp-error">{{ cpError }}</p>
+          <div class="cp-actions">
+            <button class="journal-btn journal-btn-cancel" @click="closeChangePwd">Отмена</button>
+            <button class="journal-btn journal-btn-primary" :disabled="cpLoading" @click="doChangePassword">
+              {{ cpLoading ? 'Сохраняю…' : 'Сменить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
