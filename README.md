@@ -12,7 +12,8 @@
 
 ```
 .vitepress/
-  config.mts          конфиг VitePress (nav, srcExclude, redirect-хуки)
+  config.mts          конфиг VitePress (nav, srcExclude, SEO/meta + JSON-LD через transformPageData, sitemap + redirect-хуки в buildEnd)
+  seo.js / seo.test.mjs  чистые SEO-хелперы (canonical-URL, JSON-LD, sitemap-priority) + юнит-тесты
   theme/
     index.mts          тема: extends DefaultTheme + кастомный Layout
     Layout.vue         шапка с WebGPU/Canvas particles, слот #layout-top
@@ -31,7 +32,10 @@
       PlannerEditor.vue    шифрованный планировщик задач (WebCrypto, File System Access)
       WebGPUParticles.js   particle-система шапки (WebGPU → Canvas 2D fallback)
 posts/                 35 постов в формате YYYY-MM-DD-slug.md
+projects/              лонгрид-разборы проектов (ar-engine.md, idef0-editor.md)
 public/particles/      WebGL шейдеры (legacy, шапка блога)
+public/og.png          Open Graph карточка (источник: public/og-source.svg)
+public/robots.txt      robots + ссылка на sitemap.xml (генерится в buildEnd)
 ar-engine/             AudioReactiveVideo (WebGPU AR движок)
 deploy.sh              локальный деплой
 .github/workflows/     CI деплой

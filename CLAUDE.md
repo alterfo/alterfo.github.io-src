@@ -260,6 +260,25 @@ The wheel of life is split into colored spheres; «границы условны
 
 There is no light theme and none is planned. If `color-mix` is unsupported on a target browser, fall back to `rgba()` with hex from the tokens.
 
+## SEO & meta pipeline
+
+Per-page SEO is generated centrally in `.vitepress/config.mts` — there are **no** per-page `<head>` blocks in frontmatter (only an optional `description`, plus the standalone `/ar/` app which is hand-maintained, see below).
+
+- **Pure helpers live in `.vitepress/seo.js`** (a plain ESM module, imported by `config.mts`) so the URL / JSON-LD / sitemap logic is unit-testable with `node --test` — same `.js` + `.test.mjs` convention as `lifecircle.js` etc. Tests: `.vitepress/seo.test.mjs`. Exports: `SITE_URL`, `AUTHOR`, `canonicalPath`/`canonicalFor`, `PERSON`, `TOOL_CATEGORY`, `jsonLdFor`, `jsonLdScript`, `sitemapPriority`.
+- **`titleTemplate: ':title — Alterfo'`** globally; `index.md` sets `titleTemplate: false` so the homepage isn't "Alterfo — Alterfo".
+- **`transformPageData(pageData)`** pushes onto `pageData.frontmatter.head`: a canonical link, the full Open Graph + Twitter card set (`og:image`/`twitter:image` always `SITE_URL + '/og.png'`), and a per-page JSON-LD `<script>`. `desc` = `pageData.description` (VitePress already infers this from frontmatter `description`, else `''`) → a hardcoded fallback. **`pageData.description` already equals frontmatter `description`** — do not add a redundant `frontmatter.description` rung.
+- **`canonicalFor(rel)`** strips `.md`, collapses a trailing `index` to its directory (`index.md` → `/`, `blog/index.md` → `/blog/` — note the **kept trailing slash**), prefixes `SITE_URL`. The sitemap `<loc>` reuses `canonicalFor` so it never drifts from the page's own canonical (they previously diverged on that trailing slash).
+- **`jsonLdFor(rel,…)`** + the reusable `PERSON` node emits: `index.md` → `Person`; any key in **`TOOL_CATEGORY`** → `SoftwareApplication` (free `offers`, `author: PERSON`); `posts/*` → `BlogPosting` with `datePublished` parsed from the `YYYY-MM-DD` filename prefix (omitted if the filename isn't dated). Case-study `projects/*` pages and `blog/index.md` get **no JSON-LD by design** (only meta tags) → `null`.
+- **`jsonLdScript(ld)`** must wrap the JSON before embedding: VitePress inserts a `<script>` body **verbatim** (no HTML-escaping, no esbuild pass for `type="application/ld+json"`), and `JSON.stringify` does not escape `<`/`>`/`&`/`</script>`, so an author-controlled title could break out. It escapes those to `\uXXXX` (still valid JSON).
+- **Adding a new tool page:** add its `*.md` filename to `TOOL_CATEGORY` (→ `SoftwareApplication` JSON-LD **and** the sitemap 0.8 priority tier, keyed off the same map) **and** give the page a `description` frontmatter — otherwise it shares the generic fallback description with every other description-less page.
+- **Sitemap:** the same `buildEnd(siteConfig)` hook that writes post redirect stubs hand-rolls `sitemap.xml` from `siteConfig.pages` (zero-dep — no `sitemap` package; redirect stubs auto-excluded as they aren't source `.md` pages). Priority via `sitemapPriority`: `/` = 1.0, any `TOOL_CATEGORY` page = 0.8, `projects/` = 0.7, else 0.6. `EXTRA_URLS = ['/ar/']` appends the static app (0.8) since it isn't a VitePress page. `lastmod` from source-file mtime. The post-redirect `catch` sets `files = []` (not early `return`) so a missing `posts/` dir still emits the sitemap. `public/robots.txt` points crawlers at it. `srcExclude` lists `CLAUDE.md`/`README.md`/`docs/**`/`ar-engine/**` so dev-doc URLs never leak into the sitemap.
+- **`/ar/` SEO is hand-maintained.** The standalone static app (`ar-engine/web/index.html`, copied to `dist/ar/` by `.github/workflows/deploy.yml`) is invisible to VitePress's page pipeline, so its `<head>` (title, canonical, full OG/Twitter set → `/og.png`) and the `← Главная` home-link pill are edited **directly in the HTML**, mirroring the `transformPageData` tags by hand. Keep them in sync if the global SEO format changes.
+- **OG image:** `public/og-source.svg` (1200×630) is the source; `public/og.png` is the committed raster referenced by all OG/Twitter meta. To regenerate, rasterize via headless Chrome (`--headless=new --window-size=1200,630 --force-device-scale-factor=1 --screenshot` of a zero-margin HTML wrapper embedding the SVG) — macOS `sips`/`qlmanage` mis-handle the non-square aspect; Chrome is exact. No build-time dependency.
+
+### Portfolio case studies (`projects/`)
+
+Long-form RU case-study pages (default layout) — one per portfolio item: `projects/ar-engine.md`, `projects/idef0-editor.md`. Each has `title` + `description` frontmatter (so `transformPageData` emits canonical + OG/Twitter), a live-demo link, a "Зачем / Как устроено / Что было сложно / Текущее состояние" structure, and an "Из блога" section cross-linking relevant posts. They are reachable from the nav «Проекты» dropdown (`config.mts`) and a `.case-study-links` row below the wheel in `Portfolio.vue`. The `LifeCircle` spheres link to the **live apps**; these pages are the long-form «разборы» and intentionally carry no JSON-LD.
+
 ## Development
 
 - Pure-logic unit tests: `node --test .vitepress/theme/components/crypto.test.mjs` and `node --test .vitepress/theme/components/Journal/*.test.mjs`
@@ -267,6 +286,7 @@ There is no light theme and none is planned. If `color-mix` is unsupported on a 
 - Piano unit tests: `node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs` (the glob does **not** recurse — the importer suites live one level down and need their own pattern)
 - OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
 - Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs` (palette completeness, particle helpers, countdown date math, wheel-of-life geometry)
+- SEO unit tests: `node --test .vitepress/seo.test.mjs` (canonical/sitemap URL building, JSON-LD per page type, JSON-LD `<script>` escaping, sitemap priority tiers)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`

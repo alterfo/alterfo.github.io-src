@@ -1,9 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-
-const SITE_URL = 'https://alterfo.github.io'
-const AUTHOR = 'Oleg Sidorkin'
+import { SITE_URL, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
 
 function redirectHtml(target: string): string {
   return `<!DOCTYPE html>
@@ -18,66 +16,6 @@ function redirectHtml(target: string): string {
 </body>
 </html>
 `
-}
-
-function canonicalFor(rel: string): string {
-  let p = rel.replace(/\.md$/, '').replace(/(^|\/)index$/, '$1')
-  if (!p.startsWith('/')) p = '/' + p
-  return SITE_URL + (p === '/' ? '/' : p)
-}
-
-// Reusable Person node for JSON-LD (nested as author refs; @context added at top level).
-const PERSON = {
-  '@type': 'Person',
-  name: AUTHOR,
-  alternateName: 'alterfo',
-  url: SITE_URL,
-  jobTitle: 'Software Engineer',
-  knowsAbout: ['Music', 'Audio DSP', 'AI', 'RAG', 'Frontend Development', 'Solution Architecture'],
-  sameAs: ['https://github.com/alterfo'],
-}
-
-// Client-side tool pages → schema.org applicationCategory.
-const TOOL_CATEGORY: Record<string, string> = {
-  'idef0.md': 'BusinessApplication',
-  'planner.md': 'BusinessApplication',
-  'journal.md': 'LifestyleApplication',
-  'piano.md': 'MultimediaApplication',
-  'openpose.md': 'DesignApplication',
-}
-
-// Build the per-page JSON-LD object (or null if the page type has none).
-function jsonLdFor(rel: string, title: string, desc: string, url: string): Record<string, unknown> | null {
-  if (rel === 'index.md') {
-    return { '@context': 'https://schema.org', ...PERSON }
-  }
-  if (rel in TOOL_CATEGORY) {
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: title,
-      description: desc,
-      url,
-      applicationCategory: TOOL_CATEGORY[rel],
-      operatingSystem: 'Web',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-      author: PERSON,
-    }
-  }
-  if (rel.startsWith('posts/')) {
-    const m = rel.slice('posts/'.length).match(/^(\d{4}-\d{2}-\d{2})/)
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'BlogPosting',
-      headline: title,
-      description: desc,
-      url,
-      inLanguage: 'ru-RU',
-      author: PERSON,
-      ...(m ? { datePublished: m[1] } : {}),
-    }
-  }
-  return null
 }
 
 export default defineConfig({
@@ -124,8 +62,9 @@ export default defineConfig({
   transformPageData(pageData) {
     const url = canonicalFor(pageData.relativePath)
     const title = pageData.title || 'Alterfo'
+    // pageData.description is already inferred from frontmatter.description by
+    // VitePress (or '' if absent), so a single fallback rung is enough.
     const desc = pageData.description
-      || (pageData.frontmatter.description as string)
       || 'Oleg Sidorkin — инженер и музыкант. Проекты, инструменты и заметки.'
     const isPost = pageData.relativePath.startsWith('posts/')
     ;(pageData.frontmatter.head ??= []).push(
@@ -144,7 +83,7 @@ export default defineConfig({
     )
     const ld = jsonLdFor(pageData.relativePath, title, desc, url)
     if (ld) {
-      pageData.frontmatter.head.push(['script', { type: 'application/ld+json' }, JSON.stringify(ld)])
+      pageData.frontmatter.head.push(['script', { type: 'application/ld+json' }, jsonLdScript(ld)])
     }
   },
   // Old VuePress posts used /posts/:year/:month/:day/:slug.
@@ -172,15 +111,13 @@ export default defineConfig({
     const EXTRA_URLS = ['/ar/'] // static apps not in siteConfig.pages
     const entries = siteConfig.pages
       .map((p: string) => {
-        const path = '/' + p.replace(/\.md$/, '').replace(/(^|\/)index$/, '')
         let lastmod = ''
         try {
           lastmod = statSync(join(siteConfig.srcDir, p)).mtime.toISOString().slice(0, 10)
         } catch {}
-        const priority = p === 'index.md' ? '1.0'
-          : /^(idef0|planner|journal)/.test(p) ? '0.8'
-          : p.startsWith('projects/') ? '0.7' : '0.6'
-        return { loc: SITE_URL + (path === '/' ? '/' : path), lastmod, priority }
+        // Reuse canonicalFor so <loc> matches each page's own canonical link
+        // (they used to diverge on the trailing slash for nested index pages).
+        return { loc: canonicalFor(p), lastmod, priority: sitemapPriority(p) }
       })
       .concat(EXTRA_URLS.map(u => ({ loc: SITE_URL + u, lastmod: '', priority: '0.8' })))
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n`
