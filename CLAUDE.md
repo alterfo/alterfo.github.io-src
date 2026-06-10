@@ -29,6 +29,8 @@ VitePress-based personal site with five fully client-side apps:
 - `planner.md` — page that mounts the planner (`layout: false`)
 - `posts.data.ts` — VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts `excerpt` via `extractExcerpt()` (first non-heading/list/blockquote/HTML line, strips inline Markdown, truncates to 120 chars; returns `''` if no qualifying paragraph found); `buildPost()` throws at build time if `date` or `title` frontmatter fields are absent or if `date` is unparseable
 - `.vitepress/theme/components/BlogList.vue` — blog index component; groups posts by year (`groupedPosts` computed), renders year sections with per-post title, ISO-attributed `<time>`, and optional excerpt; uses hardcoded `rgba()` values instead of `var(--vp-c-*)` tokens to match the dark portfolio theme
+- `.vitepress/theme/components/HelpModal.vue` — reusable help/info modal: `<Teleport to="body">`, `v-model:modelValue` open/close, default slot for content, Escape-key + backdrop-click dismiss. Dark local styling (NOT part of the «Spiral» design system). Used by IDEF0Editor / Journal / Piano roots (a toolbar/sidebar `?` button reopens it). OpenPose and Planner do not have one yet.
+- `.vitepress/theme/components/onboarding.js` — pure `shouldShowOnboarding(key, storage = localStorage)`: returns `true` the first time `key` is seen (and records it via a `<tool>:seen-help` flag), `false` thereafter; `null`/SSR storage → safe no-op `false`. Injectable `storage` for `node --test` (same pattern as `Piano/userScores.js`). Each app root calls it and shows its `HelpModal` once: IDEF0/Piano in `onMounted`, Journal in `watch(phase)` on first `'unlocked'` (so help never covers the password screen). Tested in `onboarding.test.mjs`.
 
 ## IDEF0 Editor modules
 
@@ -287,6 +289,7 @@ Long-form RU case-study pages (default layout) — one per portfolio item: `proj
 - OpenPose unit tests: `node --test .vitepress/theme/components/OpenPose/*.test.mjs` (skeleton, renderer, editor, exporter — renderer canvas tests mock `ctx`/`OffscreenCanvas`)
 - Design-system unit tests: `node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs` (palette completeness, particle helpers, countdown date math, wheel-of-life geometry)
 - SEO unit tests: `node --test .vitepress/seo.test.mjs` (canonical/sitemap URL building, JSON-LD per page type, JSON-LD `<script>` escaping, sitemap priority tiers)
+- Onboarding gate unit tests: `node --test .vitepress/theme/components/onboarding.test.mjs` (first-visit `true` + flag write, return-visit `false`, key isolation, SSR/null-storage no-op)
 - DOM/IndexedDB/file UI: manual browser verification (no automated harness)
 - Dev server: `npm run dev` (VitePress) — **use npm, not yarn** (yarn is broken in this repo)
 - Build: `npm run build`

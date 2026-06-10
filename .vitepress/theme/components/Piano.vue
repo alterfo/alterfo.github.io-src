@@ -8,18 +8,13 @@ import { createLevel1State, createLevel2State, getCurrentNote, getCursor, repeat
 import { generateKeyRects, KEYBOARD_SVG_HEIGHT } from './Piano/keyboard.js'
 import { loadProgress, saveProgress } from './Piano/db.js'
 import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
 
-// ---- Help / onboarding (shown on first visit) ----
+// ---- Help / onboarding (shown once on first visit) ----
 const showHelp = ref(false)
-function useOnboarding(key, showRef) {
-  onMounted(() => {
-    if (typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
-      showRef.value = true
-      localStorage.setItem(key, '1')
-    }
-  })
-}
-useOnboarding('piano:seen-help', showHelp)
+onMounted(() => {
+  if (shouldShowOnboarding('piano:seen-help')) showHelp.value = true
+})
 
 // VexFlow touches the DOM — dynamic import so SSR never loads it
 let _renderPhrase = null
@@ -754,9 +749,8 @@ onUnmounted(() => {
           <tr><th>Режим</th><th>Как работает</th></tr>
         </thead>
         <tbody>
-          <tr><td><strong>Нота</strong></td><td>Одна нота за раз, нет наказания за ошибку</td></tr>
-          <tr><td><strong>Такт</strong></td><td>Нужно сыграть весь такт — ошибка возвращает к началу такта</td></tr>
-          <tr><td><strong>Фраза</strong></td><td>Ошибка возвращает к началу фразы</td></tr>
+          <tr><td><strong>Нота</strong></td><td>Нота за нотой — ошибка возвращает к началу текущего такта</td></tr>
+          <tr><td><strong>Такт</strong></td><td>Такт за тактом — ошибка возвращает к началу текущей фразы</td></tr>
         </tbody>
       </table>
 

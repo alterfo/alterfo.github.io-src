@@ -5,17 +5,10 @@ import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVault
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
 import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
 
 // ---- Help / onboarding (shown on first unlock, never on the password screen) ----
 const showHelp = ref(false)
-function useOnboarding(key, showRef) {
-  watch(phase, (p) => {
-    if (p === 'unlocked' && typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
-      showRef.value = true
-      localStorage.setItem(key, '1')
-    }
-  })
-}
 
 // ---- Volatile session state (never persisted) ----
 let _key = null
@@ -24,7 +17,10 @@ let _iterations = 600000
 
 // ---- Reactive UI state ----
 const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
-useOnboarding('journal:seen-help', showHelp)
+// Show the help modal on the first unlock only — never over the password screen.
+watch(phase, (p) => {
+  if (p === 'unlocked' && shouldShowOnboarding('journal:seen-help')) showHelp.value = true
+})
 const hasVault = ref(false)
 const passphraseInput = ref('')
 const error = ref('')

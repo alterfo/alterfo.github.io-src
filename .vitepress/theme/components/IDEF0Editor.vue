@@ -2,18 +2,13 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { loadProject, saveProject } from './IDEF0Editor/db.js'
 import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
 
-// ----- Help / onboarding -----
+// ----- Help / onboarding (shown once on first visit) -----
 const showHelp = ref(false)
-function useOnboarding(key, showRef) {
-  onMounted(() => {
-    if (typeof localStorage !== 'undefined' && !localStorage.getItem(key)) {
-      showRef.value = true
-      localStorage.setItem(key, '1')
-    }
-  })
-}
-useOnboarding('idef0:seen-help', showHelp)
+onMounted(() => {
+  if (shouldShowOnboarding('idef0:seen-help')) showHelp.value = true
+})
 
 // ----- unique instance ID for SVG pattern -----
 let _seq = 0
