@@ -18,6 +18,11 @@
       <div class="section-inner">
         <h2 class="section-title"><span class="title-mono">// </span>проекты</h2>
         <LifeCircle />
+        <p class="case-study-links">
+          <span class="case-study-label">Разборы:</span>
+          <a href="/projects/ar-engine">AR Engine&nbsp;→</a>
+          <a href="/projects/idef0-editor">IDEF0 Editor&nbsp;→</a>
+        </p>
       </div>
     </section>
 
@@ -283,6 +288,34 @@ onBeforeUnmount(() => {
 /* ── Projects — колесо жизни ─────────────────────────────────── */
 .life-circle-section {
   padding: 2rem 0 3.5rem;
+}
+
+/* «Подробнее» links to the long-form case studies (the wheel spheres
+   themselves still link to the live apps). */
+.case-study-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem 1.25rem;
+  margin: 1.75rem 0 0;
+  font-size: 0.85rem;
+}
+
+.case-study-label {
+  color: var(--ds-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.case-study-links a {
+  color: color-mix(in srgb, var(--ds-violet) 85%, white 15%);
+  text-decoration: none;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+
+.case-study-links a:hover {
+  color: var(--ds-text-strong);
+  text-shadow: var(--ds-glow-violet);
 }
 
 .section-title {

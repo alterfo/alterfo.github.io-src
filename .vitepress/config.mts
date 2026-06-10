@@ -111,6 +111,13 @@ export default defineConfig({
   ],
   nav: [
     { text: 'Главная', link: '/' },
+    {
+      text: 'Проекты',
+      items: [
+        { text: 'AR Engine', link: '/projects/ar-engine' },
+        { text: 'IDEF0 Editor', link: '/projects/idef0-editor' },
+      ],
+    },
     { text: 'Блог', link: '/blog/' },
     { text: 'Planner', link: '/planner' },
   ],
