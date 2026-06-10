@@ -125,3 +125,11 @@ test('buildSegments: only the soon segment lacks an href', () => {
     else assert.ok(seg.href && seg.href.startsWith('/'))
   }
 })
+
+test('buildSegments: passes through extra flags (external) untouched', () => {
+  const defs = [{ id: 'ar', title: 'AR', href: '/ar/', color: '#fff', readiness: 5, external: true }]
+  const geom = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
+  const [seg] = buildSegments(defs, geom)
+  assert.equal(seg.external, true)
+  assert.equal(seg.href, '/ar/')
+})

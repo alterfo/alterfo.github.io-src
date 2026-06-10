@@ -13,6 +13,7 @@
       v-for="seg in segments"
       :key="seg.id"
       :href="seg.href || undefined"
+      :target="seg.external ? '_self' : undefined"
       class="segment"
       :class="{ soon: seg.soon }"
       :style="{ '--seg-color': seg.color }"
@@ -48,7 +49,10 @@ const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 const SEGMENTS = [
   { id: 'journal',  title: 'Дневник',      href: '/journal',  color: '#ff6688', readiness: 9 },
   { id: 'idef0',    title: 'IDEF0',        href: '/idef0',    color: '#33ff4d', readiness: 8 },
-  { id: 'ar',       title: 'AR Engine',    href: '/ar/',      color: '#b34dff', readiness: 5 },
+  // external: /ar/ — статическое приложение вне VitePress-роутера. Любой атрибут
+  // target (даже _self) заставляет роутер отдать клик браузеру (hasAttribute('target')
+  // в router.js) — иначе SPA-навигация ведёт на клиентский 404.
+  { id: 'ar',       title: 'AR Engine',    href: '/ar/',      color: '#b34dff', readiness: 5, external: true },
   { id: 'piano',    title: 'Piano',        href: '/piano',    color: '#ffaa22', readiness: 4 },
   { id: 'openpose', title: 'OpenPose',     href: '/openpose', color: '#1accff', readiness: 4 },
   { id: 'planner',  title: 'Планировщик',  href: '/planner',  color: '#ff9933', readiness: 4 },
