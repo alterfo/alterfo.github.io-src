@@ -32,16 +32,20 @@ export function fillRadius(readiness, innerR, maxOuterR) {
 }
 
 // Per-segment render data for the wheel: background track + readiness fill paths,
-// outside label position and its text-anchor. Sphere `i` spans 56° (i*60+2 … i*60+58)
-// with a 4° gap, so 6 × 56 + 6 × 4 = 360°. Pure — unit-tested; the .vue only renders it.
+// outside label position and its text-anchor. Generalized to n = defs.length spheres:
+// span = 360/n, sphere `i` spans `i*span+2 … (i+1)*span−2` (a 4° gap between spheres),
+// midpoint `i*span+span/2`, so n × (span−4) + n × 4 = 360°. For n = 6 → span 60° (the
+// original 56°/4° layout); for n = 7 → span ≈ 51.43°, last sphere ends at 358°.
+// Pure — unit-tested; the .vue only renders it.
 // `defs` = sphere defs ({ id, title, href, color, readiness, soon? });
 // `geom` = { cx, cy, innerR, maxOuterR, labelR }.
 export function buildSegments(defs, geom) {
   const { cx, cy, innerR, maxOuterR, labelR } = geom
+  const span = 360 / defs.length
   return defs.map((s, i) => {
-    const startDeg = i * 60 + 2
-    const endDeg = i * 60 + 58
-    const midDeg = i * 60 + 30
+    const startDeg = i * span + 2
+    const endDeg = (i + 1) * span - 2
+    const midDeg = i * span + span / 2
     const fillR = fillRadius(s.readiness, innerR, maxOuterR)
     const label = labelXY(cx, cy, labelR, midDeg)
     const dx = Math.cos(deg2rad(midDeg))

@@ -12,13 +12,14 @@
   --ds-text-muted: rgba(200, 180, 255, 0.55);
   --ds-text-dim: rgba(200, 180, 255, 0.35);
 
-  /* Spectrum — «сферы круга жизни» / цвета проектов (6 семантических) */
+  /* Spectrum — «сферы круга жизни» / цвета проектов (7 семантических) */
   --ds-violet: #b34dff;   /* AR / подпись / «я» */
   --ds-cyan:   #1accff;   /* blog */
   --ds-green:  #33ff4d;   /* idef0 */
   --ds-pink:   #ff6688;   /* journal */
   --ds-amber:  #ffaa22;   /* piano */
   --ds-orange: #ff9933;   /* github */
+  --ds-teal:   #33ffcc;   /* decisions / журнал решений */
 
   /* Typography */
   --ds-font-display: Georgia, 'Times New Roman', serif;

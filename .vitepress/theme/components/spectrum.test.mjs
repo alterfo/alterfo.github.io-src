@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { SPECTRUM, CANVAS_PALETTE, PROJECT_COLORS } from './spectrum.js'
 
-test('SPECTRUM has 6 hex colors', () => {
-  assert.equal(SPECTRUM.length, 6)
+test('SPECTRUM has 7 hex colors', () => {
+  assert.equal(SPECTRUM.length, 7)
   for (const c of SPECTRUM) {
     assert.match(c, /^#[0-9a-f]{6}$/i, `${c} is a 6-digit hex`)
   }
@@ -21,7 +21,7 @@ test('CANVAS_PALETTE entries are well-formed open rgba( prefixes', () => {
   }
 })
 
-test('CANVAS_PALETTE first 6 entries mirror SPECTRUM (dual-mirror sync contract)', () => {
+test('CANVAS_PALETTE first 7 entries mirror SPECTRUM (dual-mirror sync contract)', () => {
   // The two palettes are hand-synced (CSS can't be imported as JS); this guards
   // the documented "change a color in BOTH" rule so a SPECTRUM edit that forgets
   // the matching CANVAS_PALETTE rgba is caught instead of silently mismatching.
@@ -34,8 +34,8 @@ test('CANVAS_PALETTE first 6 entries mirror SPECTRUM (dual-mirror sync contract)
   })
 })
 
-test('PROJECT_COLORS has all 6 project keys, hex values', () => {
-  const keys = ['ar', 'blog', 'idef0', 'journal', 'piano', 'github']
+test('PROJECT_COLORS has all 7 project keys, hex values', () => {
+  const keys = ['ar', 'blog', 'idef0', 'journal', 'piano', 'github', 'decisions']
   for (const k of keys) {
     assert.ok(k in PROJECT_COLORS, `${k} present`)
     assert.match(PROJECT_COLORS[k], /^#[0-9a-f]{6}$/i, `${k} is a 6-digit hex`)

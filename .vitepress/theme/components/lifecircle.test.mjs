@@ -133,3 +133,37 @@ test('buildSegments: passes through extra flags (external) untouched', () => {
   assert.equal(seg.external, true)
   assert.equal(seg.href, '/ar/')
 })
+
+test('buildSegments: 6-sphere layout uses the original 60° span (i*60+2 … i*60+58)', () => {
+  // n = 6 → span = 60; each bgPath must equal arcPath rebuilt at the 56°/4° angles.
+  const segs = buildSegments(DEFS, GEOM)
+  segs.forEach((seg, i) => {
+    assert.equal(
+      seg.bgPath,
+      arcPath(GEOM.cx, GEOM.cy, GEOM.innerR, GEOM.maxOuterR, i * 60 + 2, i * 60 + 58),
+    )
+  })
+})
+
+test('buildSegments: generalizes to 7 spheres (span = 360/7, last ends at 358°)', () => {
+  const defs7 = Array.from({ length: 7 }, (_, i) => ({
+    id: `s${i}`, title: `S${i}`, href: `/s${i}`, color: '#000', readiness: 5,
+  }))
+  const segs = buildSegments(defs7, GEOM)
+  assert.equal(segs.length, 7)
+  const span = 360 / 7
+  segs.forEach((seg, i) => {
+    const start = i * span + 2
+    const end = (i + 1) * span - 2
+    assert.equal(
+      seg.bgPath,
+      arcPath(GEOM.cx, GEOM.cy, GEOM.innerR, GEOM.maxOuterR, start, end),
+    )
+    const mid = i * span + span / 2
+    const expected = labelXY(GEOM.cx, GEOM.cy, GEOM.labelR, mid)
+    assert.ok(Math.abs(seg.label.x - expected.x) < 1e-9)
+    assert.ok(Math.abs(seg.label.y - expected.y) < 1e-9)
+  })
+  // the 7th sphere's trailing edge closes the ring at 358° (360 − 2° gap)
+  assert.ok(Math.abs((7 * span - 2) - 358) < 1e-9)
+})

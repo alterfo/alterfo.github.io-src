@@ -45,17 +45,18 @@ import { buildSegments } from './lifecircle.js'
 // Wheel geometry (mirrors the unit-tested helper inputs).
 const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 
-// 6 spheres = 6 spectrum colors. Hardcoded — they only change with a release.
+// 7 spheres = 7 spectrum colors. Hardcoded — they only change with a release.
 const SEGMENTS = [
-  { id: 'journal',  title: 'Дневник',      href: '/journal',  color: '#ff6688', readiness: 9 },
-  { id: 'idef0',    title: 'IDEF0',        href: '/idef0',    color: '#33ff4d', readiness: 8 },
+  { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#ff6688', readiness: 9 },
+  { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#33ff4d', readiness: 8 },
   // external: /ar/ — статическое приложение вне VitePress-роутера. Любой атрибут
   // target (даже _self) заставляет роутер отдать клик браузеру (hasAttribute('target')
   // в router.js) — иначе SPA-навигация ведёт на клиентский 404.
-  { id: 'ar',       title: 'AR Engine',    href: '/ar/',      color: '#b34dff', readiness: 5, external: true },
-  { id: 'piano',    title: 'Piano',        href: '/piano',    color: '#ffaa22', readiness: 4 },
-  { id: 'openpose', title: 'OpenPose',     href: '/openpose', color: '#1accff', readiness: 4 },
-  { id: 'planner',  title: 'Планировщик',  href: '/planner',  color: '#ff9933', readiness: 4 },
+  { id: 'ar',        title: 'AR Engine',    href: '/ar/',              color: '#b34dff', readiness: 5, external: true },
+  { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#ffaa22', readiness: 4 },
+  { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#1accff', readiness: 4 },
+  { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#ff9933', readiness: 4 },
+  { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#33ffcc', readiness: 4 },
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))

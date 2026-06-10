@@ -236,7 +236,7 @@
       line-height: 0;
     }
     #home-link svg { transition: transform 0.35s ease; }
-    #home-link:hover svg { transform: rotate(60deg); }
+    #home-link:hover svg { transform: rotate(51.43deg); } /* 360/7 сфер */
     #home-link svg path { opacity: 0.4; transition: opacity 0.2s; }
     #home-link svg path.active { opacity: 1; }
     #home-link:hover svg path { opacity: 0.85; }
@@ -328,16 +328,17 @@
   <div id="canvas-wrap">
     <canvas id="canvas" width="960" height="540"></canvas>
 
-    <!-- back to portfolio: мини-«колесо жизни» (та же геометрия, что HomeMark.vue
+    <!-- back to portfolio: мини-«колесо жизни» из 7 сфер (та же геометрия, что HomeMark.vue
          в VitePress-шапках; AR-сфера подсвечена). Hand-maintained — править руками. -->
     <a id="home-link" href="/" title="Круг жизни — на главную" aria-label="На главную">
       <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
-        <path fill="#ff6688" d="M16.17,11 L16.49,2.01 A14,14,0,0,1,27.87,8.58 L20.24,13.35 A5,5,0,0,0,16.17,11 Z"/>
-        <path fill="#33ff4d" d="M20.41,13.65 L27.48,9.9 A13,13,0,0,1,27.48,22.1 L20.41,18.35 A5,5,0,0,0,20.41,13.65 Z"/>
-        <path class="active" fill="#b34dff" d="M20.24,18.65 L24.48,21.3 A10,10,0,0,1,16.35,25.99 L16.17,21 A5,5,0,0,0,20.24,18.65 Z"/>
-        <path fill="#ffaa22" d="M15.83,21 L15.69,24.99 A9,9,0,0,1,8.37,20.77 L11.76,18.65 A5,5,0,0,0,15.83,21 Z"/>
-        <path fill="#1accff" d="M11.59,18.35 L8.05,20.23 A9,9,0,0,1,8.05,11.77 L11.59,13.65 A5,5,0,0,0,11.59,18.35 Z"/>
-        <path fill="#ff9933" d="M11.76,13.35 L8.37,11.23 A9,9,0,0,1,15.69,7.01 L15.83,11 A5,5,0,0,0,11.76,13.35 Z"/>
+        <path fill="#ff6688" d="M16.17,11 L16.49,2.01 A14,14,0,0,1,26.63,6.89 L19.8,12.75 A5,5,0,0,0,16.17,11 Z"/>
+        <path fill="#33ff4d" d="M20.02,13.02 L26.44,8.25 A13,13,0,0,1,28.77,18.45 L20.91,16.94 A5,5,0,0,0,20.02,13.02 Z"/>
+        <path class="active" fill="#b34dff" d="M20.83,17.28 L25.67,18.56 A10,10,0,0,1,20.65,24.85 L18.33,20.43 A5,5,0,0,0,20.83,17.28 Z"/>
+        <path fill="#ffaa22" d="M18.01,20.58 L19.62,24.24 A9,9,0,0,1,12.38,24.24 L13.99,20.58 A5,5,0,0,0,18.01,20.58 Z"/>
+        <path fill="#1accff" d="M13.67,20.43 L11.81,23.97 A9,9,0,0,1,7.3,18.31 L11.17,17.28 A5,5,0,0,0,13.67,20.43 Z"/>
+        <path fill="#ff9933" d="M11.09,16.94 L7.16,17.7 A9,9,0,0,1,8.77,10.64 L11.98,13.02 A5,5,0,0,0,11.09,16.94 Z"/>
+        <path fill="#33ffcc" d="M12.2,12.75 L9.16,10.15 A9,9,0,0,1,15.69,7.01 L15.83,11 A5,5,0,0,0,12.2,12.75 Z"/>
       </svg>
     </a>
 

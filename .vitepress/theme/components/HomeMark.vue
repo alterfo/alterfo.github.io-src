@@ -6,35 +6,41 @@ import { arcPath, fillRadius } from './lifecircle.js'
 // приложений. Та же геометрия и готовность сфер, что в LifeCircle.vue, поэтому
 // знак читается как «вернуться к кругу»; сфера текущего приложения подсвечена.
 const props = defineProps({
-  // id сферы текущего приложения: journal | idef0 | ar | piano | openpose | planner
+  // id сферы текущего приложения: journal | idef0 | ar | piano | openpose | planner | decisions
   active: { type: String, default: '' },
 })
 
 // Порядок/цвета/готовность зеркалят SEGMENTS в LifeCircle.vue — менять синхронно.
 const SPHERES = [
-  { id: 'journal',  color: '#ff6688', readiness: 9 },
-  { id: 'idef0',    color: '#33ff4d', readiness: 8 },
-  { id: 'ar',       color: '#b34dff', readiness: 5 },
-  { id: 'piano',    color: '#ffaa22', readiness: 4 },
-  { id: 'openpose', color: '#1accff', readiness: 4 },
-  { id: 'planner',  color: '#ff9933', readiness: 4 },
+  { id: 'journal',   color: '#ff6688', readiness: 9 },
+  { id: 'idef0',     color: '#33ff4d', readiness: 8 },
+  { id: 'ar',        color: '#b34dff', readiness: 5 },
+  { id: 'piano',     color: '#ffaa22', readiness: 4 },
+  { id: 'openpose',  color: '#1accff', readiness: 4 },
+  { id: 'planner',   color: '#ff9933', readiness: 4 },
+  { id: 'decisions', color: '#33ffcc', readiness: 4 },
 ]
 
 const GEOM = { cx: 16, cy: 16, innerR: 5, maxOuterR: 15 }
+// span = 360/n сфер: каждая сфера i занимает i*span+2 … (i+1)*span−2 (4° зазор).
+const SPAN = 360 / SPHERES.length
 
 const segments = computed(() => SPHERES.map((s, i) => ({
   ...s,
   path: arcPath(
     GEOM.cx, GEOM.cy, GEOM.innerR,
     fillRadius(s.readiness, GEOM.innerR, GEOM.maxOuterR),
-    i * 60 + 2, i * 60 + 58,
+    i * SPAN + 2, (i + 1) * SPAN - 2,
   ),
   isActive: s.id === props.active,
 })))
+
+// Колесо проворачивается ровно на одну сферу при ховере — «жизнь крутится».
+const hoverRotation = `${SPAN}deg`
 </script>
 
 <template>
-  <a href="/" class="home-mark" title="Круг жизни — на главную" aria-label="На главную">
+  <a href="/" class="home-mark" title="Круг жизни — на главную" aria-label="На главную" :style="{ '--home-rot': hoverRotation }">
     <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
       <path
         v-for="s in segments"
@@ -64,9 +70,10 @@ const segments = computed(() => SPHERES.map((s, i) => ({
 .home-mark svg {
   transition: transform 0.35s ease;
 }
-/* Колесо проворачивается на следующую сферу — «жизнь крутится». */
+/* Колесо проворачивается на следующую сферу — «жизнь крутится».
+   Угол = 360/n сфер (--home-rot задаётся в скрипте). */
 .home-mark:hover svg {
-  transform: rotate(60deg);
+  transform: rotate(var(--home-rot, 60deg));
 }
 .seg {
   opacity: 0.4;
