@@ -5,7 +5,7 @@
   <svg
     class="life-circle"
     viewBox="-45 -5 490 410"
-    role="img"
+    role="group"
     aria-label="Круг жизни — проекты и их готовность"
   >
     <component
