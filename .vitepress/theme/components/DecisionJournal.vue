@@ -148,6 +148,7 @@ function lockVault() {
   reviewDraft.value = null
   selectedId.value = null
   view.value = 'empty'
+  cancelImport() // drop any in-progress import (pending envelope + typed passphrase) from memory
   phase.value = 'locked'
   clearInputs()
 }

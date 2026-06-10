@@ -110,6 +110,24 @@ describe('upsertDecision', () => {
     assert.equal(edited.reviewDate, '2026-07-01');
     assert.equal(edited.confidence, 90);
   });
+
+  it('explicit null clears reviewDate/outcome/reviewedAt (vs. undefined which preserves)', () => {
+    const v = emptyVault();
+    const created = upsertDecision(
+      v,
+      { title: 'x', reviewDate: '2026-07-01' },
+      '2026-06-10T10:00:00.000Z',
+    );
+    markReviewed(v, created.id, 'correct', 'ok', '2026-07-02T10:00:00.000Z');
+    const cleared = upsertDecision(
+      v,
+      { id: created.id, reviewDate: null, outcome: null, reviewedAt: null },
+      '2026-06-12T10:00:00.000Z',
+    );
+    assert.equal(cleared.reviewDate, null);
+    assert.equal(cleared.outcome, null);
+    assert.equal(cleared.reviewedAt, null);
+  });
 });
 
 describe('markReviewed', () => {
@@ -134,6 +152,13 @@ describe('markReviewed', () => {
     const d = upsertDecision(v, { title: 'x' }, '2026-06-10T10:00:00.000Z');
     const r = markReviewed(v, d.id, 'maybe', '', '2026-07-10T10:00:00.000Z');
     assert.equal(r.outcome, null);
+  });
+
+  it('coerces a null/undefined actualOutcome to an empty string', () => {
+    const v = emptyVault();
+    const d = upsertDecision(v, { title: 'x' }, '2026-06-10T10:00:00.000Z');
+    const r = markReviewed(v, d.id, 'correct', null, '2026-07-10T10:00:00.000Z');
+    assert.equal(r.actualOutcome, '');
   });
 });
 
@@ -283,5 +308,14 @@ describe('mergeVaults', () => {
     const b = emptyVault();
     b.createdAt = '2026-06-05T00:00:00.000Z';
     assert.equal(mergeVaults(a, b).createdAt, '2026-06-01T00:00:00.000Z');
+  });
+
+  it('keeps the higher version number', () => {
+    const a = emptyVault();
+    a.version = 2;
+    const b = emptyVault();
+    b.version = 1;
+    assert.equal(mergeVaults(a, b).version, 2);
+    assert.equal(mergeVaults(b, a).version, 2);
   });
 });
