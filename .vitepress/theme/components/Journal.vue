@@ -83,6 +83,12 @@ async function lockVault(reason = '', { flush = true } = {}) {
   todayText.value = ''
   Object.assign(vault, { version: 1, entries: {}, createdAt: '' })
   phase.value = 'locked'
+  // Close the change-password modal too: it is teleported to <body> and not part
+  // of the locked-screen tree, so without this it would stay visible on top of
+  // the lock screen and could be submitted against the now-wiped in-memory vault
+  // (re-keying an empty vault → permanent data loss). Also clears the typed
+  // passwords from memory on auto-lock.
+  closeChangePwd()
 }
 
 watch(phase, (p) => {
@@ -375,6 +381,16 @@ async function doChangePassword() {
     const testKey = await deriveKey(cpCurrent.value, oldSalt, oldIterations)
     await decryptJSON(testKey, { iv: oldIv, ciphertext: oldCt })
 
+    // 1b. Abort if the vault was locked while we were verifying (idle auto-lock
+    //     or a cross-tab re-key landed during the awaits above). lockVault wipes
+    //     the in-memory vault to { entries: {} } and nulls _key, so re-encrypting
+    //     it now would durably overwrite the journal with an empty vault. Bail
+    //     before any write — the on-disk envelope (old key) stays intact.
+    if (phase.value !== 'unlocked' || !_key) {
+      cpError.value = 'Сессия заблокирована — откройте дневник заново'
+      return
+    }
+
     // 2. Fresh salt + new key — full re-keying, not just re-encryption.
     const newSalt = randomBytes(16)
     const newIterations = 600000
@@ -664,7 +680,7 @@ onUnmounted(() => {
 
     <!-- Change-password modal -->
     <Teleport to="body">
-      <div v-if="showChangePassword" class="cp-backdrop" @click.self="closeChangePwd">
+      <div v-if="showChangePassword && phase === 'unlocked'" class="cp-backdrop" @click.self="closeChangePwd">
         <div class="cp-modal">
           <h3>Сменить пароль</h3>
           <input v-model="cpCurrent" type="password" autocomplete="current-password" placeholder="Текущий пароль" />
