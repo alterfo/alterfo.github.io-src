@@ -25,6 +25,11 @@ import {
   visibleTasks, sortTasks, isOverdue, isDueToday,
   projectForFile, mergeFromFile, mergeProjectsFromFile, mergeVaultTasks,
 } from './Planner/store.js'
+import HelpModal from './HelpModal.vue'
+import { shouldShowOnboarding } from './onboarding.js'
+
+// ---- Help / onboarding (shown on first unlock, never on the password screen) ----
+const showHelp = ref(false)
 
 // ---- In-memory key (never persisted) ----
 const cryptoKey = ref(null)
@@ -36,6 +41,10 @@ const ITERATIONS = 600000
 
 // ---- Reactive UI state ----
 const phase = ref('loading')      // 'loading' | 'locked' | 'unlocked'
+// Show the help modal on the first unlock only — never over the password screen (mirrors Journal).
+watch(phase, (p) => {
+  if (p === 'unlocked' && shouldShowOnboarding('planner:seen-help')) showHelp.value = true
+})
 const hasVault = ref(false)       // true once a salt exists (vault created previously)
 const passphrase = ref('')
 const confirmPassphrase = ref('') // only used on first-run create
@@ -737,6 +746,7 @@ onUnmounted(() => {
           <div class="planner-footer-actions">
             <button class="planner-btn-sm" @click="onExport">Экспорт</button>
             <button class="planner-btn-sm" @click="onImport">Импорт</button>
+            <button class="planner-btn-sm planner-help-btn" title="Справка" @click="showHelp = true">?</button>
           </div>
 
           <!-- Hidden picker for .planner import -->
@@ -1009,6 +1019,43 @@ onUnmounted(() => {
         </footer>
       </aside>
     </div>
+
+    <HelpModal v-model="showHelp">
+      <h2>Зашифрованный планировщик</h2>
+
+      <p>Проекты и задачи с канбан-доской и списком — всё <strong>шифруется прямо в браузере</strong> и не покидает устройство в читаемом виде.</p>
+
+      <h3>Почему это безопасно</h3>
+      <ul>
+        <li>Ключ выводится из пароля через <strong>PBKDF2</strong> (600 000 итераций SHA-256) и шифрует данные <strong>AES-GCM 256</strong></li>
+        <li>Ключ нигде не хранится — только в памяти на время сессии; при перезагрузке нужно ввести пароль снова</li>
+        <li>На диске (IndexedDB и файлы <code>.planner</code>) лежит лишь envelope <code>{ соль, итерации, IV, шифротекст }</code> — без ключа это бесполезные байты</li>
+      </ul>
+
+      <h3>Как пользоваться</h3>
+      <ul>
+        <li>Слева — список проектов: добавляй, переименовывай (двойной клик) и удаляй их</li>
+        <li><strong>Канбан</strong> — перетаскивай карточки между «Сделать / В работе / Готово»; <strong>Список</strong> — сортировка и фильтры по проекту, приоритету и тегам</li>
+        <li>Клик по задаче открывает панель: статус, приоритет, срок, теги и приватная заметка</li>
+      </ul>
+
+      <h3>Приватная заметка</h3>
+      <p>Поле «Заметка» в задаче <strong>шифруется и НИКОГДА не попадает в <code>tasks.json</code></strong> — её нельзя прочитать или изменить с диска.</p>
+
+      <h3>Мост tasks.json (для агента)</h3>
+      <p>Кнопка <strong>«Подключить папку»</strong> (только Chrome/Edge) пишет в выбранную папку плоский <code>tasks.json</code> — его может править агент (Claude Code) прямо на диске. Изменения подтянутся при фокусе окна по принципу «побеждает последнее обновление». Правила для правок на диске:</p>
+      <ul>
+        <li>Чтобы изменение применилось, <strong>обнови <code>updatedAt</code></strong> на <code>Date.now()</code> (мс)</li>
+        <li>Удаление — выставь <strong><code>deleted:true</code></strong> (тоже с бампом <code>updatedAt</code>)</li>
+        <li><strong>Отсутствие ≠ удаление</strong>: пропавшая из файла задача сохраняется, данные не теряются</li>
+      </ul>
+
+      <h3>Экспорт / импорт</h3>
+      <ul>
+        <li><strong>Экспорт</strong> — скачивает зашифрованный файл <code>.planner</code> (нет открытого текста)</li>
+        <li><strong>Импорт</strong> — читает файл, спрашивает его пароль и сливает данные по принципу «побеждает последнее обновление»</li>
+      </ul>
+    </HelpModal>
   </div>
 </template>
 
@@ -1240,6 +1287,7 @@ onUnmounted(() => {
 }
 .planner-btn-sm:hover { background: #475569; color: #fff; }
 .planner-lock-btn { flex: none; }
+.planner-help-btn { flex: none; min-width: 32px; }
 
 /* Main */
 .planner-main {
