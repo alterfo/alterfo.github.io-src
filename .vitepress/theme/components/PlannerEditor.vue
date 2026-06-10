@@ -13,9 +13,12 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { deriveKey, randomBytes } from './crypto.js'
 import { loadSalt, saveSalt, loadVault, saveVault } from './Planner/db.js'
+import { STATUS, PRIORITY } from './Planner/constants.js'
 import {
   state, loadData, getSnapshot, resetState,
-  selectedProjectId, addProject, renameProject, removeProject, addTask,
+  selectedProjectId, selectedTaskId,
+  addProject, renameProject, removeProject, addTask, updateTask,
+  visibleTasks, isOverdue, isDueToday,
 } from './Planner/store.js'
 
 // ---- In-memory key (never persisted) ----
@@ -187,7 +190,44 @@ function toggleTag(tag) {
 
 function addNewTask() {
   if (!selectedProjectId.value) return
-  addTask(selectedProjectId.value, 'Новая задача')
+  const t = addTask(selectedProjectId.value, 'Новая задача')
+  selectedTaskId.value = t.id
+}
+
+// ---- Kanban view (Task 8) ----
+
+// One column per STATUS, each with its visible (non-deleted, project- + tag-filtered) tasks.
+const kanbanColumns = computed(() =>
+  STATUS.map(col => ({
+    ...col,
+    tasks: visibleTasks(state.tasks, {
+      projectId: selectedProjectId.value,
+      tag: activeTag.value,
+      status: col.id,
+    }),
+  }))
+)
+
+// Due-chip color: red if overdue, amber if due today, else neutral grey.
+function dueClass(task) {
+  if (isOverdue(task)) return 'due-overdue'
+  if (isDueToday(task)) return 'due-today'
+  return 'due-normal'
+}
+
+function openTask(id) {
+  selectedTaskId.value = id // detail panel opens on this in Task 10
+}
+
+// Native HTML5 drag-and-drop (no library). Desktop-oriented — touch DnD is weak, which is
+// acceptable for this MVP. The dragged task id rides in the dataTransfer payload.
+function onDragStart(e, taskId) {
+  e.dataTransfer.setData('text/plain', taskId)
+  e.dataTransfer.effectAllowed = 'move'
+}
+function onDrop(e, statusId) {
+  const id = e.dataTransfer.getData('text/plain')
+  if (id) updateTask(id, { status: statusId })
 }
 
 // Export / Import are wired in Task 11 (FS sync + encrypted .planner files).
@@ -337,12 +377,66 @@ onUnmounted(() => {
         </div>
 
         <div class="planner-content">
-          <div class="planner-content-empty">
-            <span class="planner-muted">
-              {{ !selectedProjectId
-                ? 'Выберите или создайте проект.'
-                : (viewMode === 'kanban' ? 'Канбан-доска' : 'Список задач') + ' появится здесь.' }}
-            </span>
+          <!-- No project selected -->
+          <div v-if="!selectedProjectId" class="planner-content-empty">
+            <span class="planner-muted">Выберите или создайте проект.</span>
+          </div>
+
+          <!-- Kanban board -->
+          <div v-else-if="viewMode === 'kanban'" class="planner-kanban">
+            <section
+              v-for="col in kanbanColumns"
+              :key="col.id"
+              class="planner-column"
+              @dragover.prevent
+              @drop="onDrop($event, col.id)"
+            >
+              <header class="planner-column-head">
+                <span class="planner-column-title">{{ col.label }}</span>
+                <span class="planner-column-count">{{ col.tasks.length }}</span>
+              </header>
+              <div class="planner-column-body">
+                <article
+                  v-for="task in col.tasks"
+                  :key="task.id"
+                  class="planner-card"
+                  :class="{ selected: selectedTaskId === task.id }"
+                  draggable="true"
+                  @dragstart="onDragStart($event, task.id)"
+                  @click="openTask(task.id)"
+                >
+                  <div class="planner-card-top">
+                    <span
+                      class="planner-card-prio"
+                      :style="{ background: PRIORITY[task.priority].color }"
+                      :title="PRIORITY[task.priority].label"
+                    ></span>
+                    <span class="planner-card-title">{{ task.title }}</span>
+                  </div>
+                  <div
+                    v-if="task.dueDate || (task.tags && task.tags.length)"
+                    class="planner-card-meta"
+                  >
+                    <span
+                      v-if="task.dueDate"
+                      class="planner-card-due"
+                      :class="dueClass(task)"
+                    >{{ task.dueDate }}</span>
+                    <span
+                      v-for="tag in task.tags"
+                      :key="tag"
+                      class="planner-card-tag"
+                    >#{{ tag }}</span>
+                  </div>
+                </article>
+                <p v-if="!col.tasks.length" class="planner-column-empty">Пусто</p>
+              </div>
+            </section>
+          </div>
+
+          <!-- List view (Task 9) -->
+          <div v-else class="planner-content-empty">
+            <span class="planner-muted">Список задач появится здесь.</span>
           </div>
         </div>
       </main>
@@ -615,4 +709,114 @@ onUnmounted(() => {
 }
 
 .planner-muted { color: #64748b; }
+
+/* Kanban board */
+.planner-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  padding: 16px;
+  align-items: start;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.planner-column {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+.planner-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.planner-column-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.planner-column-count {
+  font-size: 12px;
+  color: #64748b;
+  background: #e2e8f0;
+  border-radius: 10px;
+  padding: 1px 8px;
+  min-width: 18px;
+  text-align: center;
+}
+.planner-column-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.planner-column-empty {
+  margin: 4px 0;
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.planner-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  transition: border-color .12s, box-shadow .12s;
+}
+.planner-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+.planner-card.selected { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+.planner-card:active { cursor: grabbing; }
+.planner-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.planner-card-prio {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.planner-card-title {
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.planner-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  padding-left: 16px;
+}
+.planner-card-due {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.planner-card-due.due-normal { background: #f1f5f9; color: #64748b; }
+.planner-card-due.due-today { background: #fef3c7; color: #b45309; }
+.planner-card-due.due-overdue { background: #fee2e2; color: #b91c1c; }
+.planner-card-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
 </style>
