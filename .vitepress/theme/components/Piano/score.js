@@ -409,13 +409,25 @@ const ODE_TO_JOY = {
 
 // Rachmaninoff Prelude in D major, Op. 23 No. 4, Andante cantabile
 // RH: cantabile melody; LH: flowing 8th-note arpeggios (8 per measure = 4 beats)
+// Rachmaninoff Prelude Op. 23 No. 4 — LEFT-HAND figuration.
+// In 3/4 the LH plays a continuous arpeggio in triplet eighths: 9 notes per bar
+// (3 triplet groups × 3), arpeggiating the bar's triad up two octaves and back.
+// 9 × DURATION_BEATS['8t'] (=1/3) ≈ 3 beats. Pitch arrays follow the shape of the
+// score's opening bar: root, third, fifth, root+8ve, third+8ve, fifth+8ve, fifth, third, root.
+const _arpLH = (pitches) => pitches.map((midi) => ({ midi, duration: '8t', hand: 'left' }))
+const ARP_D  = [38, 42, 45, 50, 54, 57, 45, 42, 38] // D  major   (D2 F#2 A2 D3 F#3 A3 A2 F#2 D2)
+const ARP_A  = [45, 49, 52, 57, 61, 64, 52, 49, 45] // A  major   (A2 C#3 E3 A3 C#4 E4 E3 C#3 A2)
+const ARP_G  = [43, 47, 50, 55, 59, 62, 50, 47, 43] // G  major   (G2 B2 D3 G3 B3 D4 D3 B2 G2)
+const ARP_BM = [47, 50, 54, 59, 62, 66, 54, 50, 47] // B  minor   (B2 D3 F#3 B3 D4 F#4 F#3 D3 B2)
+const ARP_E  = [40, 44, 47, 52, 56, 59, 47, 44, 40] // E  major   (E2 G#2 B2 E3 G#3 B3 B2 G#2 E2)
+
 const RACHMANINOFF_PRELUDE_D = {
   id: 'rachmaninoff-prelude-d',
   title: 'Прелюдия ре мажор Op. 23 №4',
   composer: 'С. Рахманинов',
-  tempo: 52,
+  tempo: 50, // Andante cantabile ♩=50 (per the score)
   key: { root: 'D', mode: 'major' },
-  timeSignature: [4, 4],
+  timeSignature: [3, 4], // 3/4 per the score (was incorrectly 4/4)
   modulations: [
     // brief colour toward B minor in phrase 3
     { phraseIdx: 2, measureIdx: 0, key: { root: 'B', mode: 'minor' } },
@@ -423,60 +435,31 @@ const RACHMANINOFF_PRELUDE_D = {
     { phraseIdx: 3, measureIdx: 0, key: { root: 'D', mode: 'major' } },
   ],
   phrases: [
-    // ─── Phrase 1 — opening cantabile theme ──────────────────────────────────
+    // ─── Phrase 1 — LH intro (2 bars), then the cantabile theme enters ────────
     {
       id: 'p1',
       measures: [
+        // m1-m2: RH silent (full-bar rest) while the LH arpeggio sets the scene — "pp"
         { id: 'm1', notes: [
-          { midi: [74,66], duration: 'h',  hand: 'right' }, // D5+F#4  (2)
-          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1)
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { duration: 'h.', hand: 'right', rest: true }, // RH rest (3 beats in 3/4)
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm2', notes: [
-          { midi: [69,61], duration: 'h.', hand: 'right' }, // A4+C#4  (3)
-          { midi: [68,59], duration: 'q',  hand: 'right' }, // G#4+B3  (1) → RH total 4
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3   → LH total 4
+          { duration: 'h.', hand: 'right', rest: true }, // RH rest
+          ..._arpLH(ARP_A), // A major (dominant)
         ]},
+        // m3: RH cantilena enters — "mf sempre cantabile"
         { id: 'm3', notes: [
-          { midi: [66,57], duration: 'q',  hand: 'right' }, // F#4+A3
-          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
-          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [66,57], duration: '8', hand: 'right' }, // F#4+A3
+          { midi: [67,59], duration: '8', hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: 'q', hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: 'q', hand: 'right' }, // B4+D4   → RH 3
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm4', notes: [
-          { midi: [73,64], duration: 'h.', hand: 'right' }, // C#5+E4  (3)
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3  → LH total 4
+          { midi: [73,64], duration: 'h', hand: 'right' }, // C#5+E4  (2)
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4  (1) → RH 3
+          ..._arpLH(ARP_A), // A major
         ]},
       ],
     },
@@ -485,111 +468,55 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p2',
       measures: [
         { id: 'm5', notes: [
-          { midi: [76,67], duration: 'h',  hand: 'right' }, // E5+G4   (2)
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1)
-          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1) → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [76,67], duration: 'q', hand: 'right' }, // E5+G4
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4
+          { midi: [73,64], duration: 'q', hand: 'right' }, // C#5+E4  → RH 3
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm6', notes: [
-          { midi: [71,62], duration: 'h.', hand: 'right' }, // B4+D4   (3)
-          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4  (1) → RH total 4
-          { midi: 43, duration: '8',  hand: 'left'  }, // G2
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 43, duration: '8',  hand: 'left'  }, // G2
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2   → LH total 4
+          { midi: [71,62], duration: 'h', hand: 'right' }, // B4+D4   (2)
+          { midi: [69,61], duration: 'q', hand: 'right' }, // A4+C#4  (1) → RH 3
+          ..._arpLH(ARP_G), // G major
         ]},
         { id: 'm7', notes: [
-          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
-          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4
-          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  → RH total 4
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3  → LH total 4
+          { midi: [67,59], duration: '8', hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: '8', hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: 'q', hand: 'right' }, // B4+D4
+          { midi: [73,64], duration: 'q', hand: 'right' }, // C#5+E4  → RH 3
+          ..._arpLH(ARP_A), // A major
         ]},
         { id: 'm8', notes: [
-          { midi: [74,66], duration: 'w',  hand: 'right' }, // D5+F#4  whole → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [74,66], duration: 'h.', hand: 'right' }, // D5+F#4  (3, held)
+          ..._arpLH(ARP_D), // D major
         ]},
       ],
     },
-    // ─── Phrase 3 — development toward B minor ────────────────────────────────
+    // ─── Phrase 3 — development toward B minor (climax on F#5) ─────────────────
     {
       id: 'p3',
       measures: [
         { id: 'm9', notes: [
-          { midi: [78,69], duration: 'h',  hand: 'right' }, // F#5+A4  (2)
-          { midi: [76,67], duration: 'q',  hand: 'right' }, // E5+G4   (1)
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3   → LH total 4
+          { midi: [78,69], duration: 'q', hand: 'right' }, // F#5+A4  (climax)
+          { midi: [76,67], duration: 'q', hand: 'right' }, // E5+G4
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4  → RH 3
+          ..._arpLH(ARP_BM), // B minor
         ]},
         { id: 'm10', notes: [
-          { midi: [73,64], duration: 'h.', hand: 'right' }, // C#5+E4  (3)
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
-          { midi: 44, duration: '8',  hand: 'left'  }, // G#2
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 44, duration: '8',  hand: 'left'  }, // G#2
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 47, duration: '8',  hand: 'left'  }, // B2   → LH total 4
+          { midi: [73,64], duration: 'h', hand: 'right' }, // C#5+E4  (2)
+          { midi: [71,62], duration: 'q', hand: 'right' }, // B4+D4   (1) → RH 3
+          ..._arpLH(ARP_E), // E major
         ]},
         { id: 'm11', notes: [
-          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4
-          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [69,61], duration: '8', hand: 'right' }, // A4+C#4
+          { midi: [71,62], duration: '8', hand: 'right' }, // B4+D4
+          { midi: [73,64], duration: 'q', hand: 'right' }, // C#5+E4
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4  → RH 3
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm12', notes: [
-          { midi: [76,67], duration: 'h.', hand: 'right' }, // E5+G4   (3)
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  (1) → RH total 4
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3   → LH total 4
+          { midi: [76,67], duration: 'h', hand: 'right' }, // E5+G4   (2)
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4  (1) → RH 3
+          ..._arpLH(ARP_A), // A major
         ]},
       ],
     },
@@ -598,54 +525,26 @@ const RACHMANINOFF_PRELUDE_D = {
       id: 'p4',
       measures: [
         { id: 'm13', notes: [
-          { midi: [74,66], duration: 'h',  hand: 'right' }, // D5+F#4  (2)
-          { midi: [73,64], duration: 'q',  hand: 'right' }, // C#5+E4  (1)
-          { midi: [71,62], duration: 'q',  hand: 'right' }, // B4+D4   (1) → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4
+          { midi: [73,64], duration: 'q', hand: 'right' }, // C#5+E4
+          { midi: [71,62], duration: 'q', hand: 'right' }, // B4+D4   → RH 3
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm14', notes: [
-          { midi: [69,61], duration: 'h.', hand: 'right' }, // A4+C#4  (3)
-          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3   (1) → RH total 4
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 45, duration: '8',  hand: 'left'  }, // A2
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3
-          { midi: 52, duration: '8',  hand: 'left'  }, // E3
-          { midi: 49, duration: '8',  hand: 'left'  }, // C#3  → LH total 4
+          { midi: [69,61], duration: 'h', hand: 'right' }, // A4+C#4  (2)
+          { midi: [67,59], duration: 'q', hand: 'right' }, // G4+B3   (1) → RH 3
+          ..._arpLH(ARP_A), // A major
         ]},
         { id: 'm15', notes: [
-          { midi: [66,57], duration: 'q',  hand: 'right' }, // F#4+A3
-          { midi: [67,59], duration: 'q',  hand: 'right' }, // G4+B3
-          { midi: [69,61], duration: 'q',  hand: 'right' }, // A4+C#4
-          { midi: [74,66], duration: 'q',  hand: 'right' }, // D5+F#4  → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [66,57], duration: '8', hand: 'right' }, // F#4+A3
+          { midi: [67,59], duration: '8', hand: 'right' }, // G4+B3
+          { midi: [69,61], duration: 'q', hand: 'right' }, // A4+C#4
+          { midi: [74,66], duration: 'q', hand: 'right' }, // D5+F#4  → RH 3
+          ..._arpLH(ARP_D), // D major
         ]},
         { id: 'm16', notes: [
-          { midi: [74,66], duration: 'w',  hand: 'right' }, // D5+F#4  whole → RH total 4
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 50, duration: '8',  hand: 'left'  }, // D3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3
-          { midi: 57, duration: '8',  hand: 'left'  }, // A3
-          { midi: 54, duration: '8',  hand: 'left'  }, // F#3  → LH total 4
+          { midi: [74,66], duration: 'h.', hand: 'right' }, // D5+F#4  (3, final cadence)
+          ..._arpLH(ARP_D), // D major
         ]},
       ],
     },

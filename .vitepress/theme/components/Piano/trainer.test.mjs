@@ -505,3 +505,70 @@ describe('chord notes (midi as array)', () => {
     assert.equal(checkNoteL1(state, new Set([60, 62]), LONG_HOLD), 'note-correct')
   })
 })
+
+// ── Rest notes (rest:true) are skipped, never block the cursor ────────────────
+
+describe('rest notes are auto-skipped', () => {
+  // A score whose first measure opens with a full-bar RH rest followed by a left-hand
+  // note (mirrors the Rachmaninoff prelude's 2-bar LH intro).
+  const restScore = {
+    id: 'rest-test',
+    title: 'Rest test',
+    tempo: 60,
+    key: { root: 'D', mode: 'major' },
+    timeSignature: [3, 4],
+    modulations: [],
+    phrases: [{
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { duration: 'h.', hand: 'right', rest: true }, // leading rest
+          { midi: 50, duration: 'h.', hand: 'left' },     // playable LH note
+        ]},
+        { id: 'm2', notes: [
+          { midi: 62, duration: 'h.', hand: 'right' },
+          { midi: 45, duration: 'h.', hand: 'left' },
+        ]},
+      ],
+    }],
+  }
+
+  it('L1 initial cursor skips a leading rest to the first playable note', () => {
+    const state = createLevel1State(restScore)
+    const note = getCurrentNote(state)
+    assert.equal(note.rest, undefined)
+    assert.equal(note.midi, 50) // landed on the LH note, not the rest
+  })
+
+  it('L2 initial cursor skips a leading rest', () => {
+    const state = createLevel2State(restScore)
+    assert.equal(getCurrentNote(state).midi, 50)
+  })
+
+  it('L1 advances across a measure boundary onto a leading rest without stalling', () => {
+    const state = createLevel1State(restScore)
+    // play the only playable note of m1 → should land on m2's first (non-rest) note
+    assert.equal(checkNoteL1(state, new Set([50]), LONG_HOLD), 'note-correct')
+    assert.equal(getCurrentNote(state).midi, 62)
+  })
+
+  it('L1 repeatSection re-skips the leading rest', () => {
+    const state = createLevel1State(restScore)
+    repeatSectionL1(state)
+    assert.equal(getCurrentNote(state).midi, 50)
+  })
+
+  it('L2 repeatSection re-skips the leading rest', () => {
+    const state = createLevel2State(restScore)
+    repeatSectionL2(state)
+    assert.equal(getCurrentNote(state).midi, 50)
+  })
+
+  it('the Rachmaninoff prelude is immediately playable (cursor not on a rest)', () => {
+    const state = createLevel1State(loadScore('rachmaninoff-prelude-d'))
+    const note = getCurrentNote(state)
+    assert.notEqual(note, null)
+    assert.equal(note.rest, undefined)
+    assert.notEqual(note.midi, undefined)
+  })
+})

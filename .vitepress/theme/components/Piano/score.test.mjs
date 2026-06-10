@@ -194,8 +194,8 @@ describe('loadScore / listScores', () => {
     assert.equal(s.id, 'rachmaninoff-prelude-d')
     assert.equal(s.key.root, 'D')
     assert.equal(s.key.mode, 'major')
-    assert.equal(s.tempo, 52)
-    assert.equal(s.timeSignature[0], 4)
+    assert.equal(s.tempo, 50)
+    assert.equal(s.timeSignature[0], 3)
     assert.ok(s.phrases.length > 0)
   })
 
@@ -223,7 +223,9 @@ describe('loadScore / listScores', () => {
             byHand[h] = (byHand[h] ?? 0) + (DURATION_BEATS[note.duration] ?? 0)
           }
           for (const [hand, sum] of Object.entries(byHand)) {
-            assert.equal(sum, score.timeSignature[0],
+            // Float tolerance: triplet eighths ('8t' = 1/3) don't sum to an integer exactly
+            // (9 × 1/3 = 2.9999999999999996), so compare within epsilon rather than ===.
+            assert.ok(Math.abs(sum - score.timeSignature[0]) < 1e-9,
               `${id} measure ${measure.id} hand ${hand}: expected ${score.timeSignature[0]} beats, got ${sum}`)
           }
         }
@@ -249,6 +251,35 @@ describe('loadScore / listScores', () => {
         const hasLeft  = measure.notes.some(n => n.hand === 'left')
         assert.ok(hasRight, `rachmaninoff-prelude-d measure ${measure.id} missing right-hand notes`)
         assert.ok(hasLeft,  `rachmaninoff-prelude-d measure ${measure.id} missing left-hand notes`)
+      }
+    }
+  })
+
+  it('RACHMANINOFF_PRELUDE_D is in 3/4 at ♩=50', () => {
+    const score = loadScore('rachmaninoff-prelude-d')
+    assert.deepEqual(score.timeSignature, [3, 4])
+    assert.equal(score.tempo, 50)
+  })
+
+  it('RACHMANINOFF_PRELUDE_D opens with two bars of RH rest', () => {
+    const score = loadScore('rachmaninoff-prelude-d')
+    const [m1, m2] = score.phrases[0].measures
+    for (const m of [m1, m2]) {
+      const rh = m.notes.filter(n => n.hand === 'right')
+      assert.equal(rh.length, 1, `${m.id} RH should be a single full-bar rest`)
+      assert.equal(rh[0].rest, true, `${m.id} RH note should be a rest`)
+      assert.equal(rh[0].midi, undefined, `${m.id} RH rest must have no pitch`)
+      assert.equal(rh[0].duration, 'h.', `${m.id} RH rest should fill 3 beats`)
+    }
+  })
+
+  it('RACHMANINOFF_PRELUDE_D left hand is all triplet eighths (9 per bar)', () => {
+    const score = loadScore('rachmaninoff-prelude-d')
+    for (const phrase of score.phrases) {
+      for (const measure of phrase.measures) {
+        const lh = measure.notes.filter(n => n.hand === 'left')
+        assert.equal(lh.length, 9, `${measure.id} LH should have 9 triplet eighths`)
+        assert.ok(lh.every(n => n.duration === '8t'), `${measure.id} LH must all be '8t'`)
       }
     }
   })
