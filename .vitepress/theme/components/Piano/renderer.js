@@ -19,7 +19,7 @@ async function getOSMD(container) {
   _osmdContainer = container
 
   _osmd = new OpenSheetMusicDisplay(container, {
-    autoResize: false,
+    autoResize: true,
     backend: 'svg',
     drawTitle: false,
     drawSubtitle: false,
@@ -27,14 +27,16 @@ async function getOSMD(container) {
     drawCredits: false,
     drawPartNames: false,
     drawPartAbbreviations: false,
-    drawMeasureNumbers: false,
+    drawMeasureNumbers: true,
     drawMetronomeMarks: false,
     drawFingerings: false,
     pageFormat: 'Endless',
     darkMode: true,
-    pageBackgroundColor: '#1a1a2e',
+    pageBackgroundColor: 'transparent',
+    newSystemFromXML: false,
+    newPageFromXML: false,
   })
-  _osmd.zoom = 0.75
+  _osmd.zoom = 1.0
 
   return _osmd
 }

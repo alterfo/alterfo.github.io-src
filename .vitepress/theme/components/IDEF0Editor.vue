@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { loadProject, saveProject } from './IDEF0Editor/db.js'
+import { pushSnapshot, undo, redo, resetHistory } from './IDEF0Editor/history.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -51,6 +52,7 @@ function uid() { return `e${++_n}-${Math.random().toString(36).slice(2, 5)}` }
 
 // ----- Box CRUD -----
 function addBox() {
+  pushSnapshot(currentDiagram.value)
   const boxes = currentDiagram.value.boxes
   const col = boxes.length % 3
   const row = Math.floor(boxes.length / 3)
@@ -72,6 +74,7 @@ function addBox() {
 
 function deleteSelectedBox() {
   if (!selectedBox.value) return
+  pushSnapshot(currentDiagram.value)
   const id = selectedBox.value.id
   const box = selectedBox.value
   if (box.childDiagramId) {
@@ -106,6 +109,7 @@ function arrowsForBox(boxId, type) {
 
 function addArrow(type) {
   if (!selectedBox.value) return
+  pushSnapshot(currentDiagram.value)
   const boxId = selectedBox.value.id
   const n = arrowsForBox(boxId, type).length
   const isSource = type === 'output'
@@ -121,6 +125,7 @@ function addArrow(type) {
 }
 
 function removeArrow(arrowId) {
+  pushSnapshot(currentDiagram.value)
   const idx = currentDiagram.value.arrows.findIndex(a => a.id === arrowId)
   if (idx !== -1) currentDiagram.value.arrows.splice(idx, 1)
   schedSave()
@@ -941,16 +946,32 @@ function importJSON() {
   input.click()
 }
 
+// ----- Keyboard shortcuts -----
+function onKeydown(e) {
+  if (!e.ctrlKey && !e.metaKey) return
+  if (e.key === 'z' || e.key === 'Z') {
+    e.preventDefault()
+    undo(currentDiagram.value)
+    schedSave()
+  } else if (e.key === 'y' || e.key === 'Y') {
+    e.preventDefault()
+    redo(currentDiagram.value)
+    schedSave()
+  }
+}
+
 // ----- Lifecycle -----
 onMounted(async () => {
   await loadFromDb()
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('keydown', onKeydown)
   clearTimeout(_saveTimer)
 })
 </script>
@@ -1171,7 +1192,7 @@ onUnmounted(() => {
     </div>
 
     <!-- ═══ HELP MODAL ═══ -->
-    <HelpModal v-model="showHelp">
+    <HelpModal v-model="showHelp" light>
       <h2>IDEF0 Редактор</h2>
       <p>Функциональные диаграммы по стандарту FIPS 183</p>
 

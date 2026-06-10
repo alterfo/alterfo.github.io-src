@@ -13,7 +13,9 @@ import { shouldShowOnboarding } from './onboarding.js'
 // ---- Help / onboarding (shown once on first visit) ----
 const showHelp = ref(false)
 onMounted(() => {
-  if (shouldShowOnboarding('piano:seen-help')) showHelp.value = true
+  // nextTick defers the check until after VitePress client hydration settles,
+  // preventing the modal from appearing briefly then closing on first paint.
+  nextTick(() => { if (shouldShowOnboarding('piano:seen-help')) showHelp.value = true })
 })
 
 // VexFlow touches the DOM — dynamic import so SSR never loads it
@@ -736,11 +738,12 @@ onUnmounted(() => {
         <li>Safari: Web MIDI не поддерживается</li>
       </ul>
 
-      <h3>Цветовая подсказка</h3>
+      <h3>Цветовая подсказка (клавиатура)</h3>
       <ul>
-        <li>🟢 <strong>Зелёная</strong> клавиша — следующая ожидаемая нота</li>
-        <li>🔵 <strong>Синяя</strong> клавиша — нажатая тобой нота</li>
-        <li>⬜ <strong>Серая</strong> клавиша — нота не из текущей тональности</li>
+        <li>🟢 <strong>Зелёная клавиша</strong> — следующая ожидаемая нота</li>
+        <li>🔵 <strong>Синяя клавиша</strong> — нажатая тобой нота</li>
+        <li>⬜ <strong>Серая клавиша</strong> — нота не из текущей тональности</li>
+        <li>🔴 <strong>Красная нота</strong> на нотном стане — неверная нота (повтор такта)</li>
       </ul>
 
       <h3>Режимы обучения</h3>
@@ -975,6 +978,7 @@ onUnmounted(() => {
 
 /* ── Stave ───────────────────────────────────────────────────── */
 .piano-stave-wrap {
+  overflow-x: auto;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -987,10 +991,11 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* OSMD injects an SVG — make it responsive */
+/* OSMD SVG — natural width, scrolls horizontally inside stave-wrap */
 .piano-stave-container :deep(svg) {
-  width: 100% !important;
+  display: block;
   height: auto !important;
+  min-width: 100%;
 }
 
 /* ── Complete screen ─────────────────────────────────────────── */

@@ -3,6 +3,7 @@ import { watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
+  light: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -24,8 +25,8 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="help-overlay" @click.self="close">
-      <div class="help-modal" role="dialog" aria-modal="true">
+    <div v-if="modelValue" :class="['help-overlay', { 'help-overlay--light': light }]" @click.self="close">
+      <div :class="['help-modal', { 'help-modal--light': light }]" role="dialog" aria-modal="true">
         <button class="help-close" @click="close" aria-label="Закрыть">✕</button>
         <slot />
       </div>
@@ -116,4 +117,25 @@ onUnmounted(() => {
 .help-close:hover {
   color: rgba(200, 180, 255, 0.9);
 }
+
+/* Light variant for tools with white backgrounds (IDEF0) */
+.help-overlay--light {
+  background: rgba(0, 0, 0, 0.4);
+}
+.help-modal--light {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1a1a2a;
+}
+.help-modal--light :deep(h2) { color: #1a1a2a; }
+.help-modal--light :deep(h3) { color: #444; }
+.help-modal--light :deep(p),
+.help-modal--light :deep(li) { color: #333; }
+.help-modal--light :deep(strong) { color: #000; }
+.help-modal--light :deep(td),
+.help-modal--light :deep(th) { border-color: rgba(0,0,0,0.1); }
+.help-modal--light :deep(th) { color: #666; }
+.help-modal--light :deep(code) { background: rgba(0,0,0,0.06); }
+.help-modal--light .help-close { color: #888; }
+.help-modal--light .help-close:hover { color: #111; }
 </style>

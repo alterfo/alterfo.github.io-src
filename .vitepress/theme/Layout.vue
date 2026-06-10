@@ -136,6 +136,13 @@ onBeforeUnmount(() => {
   if (particles && particles.destroy) particles.destroy()
 })
 
+// Re-init when canvas first appears (e.g. navigating from portfolio to a blog page
+// causes DefaultLayout to mount for the first time after onMounted already fired).
+watch(canvasEl, (el) => { if (el) nextTick(initHeader) })
+
+// Re-init on SPA navigation so header height (homepage=50vh vs others=25vh) stays correct.
+watch(() => page.value.relativePath, () => { if (canvasEl.value) nextTick(initHeader) })
+
 watch(animateHeader, val => {
   if (val) {
     if (useWebGPU && particles) {

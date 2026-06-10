@@ -117,6 +117,7 @@ export function createField(canvas, opts = {}) {
 
   function stop() {
     if (raf != null) { cancelAnimationFrame(raf); raf = null }
+    frame() // draw one static frame so particles remain visible when paused
   }
 
   function resize() {
