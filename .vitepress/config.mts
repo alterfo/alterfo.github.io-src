@@ -2,6 +2,9 @@ import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+const SITE_URL = 'https://alterfo.github.io'
+const AUTHOR = 'Oleg Sidorkin'
+
 function redirectHtml(target: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -19,7 +22,8 @@ function redirectHtml(target: string): string {
 
 export default defineConfig({
   title: 'Alterfo',
-  description: 'Персональный сайт Олега Сидоркина',
+  titleTemplate: ':title — Alterfo',
+  description: 'Олег Сидоркин — инженер и музыкант: проекты, локальные инструменты без облака и заметки об аудио, AI и архитектуре.',
   lang: 'ru-RU',
   vite: {
     build: {
