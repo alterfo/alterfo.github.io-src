@@ -12,7 +12,7 @@
 
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
-import { loadSalt, saveSalt, loadVault, saveVault, saveDirHandle, loadDirHandle } from './Planner/db.js'
+import { loadSalt, saveSalt, writeVault, loadVault, saveVault, saveDirHandle, loadDirHandle } from './Planner/db.js'
 import { STATUS, PRIORITY } from './Planner/constants.js'
 import {
   fsSupported, pickDirectory, checkPermission, ensurePermission, writeTasksJson, readTasksJson,
@@ -60,9 +60,11 @@ async function createVault() {
     _salt = salt
     cryptoKey.value = await deriveKey(passphrase.value, salt)
     resetState() // start empty
-    // Persist the (empty) vault immediately so a wrong passphrase on the next visit is
-    // rejected by decrypt rather than silently "unlocking" a non-existent record.
-    saveVault(cryptoKey.value, getSnapshot())
+    // Persist the (empty) vault SYNCHRONOUSLY (awaited, not debounced) so a wrong passphrase
+    // on the next visit is rejected by decrypt rather than silently "unlocking" a non-existent
+    // record. Awaiting closes the race where the tab closes within the 300 ms save debounce,
+    // leaving a salt but no vault — which would let any passphrase unlock the empty vault.
+    await writeVault(cryptoKey.value, getSnapshot())
     hasVault.value = true
     phase.value = 'unlocked'
     clearInputs()

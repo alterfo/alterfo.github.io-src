@@ -2,6 +2,8 @@ import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   state,
+  selectedProjectId,
+  selectedTaskId,
   addProject,
   renameProject,
   removeProject,
@@ -109,6 +111,28 @@ describe('removeTask / removeProject', () => {
     const p = addProject('Old', '#fff')
     renameProject(p.id, 'New')
     assert.equal(state.projects[0].name, 'New')
+  })
+
+  it('removeTask clears selectedTaskId when it points at the removed task', () => {
+    const t = addTask('p1', 'Bye')
+    selectedTaskId.value = t.id
+    removeTask(t.id)
+    assert.equal(selectedTaskId.value, null)
+  })
+
+  it('removeTask leaves a different selection untouched', () => {
+    const keep = addTask('p1', 'Keep')
+    const gone = addTask('p1', 'Gone')
+    selectedTaskId.value = keep.id
+    removeTask(gone.id)
+    assert.equal(selectedTaskId.value, keep.id)
+  })
+
+  it('removeProject clears selectedProjectId when it points at the removed project', () => {
+    const p = addProject('Site', '#fff')
+    selectedProjectId.value = p.id
+    removeProject(p.id)
+    assert.equal(selectedProjectId.value, null)
   })
 })
 
@@ -259,6 +283,16 @@ describe('sortTasks', () => {
     const names = { p1: 'Zeta', p2: 'Alpha' }
     assert.deepEqual(sortTasks(tasks, 'project', 'asc', names).map(t => t.id), ['b', 'a'])
   })
+
+  it('sorts by joined tags case-insensitively', () => {
+    const tasks = [
+      task({ id: 'z', tags: ['Zebra'] }),
+      task({ id: 'a', tags: ['alpha', 'beta'] }),
+      task({ id: 'm', tags: ['Mango'] }),
+    ]
+    assert.deepEqual(sortTasks(tasks, 'tags', 'asc').map(t => t.id), ['a', 'm', 'z'])
+    assert.deepEqual(sortTasks(tasks, 'tags', 'desc').map(t => t.id), ['z', 'm', 'a'])
+  })
 })
 
 describe('projectForFile (security: strips note)', () => {
@@ -358,6 +392,35 @@ describe('mergeFromFile (LWW, note-safe)', () => {
     const merged = mergeFromFile(local, file)
     assert.equal(merged.find(t => t.id === 'a').dueDate, null)
   })
+
+  it('a newer file entry that OMITS dueDate preserves the local dueDate', () => {
+    const local = [task({ id: 'a', dueDate: '2026-06-01', updatedAt: 100 })]
+    const file = [{ id: 'a', title: 'edited', updatedAt: 200 }] // no dueDate key
+    const merged = mergeFromFile(local, file)
+    assert.equal(merged.find(t => t.id === 'a').dueDate, '2026-06-01')
+  })
+
+  it('a newer file entry that OMITS deleted does NOT resurrect a local tombstone', () => {
+    const local = [task({ id: 'a', deleted: true, updatedAt: 100 })]
+    const file = [{ id: 'a', title: 'edited', updatedAt: 200 }] // no deleted key
+    const merged = mergeFromFile(local, file)
+    assert.equal(merged.find(t => t.id === 'a').deleted, true) // stays deleted
+    assert.equal(merged.find(t => t.id === 'a').title, 'edited') // other fields still patch
+  })
+
+  it('an explicit deleted:false in a newer file entry restores the task', () => {
+    const local = [task({ id: 'a', deleted: true, updatedAt: 100 })]
+    const file = [{ id: 'a', deleted: false, updatedAt: 200 }]
+    const merged = mergeFromFile(local, file)
+    assert.equal(merged.find(t => t.id === 'a').deleted, false)
+  })
+
+  it('skips null and id-less file entries (hand-edited corruption)', () => {
+    const local = [task({ id: 'a', updatedAt: 100 })]
+    const file = [null, { title: 'no id here' }, { id: 'b', title: 'ok', updatedAt: 200 }]
+    const merged = mergeFromFile(local, file)
+    assert.deepEqual(merged.map(t => t.id).sort(), ['a', 'b'])
+  })
 })
 
 describe('mergeProjectsFromFile', () => {
@@ -410,15 +473,48 @@ describe('mergeProjectsFromFile', () => {
     const twice = mergeProjectsFromFile(once, file)
     assert.deepEqual(twice, once)
   })
+
+  it('skips null and id-less file entries (hand-edited corruption)', () => {
+    const local = [{ id: 'p1', name: 'A', color: '#fff', createdAt: 1 }]
+    const file = [null, { name: 'no id' }, { id: 'p2', name: 'B', color: '#000', createdAt: 2 }]
+    const merged = mergeProjectsFromFile(local, file)
+    assert.deepEqual(merged.map(p => p.id).sort(), ['p1', 'p2'])
+  })
+})
+
+describe('tasks.json round-trip (projectForFile → JSON → merge)', () => {
+  it('a write→read cycle preserves tasks/projects and the private note', () => {
+    const snapshot = {
+      projects: [{ id: 'p1', name: 'Site', color: '#fff', createdAt: 1 }],
+      tasks: [task({ id: 't1', title: 'Ship', note: 'PRIVATE', tags: ['seo'], updatedAt: 100 })],
+    }
+    // Serialize to the plaintext projection and back (what the FS bridge does on disk).
+    const onDisk = JSON.parse(JSON.stringify(projectForFile(snapshot)))
+    const tasks = mergeFromFile(snapshot.tasks, onDisk.tasks)
+    const projects = mergeProjectsFromFile(snapshot.projects, onDisk.projects)
+    // No spurious changes: timestamps are equal so the file never wins.
+    assert.deepEqual(projects, snapshot.projects)
+    assert.equal(tasks.length, 1)
+    assert.equal(tasks[0].title, 'Ship')
+    assert.deepEqual(tasks[0].tags, ['seo'])
+    assert.equal(tasks[0].note, 'PRIVATE') // note survives locally, never written to disk
+    assert.equal(JSON.stringify(onDisk).includes('PRIVATE'), false)
+  })
 })
 
 describe('loadData / getSnapshot', () => {
-  it('loadData replaces state and getSnapshot is a deep clone', () => {
+  it('loadData overwrites both projects and tasks (no stale entries survive)', () => {
+    // Seed stale data first so a true overwrite (not a partial merge) is observable.
+    loadData({ projects: [{ id: 'old', name: 'Stale', color: '#000', createdAt: 0 }], tasks: [task({ id: 'told' })] })
     loadData({ projects: [{ id: 'p1', name: 'A', color: '#fff', createdAt: 1 }], tasks: [task({ id: 't1' })] })
-    assert.equal(state.projects.length, 1)
-    assert.equal(state.tasks.length, 1)
+    assert.deepEqual(state.projects.map(p => p.id), ['p1'])
+    assert.deepEqual(state.tasks.map(t => t.id), ['t1'])
+  })
+
+  it('getSnapshot returns a deep clone, not a live ref', () => {
+    loadData({ projects: [{ id: 'p1', name: 'A', color: '#fff', createdAt: 1 }], tasks: [task({ id: 't1' })] })
     const snap = getSnapshot()
     snap.tasks[0].title = 'mutated'
-    assert.notEqual(state.tasks[0].title, 'mutated') // snapshot is a clone, not a live ref
+    assert.notEqual(state.tasks[0].title, 'mutated')
   })
 })

@@ -193,7 +193,10 @@ export function mergeFromFile(localTasks, fileTasks) {
       l.priority = f.priority ?? l.priority
       l.dueDate = f.dueDate !== undefined ? f.dueDate : l.dueDate
       l.tags = Array.isArray(f.tags) ? [...f.tags] : l.tags
-      l.deleted = f.deleted === true
+      // Only an explicit `deleted` in the file changes the flag (mirrors the dueDate guard
+      // above). A hand-edited file that omits the field must NOT resurrect a local tombstone —
+      // deletion/restoration is explicit, never implied by absence.
+      if (f.deleted !== undefined) l.deleted = f.deleted === true
       l.updatedAt = f.updatedAt
     }
     // else: app copy newer-or-equal → ignore the file's version

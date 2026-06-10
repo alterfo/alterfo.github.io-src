@@ -156,6 +156,7 @@ function initCrossTabSync(onReload) {
 export {
   loadSalt,
   saveSalt,
+  writeVault,
   saveVault,
   loadVault,
   saveDirHandle,
