@@ -473,9 +473,13 @@ function initTrainer() {
     ? createLevel1State(currentScore.value)
     : createLevel2State(currentScore.value)
 
-  phraseIdx.value = 0
-  measureIdx.value = 0
-  noteIdx.value = 0
+  // Sync refs from _state, not hardcoded zeros: createLevelNState runs _skipRests,
+  // so for a score opening on a rest (e.g. Rachmaninoff's 2-bar RH rest) the cursor
+  // already landed on the first playable note. Hardcoding 0,0,0 would desync the
+  // stave highlight (reads these refs) from the keyboard/expectedNote (reads _state).
+  phraseIdx.value = _state.phraseIdx
+  measureIdx.value = _state.measureIdx
+  noteIdx.value = _state.noteIdx
 
   nextTick(renderStave)
   if (metronomeOn.value) startMetronome()
