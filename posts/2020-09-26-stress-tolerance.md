@@ -35,5 +35,5 @@ date: 2020-09-26
 
 Лично меня в периоды стресса раздражают фразы "если судьба приподнесла вам лимоны, сделайте из них лимонад", "думай позитивно, стакан всегда наполовину полон, всегда", "узбагойся", и тд. Это обесценивание проблемы и пассивный подход. Если проблема есть, значит за ней что-то ценное. В психологии есть поняние "интеграция тени", оно заключается в том, чтобы подсвечивать тёмные стороны своей личности и осваивать их.
 
-<iframe frameborder="0" style="border:none;width:100%;height:180px;" width="100%" height="180" src="https://music.yandex.ru/iframe/#track/30767185/6554921">Слушайте <a href='https://music.yandex.ru/album/6554921/track/30767185'>Думай позитивно</a> — <a href='https://music.yandex.ru/artist/218095'>Кровосток</a> на Яндекс.Музыке</iframe>
+<iframe frameborder="0" style="border:none;width:100%;height:180px;" width="100%" height="180" src="https://music.yandex.ru/iframe/#track/30767185/6554921">Слушайте <a href='https://music.yandex.ru/album/6554921/track/30767185'>Думай позитивно</a> — <a href='https://music.yandex.ru/artist/218095'>Кровосток</a> на Яндекс.Музыке</iframe>
 

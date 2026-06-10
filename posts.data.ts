@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import matter from 'gray-matter'
+import { nbspBeforeDash } from './.vitepress/typography.js'
 
 interface Post {
   title: string
@@ -37,7 +38,10 @@ function extractExcerpt(content: string, maxLen = 120): string {
       .replace(/&laquo;/g, '«')
       .replace(/&raquo;/g, '»')
     if (plain.length < 10) continue
-    return plain.length > maxLen ? plain.slice(0, maxLen) + '…' : plain
+    // Типографика сайта: nbsp перед — (markdown-it правило сюда не дотягивается —
+    // excerpt извлекается из сырого markdown мимо рендера).
+    const typo = nbspBeforeDash(plain)
+    return typo.length > maxLen ? typo.slice(0, maxLen) + '…' : typo
   }
   return ''
 }
@@ -51,7 +55,7 @@ function buildPost(file: string, postsDir: string): Post {
   const date = new Date(rawDate + 'T12:00:00Z')
   if (isNaN(date.getTime())) throw new Error(`Post "${file}" has an unparseable date: ${fm.date}`)
   return {
-    title: fm.title as string,
+    title: nbspBeforeDash(fm.title as string),
     url: '/posts/' + file.replace(/\.md$/, ''),
     date: {
       time: +date,

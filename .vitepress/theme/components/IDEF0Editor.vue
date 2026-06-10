@@ -1198,9 +1198,9 @@ onUnmounted(() => {
 
       <h3>Основы</h3>
       <ul>
-        <li><strong>Блоки</strong> — функции/процессы. Двойной клик → редактировать название</li>
-        <li><strong>Стрелки</strong> — зависимости (ICOM): наведи на блок → потяни за маркер</li>
-        <li><strong>Ctrl+Z / Ctrl+Y</strong> — отмена/повтор</li>
+        <li><strong>Блоки</strong> — функции/процессы. Двойной клик → редактировать название</li>
+        <li><strong>Стрелки</strong> — зависимости (ICOM): наведи на блок → потяни за маркер</li>
+        <li><strong>Ctrl+Z / Ctrl+Y</strong> — отмена/повтор</li>
       </ul>
 
       <h3>ICOM-типы стрелок</h3>
@@ -1218,13 +1218,13 @@ onUnmounted(() => {
 
       <h3>Иерархия</h3>
       <ul>
-        <li>Выбери блок → <strong>⊕ Decompose</strong> — создать дочернюю диаграмму</li>
-        <li>Навигатор слева и <strong>↑ Parent</strong> — навигация по диаграммам</li>
-        <li><strong>✕ Декомп.</strong> — удалить декомпозицию блока</li>
+        <li>Выбери блок → <strong>⊕ Decompose</strong> — создать дочернюю диаграмму</li>
+        <li>Навигатор слева и <strong>↑ Parent</strong> — навигация по диаграммам</li>
+        <li><strong>✕ Декомп.</strong> — удалить декомпозицию блока</li>
       </ul>
 
       <h3>Экспорт</h3>
-      <p>JSON · Document — кнопки в тулбаре. Load — импорт JSON-проекта</p>
+      <p>JSON · Document — кнопки в тулбаре. Load — импорт JSON-проекта</p>
     </HelpModal>
   </div>
 </template>

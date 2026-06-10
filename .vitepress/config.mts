@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { SITE_URL, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
+import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
 
 function redirectHtml(target: string): string {
   return `<!DOCTYPE html>
@@ -20,9 +21,25 @@ function redirectHtml(target: string): string {
 
 export default defineConfig({
   title: 'Alterfo',
-  titleTemplate: ':title — Alterfo',
-  description: 'Олег Сидоркин — инженер и музыкант: проекты, локальные инструменты без облака и заметки об аудио, AI и архитектуре.',
+  //   — неразрывный пробел перед длинным тире (правило типографики сайта)
+  titleTemplate: ':title — Alterfo',
+  description: 'Олег Сидоркин — инженер и музыкант: проекты, локальные инструменты без облака и заметки об аудио, AI и архитектуре.',
   lang: 'ru-RU',
+  markdown: {
+    config(md) {
+      // Русская типографика: в текстовых токенах пробел перед «—» → U+00A0,
+      // чтобы тире не отрывалось от слова при переносе. Посты можно писать
+      // с обычными пробелами — сборка поправит (включая &mdash;-сущности и alt).
+      // Правило в конце core-ruler — ПОСЛЕ markdown-it-anchor, чтобы не менять
+      // slug'и заголовков (входящие #-якоря должны остаться стабильными).
+      md.core.ruler.push('nbsp_before_mdash', (state) => {
+        for (const token of state.tokens) {
+          if (token.type !== 'inline' || !token.children) continue
+          applyNbspToInlineTokens(token.children)
+        }
+      })
+    },
+  },
   vite: {
     build: {
       rollupOptions: {
@@ -61,11 +78,13 @@ export default defineConfig({
   ],
   transformPageData(pageData) {
     const url = canonicalFor(pageData.relativePath)
-    const title = pageData.title || 'Alterfo'
-    // pageData.description is already inferred from frontmatter.description by
-    // VitePress (or '' if absent), so a single fallback rung is enough.
+    // nbspBeforeDash: правило типографики сайта действует и в мета-тегах/JSON-LD.
+    // pageData.description мутируется, чтобы и базовый <meta name="description">
+    // (его VitePress рендерит сам, мимо frontmatter.head) получил nbsp.
+    pageData.description = nbspBeforeDash(pageData.description || '')
+    const title = nbspBeforeDash(pageData.title || 'Alterfo')
     const desc = pageData.description
-      || 'Oleg Sidorkin — инженер и музыкант. Проекты, инструменты и заметки.'
+      || 'Oleg Sidorkin — инженер и музыкант. Проекты, инструменты и заметки.'
     const isPost = pageData.relativePath.startsWith('posts/')
     ;(pageData.frontmatter.head ??= []).push(
       ['link', { rel: 'canonical', href: url }],

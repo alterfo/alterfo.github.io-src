@@ -547,7 +547,7 @@ async function doImport() {
     _pendingImportStr = null
     importPhase.value = 'idle'
   } catch {
-    importError.value = 'Не удалось расшифровать — проверьте пароль.'
+    importError.value = 'Не удалось расшифровать — проверьте пароль.'
     importPhase.value = 'awaiting-passphrase'
   }
 }
@@ -682,7 +682,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Unlocked — layout shell: sidebar + main (kanban/list panes built in Tasks 8/9) -->
+    <!-- Unlocked — layout shell: sidebar + main (kanban/list panes built in Tasks 8/9) -->
     <div v-else class="planner-unlocked">
       <!-- Sidebar -->
       <aside class="planner-sidebar">
@@ -793,7 +793,7 @@ onUnmounted(() => {
         </div>
 
         <div class="planner-content">
-          <!-- Kanban board — needs a selected project -->
+          <!-- Kanban board — needs a selected project -->
           <template v-if="viewMode === 'kanban'">
           <div v-if="!selectedProjectId" class="planner-content-empty">
             <span class="planner-muted">Выберите или создайте проект.</span>
@@ -851,7 +851,7 @@ onUnmounted(() => {
           </div>
           </template>
 
-          <!-- List view (Task 9) — spans projects with its own filter bar -->
+          <!-- List view (Task 9) — spans projects with its own filter bar -->
           <div v-else class="planner-list-view">
             <div class="planner-list-filters">
               <select v-model="listProjectFilter" class="planner-filter-select">
@@ -939,7 +939,7 @@ onUnmounted(() => {
         </div>
       </main>
 
-      <!-- Task detail panel (Task 10) — right-side drawer, opens on card/row click -->
+      <!-- Task detail panel (Task 10) — right-side drawer, opens on card/row click -->
       <aside v-if="selectedTask" class="planner-detail">
         <header class="planner-detail-head">
           <input
@@ -998,7 +998,7 @@ onUnmounted(() => {
             <textarea
               class="planner-detail-note"
               :value="selectedTask.note"
-              placeholder="Личные заметки — шифруются и остаются только на устройстве."
+              placeholder="Личные заметки — шифруются и остаются только на устройстве."
               @input="editField('note', $event.target.value)"
             ></textarea>
           </label>

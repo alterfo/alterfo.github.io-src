@@ -6,7 +6,7 @@
     class="life-circle"
     viewBox="-45 -5 490 410"
     role="group"
-    aria-label="Круг жизни — проекты и их готовность"
+    aria-label="Круг жизни — проекты и их готовность"
   >
     <component
       :is="seg.href ? 'a' : 'g'"
@@ -17,7 +17,7 @@
       :class="{ soon: seg.soon }"
       :style="{ '--seg-color': seg.color }"
     >
-      <title>{{ seg.title }} — {{ seg.soon ? 'скоро' : seg.readiness + '/10' }}</title>
+      <title>{{ seg.title }} — {{ seg.soon ? 'скоро' : seg.readiness + '/10' }}</title>
       <path class="seg-bg" :d="seg.bgPath" />
       <path class="seg-fill" :d="seg.fillPath" />
       <path class="seg-stroke" :d="seg.fillPath" />
