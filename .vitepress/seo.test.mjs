@@ -60,6 +60,11 @@ test('jsonLdFor: dated post → BlogPosting with datePublished', () => {
   const ld = jsonLdFor('posts/2021-01-15-foo.md', 'T', 'd', 'u')
   assert.equal(ld['@type'], 'BlogPosting')
   assert.equal(ld.datePublished, '2021-01-15')
+  assert.equal(ld.headline, 'T')
+  assert.equal(ld.description, 'd')
+  assert.equal(ld.url, 'u')
+  assert.equal(ld.inLanguage, 'ru-RU')
+  assert.equal(ld.author['@type'], 'Person')
 })
 
 test('jsonLdFor: undated post omits datePublished (no undefined field)', () => {

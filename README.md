@@ -32,7 +32,7 @@
       PlannerEditor.vue    шифрованный планировщик задач (WebCrypto, File System Access)
       DecisionJournal.vue  шифрованный журнал решений с калибровкой (WebCrypto, Brier score)
       WebGPUParticles.js   particle-система шапки (WebGPU → Canvas 2D fallback)
-posts/                 35 постов в формате YYYY-MM-DD-slug.md
+posts/                 36 постов в формате YYYY-MM-DD-slug.md
 projects/              лонгрид-разборы проектов (ar-engine.md, idef0-editor.md)
 public/particles/      WebGL шейдеры (legacy, шапка блога)
 public/og.png          Open Graph карточка (источник: public/og-source.svg)

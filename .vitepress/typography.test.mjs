@@ -94,6 +94,21 @@ test('applyNbspToInlineTokens: softbreak before dash collapses into nbsp', () =>
   assert.equal(kids[1].content, NBSP)
 })
 
+test('applyNbspToInlineTokens: text_special at i=0 is a no-op (guard i>0 holds)', () => {
+  const kids = [{ type: 'text_special', content: '—' }]
+  applyNbspToInlineTokens(kids)
+  assert.equal(kids[0].content, '—')
+})
+
+test('applyNbspToInlineTokens: multiple trailing spaces before text_special collapse to single nbsp', () => {
+  const kids = [
+    { type: 'text', content: 'parent   ' },
+    { type: 'text_special', content: '—' },
+  ]
+  applyNbspToInlineTokens(kids)
+  assert.equal(kids[0].content, `parent${NBSP}`)
+})
+
 test('applyNbspToInlineTokens: softbreak NOT before dash stays a softbreak', () => {
   const kids = [
     { type: 'text', content: 'строка' },
