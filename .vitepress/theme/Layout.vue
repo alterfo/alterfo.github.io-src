@@ -5,9 +5,6 @@
       <header class="site-header" id="large-header">
         <canvas ref="canvasEl"></canvas>
 
-        <!-- Знак-колесо «домой» — как в шапках приложений (HomeMark) -->
-        <HomeMark class="header-home" />
-
         <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
           <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
             {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
@@ -36,7 +33,6 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
-import HomeMark from './components/HomeMark.vue'
 import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
 import { createField } from './components/ConnectingParticles.js'
 import Portfolio from './Portfolio.vue'
@@ -79,15 +75,23 @@ function ensureField2D() {
   else field.stop()
 }
 
-async function initWebGPU() {
-  if (!canvasEl.value || !isWebGPUSupported()) return false
-  particles = new WebGPUParticles(canvasEl.value)
-  const success = await particles.init(width, height)
-  if (success) {
-    useWebGPU = true
-    return true
+// Single-flight: initHeader может выполниться дважды подряд (onMounted +
+// watch(canvasEl) на первом монтировании) — повторный вызов до завершения
+// init создавал ВТОРОЙ WebGPUParticles на том же canvas; они дрались за
+// контекст, 2D-фолбэк получал getContext('2d') === null (canvas уже занят
+// webgpu-контекстом) — и шапка оставалась пустой. Один canvas — один init.
+let webgpuInit: Promise<boolean> | null = null
+
+function initWebGPU(): Promise<boolean> {
+  if (!canvasEl.value || !isWebGPUSupported()) return Promise.resolve(false)
+  if (!webgpuInit) {
+    particles = new WebGPUParticles(canvasEl.value)
+    webgpuInit = particles.init(width, height).then((success: boolean) => {
+      if (success) useWebGPU = true
+      return success
+    })
   }
-  return false
+  return webgpuInit
 }
 
 function initHeader() {
@@ -140,9 +144,21 @@ onBeforeUnmount(() => {
   if (particles && particles.destroy) particles.destroy()
 })
 
-// Re-init when canvas first appears (e.g. navigating from portfolio to a blog page
-// causes DefaultLayout to mount for the first time after onMounted already fired).
-watch(canvasEl, (el) => { if (el) nextTick(initHeader) })
+// Re-init when the canvas (re)appears: first mount after onMounted, or a fresh
+// element after navigating portfolio → blog. A NEW element means the old GPU/2D
+// objects belong to a dead canvas — reset them before re-initializing.
+watch(canvasEl, (el, prev) => {
+  if (!el || el === prev) return
+  if (prev) {
+    if (particles && particles.destroy) particles.destroy()
+    particles = null
+    useWebGPU = false
+    webgpuInit = null
+    field?.destroy()
+    field = null
+  }
+  nextTick(initHeader)
+})
 
 // Re-init on SPA navigation so header height (homepage=50vh vs others=25vh) stays correct.
 watch(() => page.value.relativePath, () => { if (canvasEl.value) nextTick(initHeader) })
@@ -202,13 +218,6 @@ watch(animateHeader, val => {
   border-color: var(--ds-cyan);
 }
 
-.site-header .header-home {
-  position: absolute;
-  top: 12px;
-  left: 14px;
-  z-index: 3;
-  background: rgba(10, 10, 20, 0.45);
-}
 
 .site-header .animation-toggler.top-1 {
   top: 1em;

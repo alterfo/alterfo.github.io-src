@@ -67,19 +67,24 @@ export default defineConfig({
     'docs/**',
     'ar-engine/**',
   ],
-  // «Главная» текстом из навбара убрана — домой ведёт иконка-колесо HomeMark
-  // в шапке блога (как во всех приложениях).
-  nav: [
-    {
-      text: 'Проекты',
-      items: [
-        { text: 'AR Engine', link: '/projects/ar-engine' },
-        { text: 'IDEF0 Editor', link: '/projects/idef0-editor' },
-      ],
-    },
-    { text: 'Блог', link: '/blog/' },
-    { text: 'Planner', link: '/planner' },
-  ],
+  // Навигация дефолтной темы живёт в themeConfig (top-level `nav` VitePress
+  // игнорирует — меню из-за этого вообще не рендерилось). Вместо надписи
+  // «Alterfo» — иконка-колесо (статичная копия HomeMark, ссылка на главную).
+  themeConfig: {
+    logo: '/home-wheel.svg',
+    siteTitle: false,
+    nav: [
+      {
+        text: 'Проекты',
+        items: [
+          { text: 'AR Engine', link: '/projects/ar-engine' },
+          { text: 'IDEF0 Editor', link: '/projects/idef0-editor' },
+        ],
+      },
+      { text: 'Блог', link: '/blog/' },
+      { text: 'Planner', link: '/planner' },
+    ],
+  },
   transformPageData(pageData) {
     const url = canonicalFor(pageData.relativePath)
     // nbspBeforeDash: правило типографики сайта действует и в мета-тегах/JSON-LD.
