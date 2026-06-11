@@ -55,6 +55,8 @@ let field: { start: () => void; stop: () => void; resize: () => void; destroy: (
 
 let width = 0
 let height = 0
+// canvas, на котором реально созданы particles/field — для детекта пересоздания
+let boundEl: HTMLCanvasElement | null = null
 
 // Create the 2D field on first use, otherwise just resize it; then sync the
 // rAF loop to the animation toggle (paused = one static frame already drawn).
@@ -63,6 +65,7 @@ function ensureField2D() {
   if (field) {
     field.resize()
   } else {
+    boundEl = canvasEl.value
     field = createField(canvasEl.value, {
       count: () => Math.floor(height / 2.5),
       connectDistance: 120,
@@ -85,6 +88,7 @@ let webgpuInit: Promise<boolean> | null = null
 function initWebGPU(): Promise<boolean> {
   if (!canvasEl.value || !isWebGPUSupported()) return Promise.resolve(false)
   if (!webgpuInit) {
+    boundEl = canvasEl.value
     particles = new WebGPUParticles(canvasEl.value)
     webgpuInit = particles.init(width, height).then((success: boolean) => {
       if (success) useWebGPU = true
@@ -144,18 +148,21 @@ onBeforeUnmount(() => {
   if (particles && particles.destroy) particles.destroy()
 })
 
-// Re-init when the canvas (re)appears: first mount after onMounted, or a fresh
-// element after navigating portfolio → blog. A NEW element means the old GPU/2D
-// objects belong to a dead canvas — reset them before re-initializing.
-watch(canvasEl, (el, prev) => {
-  if (!el || el === prev) return
-  if (prev) {
+// Re-init when the canvas (re)appears. Сравниваем с boundEl, а не с prev:
+// при уходе на главную DefaultLayout размонтируется и ref становится null,
+// поэтому prev при следующем входе всегда null — а particles/field остаются
+// привязаны к МЁРТВОМУ canvas: рендер уходил в отсоединённый элемент, и при
+// повторном входе в блог шапка оставалась пустой. Новый элемент = полный сброс.
+watch(canvasEl, (el) => {
+  if (!el) return
+  if (boundEl && el !== boundEl) {
     if (particles && particles.destroy) particles.destroy()
     particles = null
     useWebGPU = false
     webgpuInit = null
     field?.destroy()
     field = null
+    boundEl = null
   }
   nextTick(initHeader)
 })
