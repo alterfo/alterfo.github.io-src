@@ -370,6 +370,33 @@ function editField(field, value) {
   updateTask(selectedTask.value.id, { [field]: value })
 }
 
+// ---- Inline title editing (dblclick on a kanban card / list row) ----
+// Пользовательский фидбэк: инпут в боковой панели выглядит как заголовок,
+// редактируемость не находится. Даблклик по названию прямо на карточке/строке
+// открывает инлайн-инпут (паттерн IDEF0): Enter/blur — сохранить, Esc — отмена.
+const editingTaskId = ref(null)
+const editingTitle = ref('')
+
+// Локальная директива: автофокус + select на появившемся инлайн-инпуте.
+const vFocus = { mounted: (el) => { el.focus(); el.select() } }
+
+function startTitleEdit(task) {
+  editingTaskId.value = task.id
+  editingTitle.value = task.title
+}
+
+function commitTitleEdit() {
+  if (!editingTaskId.value) return
+  const v = editingTitle.value.trim()
+  if (v) updateTask(editingTaskId.value, { title: v })
+  editingTaskId.value = null
+}
+
+// Esc: сбрасываем id ДО blur — последующий blur-commit выйдет по early return.
+function cancelTitleEdit() {
+  editingTaskId.value = null
+}
+
 // Comma-separated text → deduped, trimmed tag array.
 function editTags(text) {
   if (!selectedTask.value) return
@@ -827,7 +854,7 @@ onUnmounted(() => {
                   :key="task.id"
                   class="planner-card"
                   :class="{ selected: selectedTaskId === task.id }"
-                  draggable="true"
+                  :draggable="editingTaskId !== task.id"
                   @dragstart="onDragStart($event, task.id)"
                   @click="openTask(task.id)"
                 >
@@ -837,7 +864,22 @@ onUnmounted(() => {
                       :style="{ background: priorityOf(task.priority).color }"
                       :title="priorityOf(task.priority).label"
                     ></span>
-                    <span class="planner-card-title">{{ task.title }}</span>
+                    <input
+                      v-if="editingTaskId === task.id"
+                      v-model="editingTitle"
+                      v-focus
+                      class="planner-title-inline-input"
+                      @click.stop
+                      @keydown.enter.prevent="commitTitleEdit"
+                      @keydown.esc.stop="cancelTitleEdit"
+                      @blur="commitTitleEdit"
+                    />
+                    <span
+                      v-else
+                      class="planner-card-title"
+                      title="Двойной клик — переименовать"
+                      @dblclick.stop="startTitleEdit(task)"
+                    >{{ task.title }}</span>
                   </div>
                   <div
                     v-if="task.dueDate || (task.tags && task.tags.length)"
@@ -915,7 +957,23 @@ onUnmounted(() => {
                       @change="toggleDone(task)"
                     />
                   </td>
-                  <td class="col-title">{{ task.title }}</td>
+                  <td class="col-title">
+                    <input
+                      v-if="editingTaskId === task.id"
+                      v-model="editingTitle"
+                      v-focus
+                      class="planner-title-inline-input"
+                      @click.stop
+                      @keydown.enter.prevent="commitTitleEdit"
+                      @keydown.esc.stop="cancelTitleEdit"
+                      @blur="commitTitleEdit"
+                    />
+                    <span
+                      v-else
+                      title="Двойной клик — переименовать"
+                      @dblclick.stop="startTitleEdit(task)"
+                    >{{ task.title }}</span>
+                  </td>
                   <td class="col-project">
                     <span class="planner-proj-tag">
                       <span
@@ -1592,8 +1650,22 @@ onUnmounted(() => {
   background: transparent;
   outline: none;
 }
-.planner-detail-title:hover { border-color: #e2e8f0; }
+.planner-detail-title:hover { border-color: #cbd5e1; background: #f8fafc; cursor: text; }
 .planner-detail-title:focus { border-color: #2563eb; background: #fff; }
+
+/* Инлайн-инпут переименования на карточке канбана / строке списка */
+.planner-title-inline-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  padding: 1px 5px;
+  outline: none;
+}
 .planner-detail-close {
   background: none;
   border: none;
