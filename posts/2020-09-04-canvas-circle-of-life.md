@@ -23,94 +23,52 @@ date: 2020-09-04
 
 Рука руку моет, границы между сферами условны, они плавно перетекают друг в друга и дополняют остальные. В моём колесе большие сегменты занимают работа и отношения, в последний год я работал над этими темами очень сильно, но совершенно забросил очень важные аспекты своей жизни и намерен сбалансировать их со временем. Чтобы было вот так:
 
-<canvas id="circle-of-life-good" width="360" height="360" />
+<canvas id="circle-of-life-good" width="360" height="360"></canvas>
 
-<script>
-export default {
-    mounted() {
-        const ctx3 = document.getElementById("circle-of-life").getContext("2d")
-        ctx3.imageSmoothingEnabled = true
-        ctx3.shadowBlur = 2
-        ctx3.shadowOffsetX = 0
-        ctx3.shadowOffsetY = 0
+<script setup>
+import { onMounted } from 'vue'
 
-        const tick = 20
-        const cx = 180
-        const cy = 180
+// Перерисовка на каждом монтировании (включая SPA-переходы). Старая версия
+// была Options API с двумя багами: второе колесо заполняло не ту Map и потому
+// не рисовалось, а отсутствие canvas роняло getContext.
+onMounted(() => {
+  const tick = 20
+  const cx = 180
+  const cy = 180
 
+  const toRadians = (deg) => deg * Math.PI / 180
 
-        let fulfillment = new Map()
-        fulfillment.set('Здоровье', 5)
-        fulfillment.set('Работа', 8)
-        fulfillment.set('Личное пространство', 5)
-        fulfillment.set('Отношения', 7)
-        fulfillment.set('Секс', 3)
-        fulfillment.set('Репутация', 3)
-        fulfillment.set('Отношения с собой', 3)
+  const getRandomColor = () => {
+    const r = Math.round(Math.random() * 255)
+    const g = Math.round(Math.random() * 255)
+    const b = Math.round(Math.random() * 255)
+    return 'rgba(' + r + ', ' + g + ',' + b + ')'
+  }
 
-        const segmentRad = toRadians(360 / fulfillment.size)
+  function drawWheel(id, values) {
+    const el = document.getElementById(id)
+    if (!el) return
+    const ctx = el.getContext('2d')
+    ctx.clearRect(0, 0, el.width, el.height)
+    ctx.imageSmoothingEnabled = true
+    ctx.shadowBlur = 2
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
+    const seg = toRadians(360 / values.length)
+    values.forEach((v, i) => {
+      ctx.fillStyle = getRandomColor()
+      ctx.shadowColor = ctx.fillStyle
+      ctx.beginPath()
+      ctx.moveTo(cx, cy)
+      ctx.arc(cx, cy, tick * v, i * seg, (i + 1) * seg)
+      ctx.lineTo(cx, cy)
+      ctx.closePath()
+      ctx.fill()
+    })
+  }
 
-        function draw3() {
-            for (let i = 0; i < fulfillment.size; i++) {
-                ctx3.fillStyle = getRandomColor()
-                ctx3.shadowColor = ctx3.fillStyle
-
-                ctx3.beginPath()
-                ctx3.moveTo(cx, cy)
-                ctx3.arc(cx, cy, tick * [...fulfillment.values()][i], i * segmentRad, (i + 1) * segmentRad)
-                ctx3.lineTo(cx, cy)
-                ctx3.closePath()
-                ctx3.fill()
-            }
-        }
-
-        // in case you like using degrees
-        function toRadians(deg) {
-            return deg * Math.PI / 180
-        }
-
-        function getRandomColor() {
-            const r = Math.round(Math.random() * 255);
-            const g = Math.round(Math.random() * 255);
-            const b = Math.round(Math.random() * 255);
-            return "rgba(" + r + ", " + g + "," + b + ")";
-        }
-        draw3()
-
-
-        const ctx2 = document.getElementById("circle-of-life-good").getContext("2d")
-        ctx2.imageSmoothingEnabled = true
-        ctx2.shadowBlur = 2
-        ctx2.shadowOffsetX = 0
-        ctx2.shadowOffsetY = 0
-
-
-        let fulfillment2 = new Map()
-        fulfillment2.set('Здоровье', 8)
-        fulfillment2.set('Работа', 8)
-        fulfillment2.set('Личное пространство', 8)
-        fulfillment2.set('Отношения', 8)
-        fulfillment2.set('Секс', 8)
-        fulfillment2.set('Репутация', 8)
-        fulfillment2.set('Отношения с собой', 8)
-
-        let angle = 0
-        const segmentRad2 = toRadians(360 / fulfillment2.size)
-
-        function draw2() {
-            for (let i = 0; i < fulfillment2.size; i++) {
-                ctx2.fillStyle = getRandomColor()
-                ctx2.shadowColor = ctx2.fillStyle
-
-                ctx2.beginPath()
-                ctx2.moveTo(cx, cy)
-                ctx2.arc(cx, cy, tick * [...fulfillment2.values()][i], i * segmentRad2, (i + 1) * segmentRad2)
-                ctx2.lineTo(cx, cy)
-                ctx2.closePath()
-                ctx2.fill()
-            }
-        }
-        draw2()
-    }
-}
+  // Тело, Финансы, Сеть знакомств, Близкие, Достижения, Рутина, Счастье
+  drawWheel('circle-of-life', [6, 8, 5, 7, 3, 6, 5])
+  drawWheel('circle-of-life-good', [8, 8, 8, 8, 8, 8, 8])
+})
 </script>

@@ -28,9 +28,11 @@
 
     <!-- staff divider -->
     <div class="staff-divider" aria-hidden="true">
+      <!-- Только линейки стана: глиф паузы (U+1D13D) убран — на части систем
+           рендерился «тофу»-квадратом, а preserveAspectRatio="none" ещё и
+           расплющивал его по горизонтали. -->
       <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
         <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
-        <text x="12" y="24" font-size="24" fill="rgba(179,77,255,0.4)" font-family="'Times New Roman', Georgia, serif">𝄽</text>
       </svg>
     </div>
 

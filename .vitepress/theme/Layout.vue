@@ -5,6 +5,9 @@
       <header class="site-header" id="large-header">
         <canvas ref="canvasEl"></canvas>
 
+        <!-- Знак-колесо «домой» — как в шапках приложений (HomeMark) -->
+        <HomeMark class="header-home" />
+
         <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
           <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
             {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
@@ -29,10 +32,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
+import HomeMark from './components/HomeMark.vue'
 import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
 import { createField } from './components/ConnectingParticles.js'
 import Portfolio from './Portfolio.vue'
@@ -186,10 +190,24 @@ watch(animateHeader, val => {
 }
 
 .site-header .animation-toggler a {
-  color: yellow;
+  color: var(--ds-text-muted);
   font-size: 0.825em;
   text-decoration: none;
-  border-bottom: 1px dotted pink;
+  border-bottom: 1px dotted var(--ds-border);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.site-header .animation-toggler a:hover {
+  color: var(--ds-text-strong);
+  border-color: var(--ds-cyan);
+}
+
+.site-header .header-home {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 3;
+  background: rgba(10, 10, 20, 0.45);
 }
 
 .site-header .animation-toggler.top-1 {

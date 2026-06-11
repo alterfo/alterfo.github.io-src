@@ -40,7 +40,7 @@ const hoverRotation = `${SPAN}deg`
 </script>
 
 <template>
-  <a href="/" class="home-mark" title="Круг жизни — на главную" aria-label="На главную" :style="{ '--home-rot': hoverRotation }">
+  <a href="/" class="home-mark" :class="{ 'no-active': !active }" title="Круг жизни — на главную" aria-label="На главную" :style="{ '--home-rot': hoverRotation }">
     <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
       <path
         v-for="s in segments"
@@ -78,6 +78,10 @@ const hoverRotation = `${SPAN}deg`
 .seg {
   opacity: 0.4;
   transition: opacity 0.2s;
+}
+/* Без активной сферы (блог и др. общие страницы) колесо в среднем тоне, не тусклое */
+.home-mark.no-active .seg {
+  opacity: 0.75;
 }
 .seg.active {
   opacity: 1;
