@@ -3,6 +3,7 @@
        clip; the wheel itself stays centred at 200,200 (innerR 55, maxOuterR
        155) exactly as the geometry helpers are unit-tested for. -->
   <svg
+    ref="rootEl"
     class="life-circle"
     viewBox="-45 -5 490 410"
     role="group"
@@ -39,7 +40,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { buildSegments } from './lifecircle.js'
 
 // Wheel geometry (mirrors the unit-tested helper inputs).
@@ -60,6 +61,21 @@ const SEGMENTS = [
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))
+
+// VitePress-префетчер в колбэке IntersectionObserver читает `.pathname` прямо
+// с элемента <a>. У SVGAElement такого свойства нет → pathToFile(undefined)
+// кидает TypeError и убивает префетч всего батча видимых ссылок («переходы
+// по ссылкам работают не сразу»). Полифиллим недостающие свойства — заодно
+// страницы сфер получают настоящий префетч.
+const rootEl = ref(null)
+onMounted(() => {
+  rootEl.value?.querySelectorAll('a').forEach((a) => {
+    const href = a.getAttribute('href')
+    if (!href || 'pathname' in a) return
+    a.pathname = href
+    a.hostname = location.hostname
+  })
+})
 </script>
 
 <style scoped>
