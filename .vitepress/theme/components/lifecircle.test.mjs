@@ -167,3 +167,26 @@ test('buildSegments: generalizes to 7 spheres (span = 360/7, last ends at 358°)
   // the 7th sphere's trailing edge closes the ring at 358° (360 − 2° gap)
   assert.ok(Math.abs((7 * span - 2) - 358) < 1e-9)
 })
+
+test('buildSegments: generalizes to 8 spheres (span = 45°, last ends at 358°)', () => {
+  const defs8 = Array.from({ length: 8 }, (_, i) => ({
+    id: `s${i}`, title: `S${i}`, href: `/s${i}`, color: '#000', readiness: 5,
+  }))
+  const segs = buildSegments(defs8, GEOM)
+  assert.equal(segs.length, 8)
+  const span = 45 // 360 / 8
+  segs.forEach((seg, i) => {
+    const start = i * span + 2
+    const end = (i + 1) * span - 2
+    assert.equal(
+      seg.bgPath,
+      arcPath(GEOM.cx, GEOM.cy, GEOM.innerR, GEOM.maxOuterR, start, end),
+    )
+    const mid = i * span + span / 2
+    const expected = labelXY(GEOM.cx, GEOM.cy, GEOM.labelR, mid)
+    assert.ok(Math.abs(seg.label.x - expected.x) < 1e-9)
+    assert.ok(Math.abs(seg.label.y - expected.y) < 1e-9)
+  })
+  // the 8th sphere's trailing edge closes the ring at 358° (360 − 2° gap)
+  assert.ok(Math.abs((8 * span - 2) - 358) < 1e-9)
+})

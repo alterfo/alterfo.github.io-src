@@ -2,15 +2,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { SPECTRUM, CANVAS_PALETTE, PROJECT_COLORS } from './spectrum.js'
 
-test('SPECTRUM has 7 hex colors', () => {
-  assert.equal(SPECTRUM.length, 7)
+test('SPECTRUM has 8 hex colors', () => {
+  assert.equal(SPECTRUM.length, 8)
   for (const c of SPECTRUM) {
     assert.match(c, /^#[0-9a-f]{6}$/i, `${c} is a 6-digit hex`)
   }
 })
 
 test('CANVAS_PALETTE entries are well-formed open rgba( prefixes', () => {
-  assert.ok(CANVAS_PALETTE.length >= SPECTRUM.length)
+  assert.equal(CANVAS_PALETTE.length, SPECTRUM.length)
   for (const c of CANVAS_PALETTE) {
     // trailing comma: alpha + ')' are appended at draw time → rgba(r,g,b,a)
     // strict triple-of-0..255 form so a typo'd channel (e.g. rgba(999,foo,)
@@ -21,10 +21,12 @@ test('CANVAS_PALETTE entries are well-formed open rgba( prefixes', () => {
   }
 })
 
-test('CANVAS_PALETTE first 7 entries mirror SPECTRUM (dual-mirror sync contract)', () => {
+test('CANVAS_PALETTE entries mirror SPECTRUM (dual-mirror sync contract)', () => {
   // The two palettes are hand-synced (CSS can't be imported as JS); this guards
   // the documented "change a color in BOTH" rule so a SPECTRUM edit that forgets
   // the matching CANVAS_PALETTE rgba is caught instead of silently mismatching.
+  // With 8 spheres, SPECTRUM and CANVAS_PALETTE are now the same length — fully aligned.
+  assert.equal(CANVAS_PALETTE.length, SPECTRUM.length)
   const hexToPrefix = (hex) => {
     const n = parseInt(hex.slice(1), 16)
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},`
@@ -34,8 +36,8 @@ test('CANVAS_PALETTE first 7 entries mirror SPECTRUM (dual-mirror sync contract)
   })
 })
 
-test('PROJECT_COLORS has all 7 project keys, hex values', () => {
-  const keys = ['ar', 'blog', 'idef0', 'journal', 'piano', 'github', 'decisions']
+test('PROJECT_COLORS has all 8 project keys, hex values', () => {
+  const keys = ['ar', 'blog', 'idef0', 'journal', 'piano', 'github', 'decisions', 'music']
   for (const k of keys) {
     assert.ok(k in PROJECT_COLORS, `${k} present`)
     assert.match(PROJECT_COLORS[k], /^#[0-9a-f]{6}$/i, `${k} is a 6-digit hex`)

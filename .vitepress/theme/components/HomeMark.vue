@@ -6,7 +6,7 @@ import { arcPath, fillRadius } from './lifecircle.js'
 // приложений. Та же геометрия и готовность сфер, что в LifeCircle.vue, поэтому
 // знак читается как «вернуться к кругу»; сфера текущего приложения подсвечена.
 const props = defineProps({
-  // id сферы текущего приложения: journal | idef0 | ar | piano | openpose | planner | decisions
+  // id сферы текущего приложения: journal | idef0 | ar | piano | openpose | planner | decisions | music
   active: { type: String, default: '' },
 })
 
@@ -19,6 +19,7 @@ const SPHERES = [
   { id: 'openpose',  color: '#1accff', readiness: 4 },
   { id: 'planner',   color: '#ff9933', readiness: 4 },
   { id: 'decisions', color: '#33ffcc', readiness: 4 },
+  { id: 'music',     color: '#ffe633', readiness: 3 },
 ]
 
 const GEOM = { cx: 16, cy: 16, innerR: 5, maxOuterR: 15 }
