@@ -23,8 +23,27 @@ const ARROW_META = {
   mechanism: { label: 'Mechanism Arrows (Bottom)', color: '#8b5cf6' },
 }
 
-const BOUNDARY_GAP = 100  // world units from box side to boundary endpoint
+const BOUNDARY_GAP = 100  // MIN world units from box side to boundary endpoint
 const SNAP_DIST = 35      // world units for endpoint snap-to-box-side
+const LABEL_PAD = 24      // arrow length beyond the label text
+
+// Label width in world units (labels render at font-size 11 sans-serif, scale 1 = px)
+let _measureCtx = null
+function labelWidth(text) {
+  if (!text) return 0
+  if (typeof document !== 'undefined') {
+    _measureCtx ??= document.createElement('canvas').getContext('2d')
+    _measureCtx.font = '11px sans-serif'
+    return _measureCtx.measureText(text).width
+  }
+  return String(text).length * 6.5
+}
+
+// Boundary arrows stretch with their centered label — a long name on a
+// 100-unit arrow used to overlap the box and stick past the endpoint
+function boundaryGap(arrow) {
+  return Math.max(BOUNDARY_GAP, labelWidth(arrow.label) + LABEL_PAD)
+}
 
 // ----- Project -----
 function defaultProject() {
@@ -335,12 +354,13 @@ function arrowPoints(arrow) {
   }
 
   // ── Boundary arrow ──
+  const gap = boundaryGap(arrow)
   let farPt
   switch (arrow.type) {
-    case 'input':    farPt = { x: boxPt.x - BOUNDARY_GAP, y: boxPt.y }; break
-    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - BOUNDARY_GAP }; break
-    case 'output':   farPt = { x: boxPt.x + BOUNDARY_GAP, y: boxPt.y }; break
-    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + BOUNDARY_GAP }; break
+    case 'input':    farPt = { x: boxPt.x - gap, y: boxPt.y }; break
+    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - gap }; break
+    case 'output':   farPt = { x: boxPt.x + gap, y: boxPt.y }; break
+    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + gap }; break
   }
 
   const start = arrowAtBox ? farPt : boxPt
@@ -450,11 +470,19 @@ function fitToView() {
   const boxes = currentDiagram.value.boxes
   if (!boxes.length) { panX.value = 50; panY.value = 50; scale.value = 1; return }
   const w = canvasWrap.value?.clientWidth ?? 800; const h = canvasWrap.value?.clientHeight ?? 500
-  const pad = BOUNDARY_GAP + 30
-  const x0 = Math.min(...boxes.map(b => b.x)) - pad
-  const y0 = Math.min(...boxes.map(b => b.y)) - pad
-  const x1 = Math.max(...boxes.map(b => b.x + b.width))  + pad
-  const y1 = Math.max(...boxes.map(b => b.y + b.height)) + pad
+  // Bounds include arrow endpoints — boundary arrows stretch with their labels
+  const xs = []; const ys = []
+  for (const b of boxes) { xs.push(b.x, b.x + b.width); ys.push(b.y, b.y + b.height) }
+  for (const a of currentDiagram.value.arrows) {
+    const pts = arrowPoints(a)
+    if (!pts) continue
+    for (const p of (pts.segments ?? [pts.start, pts.end])) { xs.push(p.x); ys.push(p.y) }
+  }
+  const pad = 40
+  const x0 = Math.min(...xs) - pad
+  const y0 = Math.min(...ys) - pad
+  const x1 = Math.max(...xs) + pad
+  const y1 = Math.max(...ys) + pad
   const ns = Math.min(w / (x1 - x0), h / (y1 - y0), 2) * 0.9
   scale.value = ns
   panX.value = (w - (x1 - x0) * ns) / 2 - x0 * ns
@@ -767,12 +795,13 @@ function arrowPtsForDiag(arrow, diag) {
     }
   }
 
+  const gap = boundaryGap(arrow)
   let farPt
   switch (arrow.type) {
-    case 'input':    farPt = { x: boxPt.x - BOUNDARY_GAP, y: boxPt.y }; break
-    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - BOUNDARY_GAP }; break
-    case 'output':   farPt = { x: boxPt.x + BOUNDARY_GAP, y: boxPt.y }; break
-    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + BOUNDARY_GAP }; break
+    case 'input':    farPt = { x: boxPt.x - gap, y: boxPt.y }; break
+    case 'control':  farPt = { x: boxPt.x, y: boxPt.y - gap }; break
+    case 'output':   farPt = { x: boxPt.x + gap, y: boxPt.y }; break
+    case 'mechanism':farPt = { x: boxPt.x, y: boxPt.y + gap }; break
   }
   const start = arrowAtBox ? farPt : boxPt
   const end   = arrowAtBox ? boxPt  : farPt
