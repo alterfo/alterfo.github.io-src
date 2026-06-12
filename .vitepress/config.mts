@@ -99,6 +99,7 @@ export default defineConfig({
           },
         ],
       },
+      { text: 'Музыка', link: '/music' },
       { text: 'Блог', link: '/blog/' },
     ],
   },

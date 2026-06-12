@@ -7,6 +7,7 @@ import Piano from './components/Piano.vue'
 import OpenPoseEditor from './components/OpenPoseEditor.vue'
 import PlannerEditor from './components/PlannerEditor.vue'
 import DecisionJournal from './components/DecisionJournal.vue'
+import MusicAlbums from './components/MusicAlbums.vue'
 import HomeMark from './components/HomeMark.vue'
 import './styles/index.css'
 
@@ -20,6 +21,7 @@ export default {
     app.component('OpenPoseEditor', OpenPoseEditor)
     app.component('PlannerEditor', PlannerEditor)
     app.component('DecisionJournal', DecisionJournal)
+    app.component('MusicAlbums', MusicAlbums)
     app.component('HomeMark', HomeMark)
   },
 } satisfies Theme
