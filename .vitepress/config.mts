@@ -77,12 +77,29 @@ export default defineConfig({
       {
         text: 'Проекты',
         items: [
-          { text: 'AR Engine', link: '/projects/ar-engine' },
-          { text: 'IDEF0 Editor', link: '/projects/idef0-editor' },
+          {
+            text: 'Приложения',
+            items: [
+              { text: 'Дневник', link: '/journal' },
+              { text: 'IDEF0-редактор', link: '/idef0' },
+              // target: '_self' — /ar/ живёт вне VitePress-роутера (см. LifeCircle)
+              { text: 'AR Engine', link: '/ar/', target: '_self' },
+              { text: 'Piano Teacher', link: '/piano' },
+              { text: 'OpenPose Editor', link: '/openpose' },
+              { text: 'Планировщик', link: '/planner' },
+              { text: 'Журнал решений', link: '/decision-journal' },
+            ],
+          },
+          {
+            text: 'Разборы',
+            items: [
+              { text: 'AR Engine — архитектура', link: '/projects/ar-engine' },
+              { text: 'IDEF0 Editor — архитектура', link: '/projects/idef0-editor' },
+            ],
+          },
         ],
       },
       { text: 'Блог', link: '/blog/' },
-      { text: 'Planner', link: '/planner' },
     ],
   },
   transformPageData(pageData) {
