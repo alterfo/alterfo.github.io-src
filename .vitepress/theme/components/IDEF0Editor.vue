@@ -354,7 +354,10 @@ function arrowPoints(arrow) {
   }
 
   // ── Boundary arrow ──
-  const gap = boundaryGap(arrow)
+  // In the interactive editor, arrows use a fixed length so the layout stays compact.
+  // Labels may visually extend past the arrow endpoint — that is intentional.
+  // The export path (arrowPtsForDiag) stretches arrows to fit labels exactly.
+  const gap = BOUNDARY_GAP
   let farPt
   switch (arrow.type) {
     case 'input':    farPt = { x: boxPt.x - gap, y: boxPt.y }; break
@@ -470,19 +473,13 @@ function fitToView() {
   const boxes = currentDiagram.value.boxes
   if (!boxes.length) { panX.value = 50; panY.value = 50; scale.value = 1; return }
   const w = canvasWrap.value?.clientWidth ?? 800; const h = canvasWrap.value?.clientHeight ?? 500
-  // Bounds include arrow endpoints — boundary arrows stretch with their labels
-  const xs = []; const ys = []
-  for (const b of boxes) { xs.push(b.x, b.x + b.width); ys.push(b.y, b.y + b.height) }
-  for (const a of currentDiagram.value.arrows) {
-    const pts = arrowPoints(a)
-    if (!pts) continue
-    for (const p of (pts.segments ?? [pts.start, pts.end])) { xs.push(p.x); ys.push(p.y) }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const b of boxes) {
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+    x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height)
   }
-  const pad = 40
-  const x0 = Math.min(...xs) - pad
-  const y0 = Math.min(...ys) - pad
-  const x1 = Math.max(...xs) + pad
-  const y1 = Math.max(...ys) + pad
+  const pad = BOUNDARY_GAP + 40
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad
   const ns = Math.min(w / (x1 - x0), h / (y1 - y0), 2) * 0.9
   scale.value = ns
   panX.value = (w - (x1 - x0) * ns) / 2 - x0 * ns
@@ -838,11 +835,16 @@ function exportSvgArrow(arrow, diag) {
 function exportSvgBox(box) {
   const lw = box.width - 16, lh = box.height - 22, fs = 13
   const words = (box.label ?? '').split(/\s+/)
-  const maxCh = Math.floor(lw / (fs * 0.58))
+  // Use measureText for accurate wrapping — the char-count heuristic was wrong for Cyrillic.
+  if (typeof document !== 'undefined') {
+    _measureCtx ??= document.createElement('canvas').getContext('2d')
+    _measureCtx.font = `${fs}px Arial,sans-serif`
+  }
+  const measureW = (t) => _measureCtx ? _measureCtx.measureText(t).width : t.length * 7.5
   let line = '', lines = []
   for (const w of words) {
     const test = line ? line + ' ' + w : w
-    if (test.length <= maxCh) { line = test } else { if (line) lines.push(line); line = w }
+    if (measureW(test) <= lw) { line = test } else { if (line) lines.push(line); line = w }
   }
   if (line) lines.push(line)
   const totalH = lines.length * (fs * 1.35)
@@ -925,14 +927,24 @@ function buildDiagramSVGString(diagId, pageNum, totalPages) {
   const arrows = diag.arrows ?? []
 
   const PAGE_W = 1100, PAGE_H = 850, AREA_H = 720, MARGIN = 30
-  const pad = BOUNDARY_GAP + 20
 
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
   for (const b of boxes) {
-    x0 = Math.min(x0, b.x - pad); y0 = Math.min(y0, b.y - pad)
-    x1 = Math.max(x1, b.x + b.width + pad); y1 = Math.max(y1, b.y + b.height + pad)
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+    x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height)
+  }
+  // Extend bounds to actual arrow endpoints (boundary arrows stretch with their labels).
+  for (const a of arrows) {
+    const pts = arrowPtsForDiag(a, diag)
+    if (!pts) continue
+    for (const p of (pts.segments ?? [pts.start, pts.end])) {
+      x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y)
+      x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y)
+    }
   }
   if (!boxes.length || !isFinite(x0)) { x0 = 0; y0 = 0; x1 = 800; y1 = 600 }
+  const PAD = 20
+  x0 -= PAD; y0 -= PAD; x1 += PAD; y1 += PAD
 
   const cW = x1 - x0, cH = y1 - y0
   const availW = PAGE_W - 2 * MARGIN, availH = AREA_H - 2 * MARGIN
