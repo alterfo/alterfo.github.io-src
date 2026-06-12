@@ -62,6 +62,21 @@ export class WebGPUParticles {
     return color;
   }
 
+  // 8 float'ов на частицу: x, y, size, angle, r, g, b, alpha.
+  _seedData() {
+    const { width, height } = this.params;
+    const particleData = this._seedData();
+    return particleData;
+  }
+
+  // Пересев: новые случайные позиции/цвета в существующий буфер. Нужен при
+  // SPA-смене страницы — раньше каждый переход был полной перезагрузкой и
+  // узор обновлялся сам через init; теперь буфер живёт между страницами.
+  reseed() {
+    if (!this.device || !this.particlesBuffer) return;
+    this.device.queue.writeBuffer(this.particlesBuffer, 0, this._seedData());
+  }
+
   async init(width, height) {
     if (!navigator.gpu) {
       console.warn('WebGPU not supported');

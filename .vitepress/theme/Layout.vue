@@ -125,6 +125,9 @@ function initHeader() {
     ensureField2D()
   } else if (particles) {
     particles.resize(width, height)
+    // Пересев на каждую страницу — по задумке узор частиц везде разный
+    // (раньше это давала полная перезагрузка, теперь буфер живёт между SPA-переходами)
+    particles.reseed()
     particles.render()
   }
 }
