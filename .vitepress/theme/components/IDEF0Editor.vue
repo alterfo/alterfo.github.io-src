@@ -33,7 +33,7 @@ function defaultProject() {
     rootId: 'A0',
     childMap: {},
     diagrams: {
-      A0: { id: 'A0', title: 'Main Process', boxes: [], arrows: [] }
+      A0: { id: 'A0', title: 'Main Process', boxes: [], arrows: [], boundaryArrows: [] }
     }
   }
 }
@@ -90,6 +90,7 @@ function deleteSelectedBox() {
   const idx = currentDiagram.value.boxes.findIndex(b => b.id === id)
   if (idx !== -1) currentDiagram.value.boxes.splice(idx, 1)
   selectedBoxId.value = null
+  _normalizeHierarchy()
   schedSave()
 }
 
@@ -134,6 +135,9 @@ function removeArrow(arrowId) {
 // ----- Diagram navigation -----
 function navigateTo(id) {
   if (!project.diagrams[id]) return
+  // Snapshots are not tagged with a diagram id — a stale stack would splice
+  // another diagram's boxes into this one on Ctrl+Z
+  if (id !== currentDiagramId.value) resetHistory()
   currentDiagramId.value = id
   selectedBoxId.value = null
 }
@@ -147,27 +151,72 @@ function navigateUp() {
 function decompose() {
   if (!selectedBox.value) return
   const box = selectedBox.value
-  const parentId = currentDiagramId.value
-  const idx = currentDiagram.value.boxes.indexOf(box)
-  const childId = parentId === 'A0' ? `A${idx + 1}` : `${parentId}${idx + 1}`
-  if (!project.diagrams[childId]) {
-    project.diagrams[childId] = { id: childId, title: box.label, boxes: [], arrows: [], boundaryArrows: [] }
-    if (!project.childMap[parentId]) project.childMap[parentId] = []
-    if (!project.childMap[parentId].includes(childId)) project.childMap[parentId].push(childId)
+  // Already decomposed → just enter the existing child diagram
+  if (box.childDiagramId && project.diagrams[box.childDiagramId]) {
+    navigateTo(box.childDiagramId)
+    return
   }
+  const parentId = currentDiagramId.value
+  const prefix = parentId === 'A0' ? 'A' : parentId
+  // First free suffix: an id derived from the box index collides after a
+  // sibling is deleted (indices shift) and two boxes end up sharing one child
+  let n = currentDiagram.value.boxes.indexOf(box) + 1
+  while (project.diagrams[`${prefix}${n}`]) n++
+  const childId = `${prefix}${n}`
+  project.diagrams[childId] = { id: childId, title: box.label, boxes: [], arrows: [], boundaryArrows: [] }
+  if (!project.childMap[parentId]) project.childMap[parentId] = []
+  project.childMap[parentId].push(childId)
   box.childDiagramId = childId
   navigateTo(childId)
+  schedSave()
 }
 
 function _removeSubtree(diagramId) {
-  for (const childId of (project.childMap[diagramId] ?? [])) {
-    _removeSubtree(childId)
-  }
+  // Children come from the diagram's own boxes too — childMap can be stale
+  // (older persisted projects, imported JSON without childMap)
+  const d = project.diagrams[diagramId]
+  const childIds = new Set(project.childMap[diagramId] ?? [])
+  if (d) for (const b of d.boxes) { if (b.childDiagramId) childIds.add(b.childDiagramId) }
   delete project.childMap[diagramId]
   delete project.diagrams[diagramId]
+  for (const childId of childIds) {
+    if (project.diagrams[childId]) _removeSubtree(childId)
+  }
   for (const [pid, children] of Object.entries(project.childMap)) {
     const i = children.indexOf(diagramId)
     if (i !== -1) children.splice(i, 1)
+  }
+}
+
+// Heal the hierarchy. Boxes' childDiagramId is the source of truth:
+// drop diagrams unreachable from the root (orphans left behind by undo or by
+// the old colliding child-id scheme), null out pointers to missing diagrams,
+// rebuild childMap. Runs after destructive ops and on every load/import.
+function _normalizeHierarchy() {
+  const reachable = new Set()
+  const queue = [project.rootId ?? 'A0']
+  while (queue.length) {
+    const id = queue.pop()
+    if (!id || reachable.has(id) || !project.diagrams[id]) continue
+    reachable.add(id)
+    for (const b of project.diagrams[id].boxes) { if (b.childDiagramId) queue.push(b.childDiagramId) }
+  }
+  for (const id of Object.keys(project.diagrams)) {
+    if (!reachable.has(id)) delete project.diagrams[id]
+  }
+  const map = {}
+  for (const d of Object.values(project.diagrams)) {
+    for (const b of d.boxes) {
+      if (!b.childDiagramId) continue
+      if (b.childDiagramId === d.id || !project.diagrams[b.childDiagramId]) { b.childDiagramId = null; continue }
+      if (!map[d.id]) map[d.id] = []
+      if (!map[d.id].includes(b.childDiagramId)) map[d.id].push(b.childDiagramId)
+    }
+  }
+  project.childMap = map
+  if (!project.diagrams[currentDiagramId.value]) {
+    currentDiagramId.value = project.rootId ?? 'A0'
+    selectedBoxId.value = null
   }
 }
 
@@ -192,6 +241,7 @@ function onRemoveDecomposition() {
   }
   _removeSubtree(childId)
   box.childDiagramId = null
+  _normalizeHierarchy()
   schedSave()
 }
 
@@ -631,9 +681,7 @@ async function loadFromDb() {
     const saved = await loadProject()
     if (saved?.diagrams) {
       Object.assign(project, saved)
-      if (!project.diagrams[currentDiagramId.value]) {
-        currentDiagramId.value = project.rootId ?? 'A0'
-      }
+      _normalizeHierarchy()
     }
   } catch (e) { console.warn('[idef0] load failed', e) }
 }
@@ -937,6 +985,7 @@ function importJSON() {
           Object.assign(project, data)
           currentDiagramId.value = data.rootId ?? 'A0'
           selectedBoxId.value = null
+          _normalizeHierarchy()
           schedSave()
         }
       } catch { alert('Неверный формат JSON') }

@@ -11,9 +11,11 @@ function snapshotDiagram(diagram) {
 
 function applySnapshot(diagram, snapshot) {
   diagram.title = snapshot.title
-  diagram.boxes.splice(0, diagram.boxes.length, ...snapshot.boxes)
-  diagram.arrows.splice(0, diagram.arrows.length, ...snapshot.arrows)
-  diagram.boundaryArrows.splice(0, diagram.boundaryArrows.length, ...snapshot.boundaryArrows)
+  diagram.boxes.splice(0, diagram.boxes.length, ...(snapshot.boxes ?? []))
+  diagram.arrows.splice(0, diagram.arrows.length, ...(snapshot.arrows ?? []))
+  // boundaryArrows is absent on root diagrams from older projects/defaultProject
+  if (!diagram.boundaryArrows) diagram.boundaryArrows = []
+  diagram.boundaryArrows.splice(0, diagram.boundaryArrows.length, ...(snapshot.boundaryArrows ?? []))
 }
 
 function pushSnapshot(diagram) {
