@@ -88,11 +88,28 @@ test('jsonLdScript escapes <, >, & so a title cannot break out of the script ele
   assert.deepEqual(JSON.parse(out), { headline: 'A </script><b> & B' })
 })
 
+test('jsonLdFor: music.md → MusicGroup with albums and sameAs', () => {
+  const ld = jsonLdFor('music.md', 'Музыка', 'd', 'https://alterfo.github.io/music')
+  assert.equal(ld['@type'], 'MusicGroup')
+  assert.equal(ld['@context'], 'https://schema.org')
+  assert.equal(ld.name, 'Alterfo')
+  assert.equal(ld.url, 'https://alterfo.github.io/music')
+  assert.ok(Array.isArray(ld.sameAs) && ld.sameAs.length > 0, 'sameAs contains artist link')
+  assert.ok(ld.sameAs[0].includes('yandex'), 'sameAs points to Yandex Music')
+  assert.ok(Array.isArray(ld.album) && ld.album.length === 2, 'two albums')
+  assert.equal(ld.album[0]['@type'], 'MusicAlbum')
+  assert.equal(ld.album[0].name, 'Impressions')
+  assert.equal(ld.album[0].datePublished, '2025')
+  assert.equal(ld.album[1].name, 'Механика близости')
+  assert.equal(ld.album[1].datePublished, '2026')
+})
+
 test('sitemapPriority: tiers per page type', () => {
   assert.equal(sitemapPriority('index.md'), '1.0')
   assert.equal(sitemapPriority('idef0.md'), '0.8')
   assert.equal(sitemapPriority('piano.md'), '0.8') // regression: was 0.6 before fix
   assert.equal(sitemapPriority('openpose.md'), '0.8') // regression: was 0.6 before fix
+  assert.equal(sitemapPriority('music.md'), '0.8')
   assert.equal(sitemapPriority('projects/ar-engine.md'), '0.7')
   assert.equal(sitemapPriority('posts/2020-01-01-x.md'), '0.6')
 })

@@ -41,10 +41,27 @@ export const TOOL_CATEGORY = {
   'decision-journal.md': 'BusinessApplication',
 }
 
+// Albums data inlined for the MusicGroup JSON-LD — sync with music.js when albums change.
+const MUSIC_ALBUMS_LD = [
+  { '@type': 'MusicAlbum', name: 'Impressions', datePublished: '2025' },
+  { '@type': 'MusicAlbum', name: 'Механика близости', datePublished: '2026' },
+]
+const ARTIST_YANDEX_URL = 'https://music.yandex.ru/artist/25224352'
+
 // Build the per-page JSON-LD object (or null if the page type has none).
 export function jsonLdFor(rel, title, desc, url) {
   if (rel === 'index.md') {
     return { '@context': 'https://schema.org', ...PERSON }
+  }
+  if (rel === 'music.md') {
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'MusicGroup',
+      name: 'Alterfo',
+      url,
+      sameAs: [ARTIST_YANDEX_URL],
+      album: MUSIC_ALBUMS_LD,
+    }
   }
   if (rel in TOOL_CATEGORY) {
     return {
@@ -93,6 +110,7 @@ export function jsonLdScript(ld) {
 export function sitemapPriority(rel) {
   if (rel === 'index.md') return '1.0'
   if (rel in TOOL_CATEGORY) return '0.8'
+  if (rel === 'music.md') return '0.8'
   if (rel.startsWith('projects/')) return '0.7'
   return '0.6'
 }
