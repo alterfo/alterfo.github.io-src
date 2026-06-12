@@ -957,41 +957,45 @@ function buildDiagramSVGString(diagId, pageNum, totalPages) {
   return s
 }
 
-async function downloadAsPNG(svgStr, filename) {
-  return new Promise(resolve => {
-    const W = 1100, H = 850
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = W * 2; canvas.height = H * 2
-      const ctx = canvas.getContext('2d')
-      ctx.scale(2, 2)
-      ctx.fillStyle = 'white'; ctx.fillRect(0, 0, W, H)
-      ctx.drawImage(img, 0, 0, W, H)
-      URL.revokeObjectURL(url)
-      canvas.toBlob(b => {
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: filename })
-        document.body.appendChild(a); a.click(); document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000)
-        resolve()
-      }, 'image/png')
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve() }
-    img.src = url
-  })
-}
-
-async function exportDocument() {
+function exportDocument() {
   const order = getDiagramOrder()
   const total = order.length
-  for (let i = 0; i < order.length; i++) {
-    const diagId = order[i]
-    const svgStr = buildDiagramSVGString(diagId, i + 1, total)
-    await downloadAsPNG(svgStr, `IDEF0-${diagId}.png`)
-    if (i < order.length - 1) await new Promise(r => setTimeout(r, 300))
+  const projectTitle = project.diagrams[project.rootId ?? 'A0']?.title ?? 'IDEF0'
+  const pages = order.map((diagId, i) => buildDiagramSVGString(diagId, i + 1, total))
+
+  // Each page SVG has fixed width/height attrs — CSS overrides them to fill the print page.
+  // US Letter landscape (11×8.5 in) matches the 1100:850 SVG aspect ratio exactly.
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escXml(projectTitle)}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: white; }
+  .page {
+    width: 11in; height: 8.5in;
+    display: flex; overflow: hidden;
+    page-break-after: always; break-after: page;
   }
+  .page:last-child { page-break-after: avoid; break-after: avoid; }
+  .page > svg { width: 100%; height: 100%; display: block; }
+  @media print {
+    @page { size: 11in 8.5in; margin: 0; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+${pages.map(s => `<div class="page">${s}</div>`).join('\n')}
+</body>
+</html>`
+
+  const w = window.open('', '_blank')
+  if (!w) { alert('Разрешите всплывающие окна для экспорта PDF'); return }
+  w.document.open(); w.document.write(html); w.document.close()
+  // Small delay so the browser finishes layout before the print dialog opens.
+  w.setTimeout(() => w.print(), 250)
 }
 
 // ----- Import / Export -----
