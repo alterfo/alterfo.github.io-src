@@ -1113,9 +1113,9 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #2c2c2c;
+  background: #0f172a;
   font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
-  color: #e8e8e8;
+  color: #e2e8f0;
   min-height: 0;
 }
 
@@ -1130,8 +1130,8 @@ onUnmounted(() => {
 }
 
 .journal-lock-card {
-  background: #3a3a3a;
-  border: 1px solid #555;
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 14px;
   padding: 40px 48px;
   width: 100%;
@@ -1141,18 +1141,18 @@ onUnmounted(() => {
 }
 
 .journal-lock-icon { font-size: 40px; margin-bottom: 14px; }
-.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #f0f0f0; }
-.journal-lock-desc { margin: 0 0 24px; font-size: 14px; color: #aaa; line-height: 1.6; }
+.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #f1f5f9; }
+.journal-lock-desc { margin: 0 0 24px; font-size: 14px; color: #94a3b8; line-height: 1.6; }
 
 .journal-passphrase-input {
   width: 100%;
   box-sizing: border-box;
   padding: 11px 16px;
   font-size: 15px;
-  background: #222;
-  border: 1px solid #666;
+  background: #0f172a;
+  border: 1px solid #475569;
   border-radius: 8px;
-  color: #eee;
+  color: #e2e8f0;
   outline: none;
   transition: border-color .15s;
 }
@@ -1174,13 +1174,13 @@ onUnmounted(() => {
 
 .journal-error {
   margin-top: 14px;
-  color: #ff7070;
+  color: #f87171;
   font-size: 13px;
 }
 
 .journal-lock-reason {
   margin-top: 14px;
-  color: #aaa;
+  color: #94a3b8;
   font-size: 12px;
 }
 
@@ -1212,8 +1212,8 @@ onUnmounted(() => {
 ══════════════════════════════════════════════ */
 .journal-cal-strip {
   flex-shrink: 0;
-  background: #222;
-  border-bottom: 1px solid #444;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -1222,7 +1222,7 @@ onUnmounted(() => {
 .cal-nav-btn {
   background: none;
   border: none;
-  color: #888;
+  color: #94a3b8;
   font-size: 18px;
   line-height: 1;
   padding: 0 4px;
@@ -1230,12 +1230,12 @@ onUnmounted(() => {
   flex-shrink: 0;
   transition: color .15s;
 }
-.cal-nav-btn:hover { color: #ccc; }
-.cal-nav-btn:disabled { color: #444; cursor: default; }
+.cal-nav-btn:hover { color: #cbd5e1; }
+.cal-nav-btn:disabled { color: #475569; cursor: default; }
 
 .cal-strip-label {
   font-size: 11px;
-  color: #aaa;
+  color: #94a3b8;
   white-space: nowrap;
   text-transform: capitalize;
   min-width: 90px;
@@ -1247,10 +1247,10 @@ onUnmounted(() => {
   overflow-x: auto;
   flex: 1;
   scrollbar-width: thin;
-  scrollbar-color: #444 transparent;
+  scrollbar-color: #334155 transparent;
 }
 .cal-strip-scroll::-webkit-scrollbar { height: 3px; }
-.cal-strip-scroll::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+.cal-strip-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 
 .cal-chip {
   display: flex;
@@ -1261,17 +1261,17 @@ onUnmounted(() => {
   border-radius: 5px;
   cursor: default;
   flex-shrink: 0;
-  background: #333;
+  background: #334155;
 }
 .cal-chip-n {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: #ccc;
+  color: #cbd5e1;
 }
 .cal-chip-w {
   font-size: 9px;
-  color: #777;
+  color: #94a3b8;
   margin-top: 2px;
   line-height: 1;
 }
@@ -1279,11 +1279,11 @@ onUnmounted(() => {
 .cal-chip.cal-today    { background: #3a3aaa; }
 .cal-chip.cal-today .cal-chip-n { color: #fff; }
 .cal-chip.cal-today .cal-chip-w { color: #aaaaff; }
-.cal-chip.cal-future   { background: #2a2a2a; }
-.cal-chip.cal-future .cal-chip-n { color: #555; }
-.cal-chip.cal-future .cal-chip-w { color: #444; }
-.cal-chip.cal-empty    { background: #2e2e2e; }
-.cal-chip.cal-empty .cal-chip-w { color: #555; }
+.cal-chip.cal-future   { background: #1e293b; }
+.cal-chip.cal-future .cal-chip-n { color: #475569; }
+.cal-chip.cal-future .cal-chip-w { color: #475569; }
+.cal-chip.cal-empty    { background: #273449; }
+.cal-chip.cal-empty .cal-chip-w { color: #64748b; }
 .cal-chip.cal-partial  { background: #1e3a1e; }
 .cal-chip.cal-partial .cal-chip-n { color: #99dd99; }
 .cal-chip.cal-partial .cal-chip-w { color: #77bb77; }
@@ -1302,7 +1302,7 @@ onUnmounted(() => {
   opacity: 0.75;
 }
 .cal-chip.cal-selected {
-  outline: 2px solid #888;
+  outline: 2px solid #94a3b8;
   outline-offset: 1px;
 }
 
@@ -1322,8 +1322,8 @@ onUnmounted(() => {
 .journal-sidebar {
   width: 200px;
   flex-shrink: 0;
-  background: #252525;
-  border-right: 1px solid #444;
+  background: #1e293b;
+  border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
   padding: 16px 14px;
@@ -1334,10 +1334,10 @@ onUnmounted(() => {
 /* Streak */
 .journal-streak-box {
   text-align: center;
-  background: #333;
+  background: #273449;
   border-radius: 10px;
   padding: 14px 8px;
-  border: 1px solid #444;
+  border: 1px solid #334155;
 }
 .journal-streak-count {
   font-size: 42px;
@@ -1347,7 +1347,7 @@ onUnmounted(() => {
 }
 .journal-streak-label {
   font-size: 11px;
-  color: #888;
+  color: #94a3b8;
   margin-top: 4px;
   text-transform: uppercase;
   letter-spacing: .05em;
@@ -1359,7 +1359,7 @@ onUnmounted(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: #666;
+  color: #64748b;
 }
 .journal-sync-section {
   display: flex;
@@ -1367,48 +1367,48 @@ onUnmounted(() => {
   gap: 5px;
 }
 .journal-btn-lock {
-  background: #2a2a3a;
-  color: #888;
+  background: #273449;
+  color: #94a3b8;
   font-size: 11px;
   padding: 7px 10px;
-  border: 1px solid #444;
+  border: 1px solid #334155;
   border-radius: 6px;
   width: 100%;
   text-align: left;
   cursor: pointer;
   transition: background .15s;
 }
-.journal-btn-lock:hover { background: #3a2a2a; color: #cc8888; border-color: #664444; }
+.journal-btn-lock:hover { background: #3f1d1d; color: #f87171; border-color: #7f2d2d; }
 
 .journal-btn-sync {
-  background: #333;
-  color: #aaa;
+  background: #273449;
+  color: #94a3b8;
   font-size: 11px;
   padding: 7px 10px;
-  border: 1px solid #444;
+  border: 1px solid #334155;
   border-radius: 6px;
   width: 100%;
   text-align: left;
   cursor: pointer;
   transition: background .15s;
 }
-.journal-btn-sync:hover { background: #3a3a3a; color: #ddd; }
+.journal-btn-sync:hover { background: #334155; color: #e2e8f0; }
 
 .journal-import-dialog {
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: #0f172a;
+  border: 1px solid #334155;
   border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.journal-import-label { font-size: 10px; color: #888; }
+.journal-import-label { font-size: 10px; color: #94a3b8; }
 .journal-passphrase-input--small { font-size: 12px; padding: 7px 10px; }
 .journal-import-actions { display: flex; gap: 6px; }
 .journal-btn--sm { font-size: 11px; padding: 5px 12px; }
-.journal-btn-cancel { background: #444; color: #ccc; border: 1px solid #555; }
-.journal-btn-cancel:hover { background: #555; }
+.journal-btn-cancel { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
+.journal-btn-cancel:hover { background: #475569; }
 
 /* ══════════════════════════════════════════════
    Main editor
@@ -1422,7 +1422,7 @@ onUnmounted(() => {
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #2c2c2c;
+  background: #0f172a;
 }
 
 /* Top bar */
@@ -1443,25 +1443,25 @@ onUnmounted(() => {
 .journal-viewer-back {
   background: none;
   border: none;
-  color: #888;
+  color: #94a3b8;
   cursor: pointer;
   font-size: 14px;
   padding: 0;
 }
-.journal-viewer-back:hover { color: #ccc; }
-.journal-viewer-date { font-size: 15px; font-weight: 600; color: #aaa; }
-.journal-viewer-words { font-size: 11px; color: #666; }
+.journal-viewer-back:hover { color: #cbd5e1; }
+.journal-viewer-date { font-size: 15px; font-weight: 600; color: #94a3b8; }
+.journal-viewer-words { font-size: 11px; color: #64748b; }
 .journal-viewer-text {
   font-size: 15px;
   line-height: 1.7;
-  color: #ccc;
+  color: #cbd5e1;
   white-space: pre-wrap;
   word-break: break-word;
 }
 .journal-today-date {
   font-size: 17px;
   font-weight: 600;
-  color: #ddd;
+  color: #e2e8f0;
   flex: 1;
 }
 .journal-save-status {
@@ -1469,12 +1469,12 @@ onUnmounted(() => {
   transition: opacity .3s;
 }
 .save-idle { opacity: 0; }
-.save-saving { color: #aaa; opacity: 1; }
+.save-saving { color: #94a3b8; opacity: 1; }
 .save-saved { color: #77cc77; opacity: 1; }
 
 .journal-word-count {
   font-size: 13px;
-  color: #888;
+  color: #94a3b8;
   transition: color .2s;
 }
 .wc-met { color: #77cc77; font-weight: 600; }
@@ -1482,7 +1482,7 @@ onUnmounted(() => {
 /* Progress bar */
 .journal-progress-track {
   height: 4px;
-  background: #3a3a3a;
+  background: #334155;
   border-radius: 999px;
   margin: 0 16px 14px;
   overflow: hidden;
@@ -1559,7 +1559,7 @@ onUnmounted(() => {
   text-align: right;
 }
 
-.journal-muted { color: #777; }
+.journal-muted { color: #64748b; }
 
 /* ══════════════════════════════════════════════
    Past entries
@@ -1576,23 +1576,23 @@ onUnmounted(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: #555;
+  color: #64748b;
   padding-bottom: 8px;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid #334155;
 }
 .journal-past-entry {
-  background: #222;
-  border: 1px solid #333;
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 8px;
   padding: 12px 14px;
   cursor: pointer;
   transition: background .12s, border-color .12s;
 }
 .journal-past-entry:hover {
-  background: #2a2a2a;
+  background: #273449;
 }
 .journal-past-entry--active {
-  border-color: #555;
+  border-color: #475569;
 }
 .journal-past-meta {
   display: flex;
@@ -1603,16 +1603,16 @@ onUnmounted(() => {
 .journal-past-date {
   font-size: 13px;
   font-weight: 600;
-  color: #aaa;
+  color: #94a3b8;
 }
 .journal-past-words {
   font-size: 11px;
-  color: #666;
+  color: #64748b;
 }
 .journal-past-text {
   font-size: 14px;
   line-height: 1.65;
-  color: #bbb;
+  color: #cbd5e1;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 120px;
@@ -1635,21 +1635,21 @@ onUnmounted(() => {
   padding: 16px;
 }
 .cp-modal {
-  background: #3a3a3a;
-  border: 1px solid #555;
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 14px;
   padding: 28px 28px 24px;
   width: 100%;
   max-width: 360px;
   box-shadow: 0 8px 40px rgba(0,0,0,.5);
   font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
-  color: #e8e8e8;
+  color: #e2e8f0;
 }
 .cp-modal h3 {
   margin: 0 0 18px;
   font-size: 18px;
   font-weight: 600;
-  color: #f0f0f0;
+  color: #f1f5f9;
   text-align: center;
 }
 .cp-modal input {
@@ -1658,17 +1658,17 @@ onUnmounted(() => {
   padding: 11px 16px;
   margin-bottom: 10px;
   font-size: 15px;
-  background: #222;
-  border: 1px solid #666;
+  background: #0f172a;
+  border: 1px solid #475569;
   border-radius: 8px;
-  color: #eee;
+  color: #e2e8f0;
   outline: none;
   transition: border-color .15s;
 }
 .cp-modal input:focus { border-color: #8888ff; }
 .cp-error {
   margin: 4px 0 0;
-  color: #ff7070;
+  color: #f87171;
   font-size: 13px;
 }
 .cp-actions {
@@ -1690,13 +1690,13 @@ onUnmounted(() => {
 .sync-modal h3 { text-align: left; }
 .sync-desc {
   font-size: 13px;
-  color: #aaa;
+  color: #94a3b8;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .sync-hint {
   font-size: 11px;
-  color: #888;
+  color: #64748b;
   line-height: 1.5;
   margin: -4px 0 0;
 }
@@ -1714,7 +1714,7 @@ onUnmounted(() => {
 }
 .sync-stage-line {
   font-size: 13px;
-  color: #bbb;
+  color: #cbd5e1;
   margin: 4px 0 0;
 }
 .sync-result-line {
@@ -1724,7 +1724,7 @@ onUnmounted(() => {
 }
 .sync-block-label {
   font-size: 12px;
-  color: #aaa;
+  color: #94a3b8;
   margin: 14px 0 6px;
 }
 .sync-blob {
@@ -1735,10 +1735,10 @@ onUnmounted(() => {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 11px;
   line-height: 1.4;
-  background: #222;
-  border: 1px solid #555;
+  background: #0f172a;
+  border: 1px solid #475569;
   border-radius: 8px;
-  color: #cfcfcf;
+  color: #cbd5e1;
   padding: 9px 11px;
   outline: none;
   word-break: break-all;

@@ -1349,8 +1349,8 @@ onUnmounted(() => {
 
 /* Main */
 .planner-main {
-  background: #ffffff;
-  color: #1e293b;
+  background: #0f172a;
+  color: #e2e8f0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1361,23 +1361,23 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #334155;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 .planner-view-toggle {
   display: flex;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 7px;
   overflow: hidden;
 }
 .planner-view-toggle button {
   padding: 6px 14px;
-  background: #fff;
+  background: #1e293b;
   border: none;
   cursor: pointer;
   font-size: 13px;
-  color: #475569;
+  color: #94a3b8;
 }
 .planner-view-toggle button.active { background: #2563eb; color: #fff; }
 .planner-add-task {
@@ -1389,7 +1389,7 @@ onUnmounted(() => {
   font-size: 13px;
   cursor: pointer;
 }
-.planner-add-task:disabled { background: #cbd5e1; cursor: default; }
+.planner-add-task:disabled { background: #334155; color: #64748b; cursor: default; }
 .planner-tag-filters {
   display: flex;
   gap: 6px;
@@ -1398,11 +1398,11 @@ onUnmounted(() => {
 }
 .planner-tag-chip {
   padding: 4px 10px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: #273449;
+  border: 1px solid #334155;
   border-radius: 20px;
   font-size: 12px;
-  color: #475569;
+  color: #94a3b8;
   cursor: pointer;
 }
 .planner-tag-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
@@ -1432,8 +1432,8 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 .planner-column {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -1444,20 +1444,20 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #334155;
   flex-shrink: 0;
 }
 .planner-column-title {
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: .03em;
 }
 .planner-column-count {
   font-size: 12px;
-  color: #64748b;
-  background: #e2e8f0;
+  color: #94a3b8;
+  background: #334155;
   border-radius: 10px;
   padding: 1px 8px;
   min-width: 18px;
@@ -1473,20 +1473,20 @@ onUnmounted(() => {
 .planner-column-empty {
   margin: 4px 0;
   text-align: center;
-  color: #cbd5e1;
+  color: #475569;
   font-size: 12px;
 }
 
 .planner-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: #273449;
+  border: 1px solid #334155;
   border-radius: 8px;
   padding: 9px 10px;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
   transition: border-color .12s, box-shadow .12s;
 }
-.planner-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+.planner-card:hover { border-color: #475569; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
 .planner-card.selected { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
 .planner-card:active { cursor: grabbing; }
 .planner-card-top {
@@ -1503,7 +1503,7 @@ onUnmounted(() => {
 }
 .planner-card-title {
   font-size: 14px;
-  color: #1e293b;
+  color: #e2e8f0;
   line-height: 1.35;
   word-break: break-word;
 }
@@ -1520,15 +1520,15 @@ onUnmounted(() => {
   border-radius: 5px;
   font-variant-numeric: tabular-nums;
 }
-.planner-card-due.due-normal { background: #f1f5f9; color: #64748b; }
-.planner-card-due.due-today { background: #fef3c7; color: #b45309; }
-.planner-card-due.due-overdue { background: #fee2e2; color: #b91c1c; }
+.planner-card-due.due-normal { background: #334155; color: #94a3b8; }
+.planner-card-due.due-today { background: #3b2f14; color: #f59e0b; }
+.planner-card-due.due-overdue { background: #3f1d1d; color: #f87171; }
 .planner-card-tag {
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 5px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #2c2f5e;
+  color: #a5b4fc;
 }
 
 /* List view */
@@ -1545,10 +1545,10 @@ onUnmounted(() => {
 .planner-filter-select {
   padding: 6px 10px;
   font-size: 13px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 7px;
-  background: #fff;
-  color: #334155;
+  background: #1e293b;
+  color: #cbd5e1;
   cursor: pointer;
 }
 .planner-list-tagfilter {
@@ -1561,7 +1561,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #475569;
+  color: #94a3b8;
   cursor: pointer;
   margin-left: auto;
 }
@@ -1574,38 +1574,38 @@ onUnmounted(() => {
 .planner-table thead th {
   text-align: left;
   padding: 8px 10px;
-  border-bottom: 2px solid #e2e8f0;
-  color: #334155;
+  border-bottom: 2px solid #334155;
+  color: #94a3b8;
   font-weight: 600;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
 }
-.planner-table thead th:hover { background: #f8fafc; }
+.planner-table thead th:hover { background: #1e293b; }
 .planner-table thead th.col-done { width: 36px; text-align: center; }
-.sort-arrow { color: #2563eb; font-size: 11px; }
+.sort-arrow { color: #60a5fa; font-size: 11px; }
 
 .planner-row {
   cursor: pointer;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #1e293b;
 }
-.planner-row:hover { background: #f8fafc; }
-.planner-row.selected { background: #eff6ff; }
-.planner-row.is-done .col-title { text-decoration: line-through; color: #94a3b8; }
+.planner-row:hover { background: #1e293b; }
+.planner-row.selected { background: #1e3a5f; }
+.planner-row.is-done .col-title { text-decoration: line-through; color: #64748b; }
 .planner-table td {
   padding: 8px 10px;
   vertical-align: middle;
 }
 .planner-table td.col-done { text-align: center; }
 .planner-table td.col-done input { cursor: pointer; }
-.col-title { color: #1e293b; word-break: break-word; }
+.col-title { color: #e2e8f0; word-break: break-word; }
 .planner-proj-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #475569;
+  color: #94a3b8;
 }
-.col-prio { white-space: nowrap; color: #475569; }
+.col-prio { white-space: nowrap; color: #94a3b8; }
 .col-prio .planner-card-prio { display: inline-block; margin-right: 6px; margin-top: 0; vertical-align: middle; }
 .col-due .planner-card-due { display: inline-block; }
 .col-tags { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1622,9 +1622,9 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   width: 340px;
-  background: #ffffff;
-  border-left: 1px solid #e2e8f0;
-  box-shadow: -8px 0 24px rgba(15, 23, 42, .12);
+  background: #1e293b;
+  border-left: 1px solid #334155;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, .4);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1635,7 +1635,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #334155;
   flex-shrink: 0;
 }
 .planner-detail-title {
@@ -1643,15 +1643,15 @@ onUnmounted(() => {
   min-width: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: #f1f5f9;
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 6px 8px;
   background: transparent;
   outline: none;
 }
-.planner-detail-title:hover { border-color: #cbd5e1; background: #f8fafc; cursor: text; }
-.planner-detail-title:focus { border-color: #2563eb; background: #fff; }
+.planner-detail-title:hover { border-color: #475569; background: #273449; cursor: text; }
+.planner-detail-title:focus { border-color: #2563eb; background: #0f172a; }
 
 /* Инлайн-инпут переименования на карточке канбана / строке списка */
 .planner-title-inline-input {
@@ -1659,8 +1659,8 @@ onUnmounted(() => {
   min-width: 0;
   font: inherit;
   font-size: 14px;
-  color: #1e293b;
-  background: #fff;
+  color: #e2e8f0;
+  background: #0f172a;
   border: 1px solid #2563eb;
   border-radius: 4px;
   padding: 1px 5px;
@@ -1676,7 +1676,7 @@ onUnmounted(() => {
   border-radius: 6px;
   flex-shrink: 0;
 }
-.planner-detail-close:hover { background: #f1f5f9; color: #334155; }
+.planner-detail-close:hover { background: #334155; color: #e2e8f0; }
 
 .planner-detail-body {
   flex: 1;
@@ -1695,7 +1695,7 @@ onUnmounted(() => {
 .planner-field-label {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: .03em;
 }
@@ -1704,17 +1704,17 @@ onUnmounted(() => {
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  color: #94a3b8;
+  color: #64748b;
 }
 .planner-field select,
 .planner-field input[type="date"],
 .planner-detail-tags-input {
   padding: 7px 10px;
   font-size: 13px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 7px;
-  background: #fff;
-  color: #334155;
+  background: #0f172a;
+  color: #e2e8f0;
   outline: none;
 }
 .planner-field select:focus,
@@ -1734,8 +1734,8 @@ onUnmounted(() => {
   font-size: 11px;
   padding: 2px 4px 2px 8px;
   border-radius: 5px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #2c2f5e;
+  color: #a5b4fc;
 }
 .planner-detail-chip-x {
   background: none;
@@ -1746,7 +1746,7 @@ onUnmounted(() => {
   padding: 0 2px;
   line-height: 1;
 }
-.planner-detail-chip-x:hover { color: #4338ca; }
+.planner-detail-chip-x:hover { color: #c7d2fe; }
 
 .planner-field-note { flex: 1; min-height: 0; }
 .planner-detail-note {
@@ -1756,10 +1756,10 @@ onUnmounted(() => {
   padding: 9px 11px;
   font-size: 13px;
   line-height: 1.5;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 7px;
-  background: #fff;
-  color: #334155;
+  background: #0f172a;
+  color: #e2e8f0;
   outline: none;
   font-family: inherit;
   box-sizing: border-box;
@@ -1768,18 +1768,18 @@ onUnmounted(() => {
 
 .planner-detail-foot {
   padding: 12px 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #334155;
   flex-shrink: 0;
 }
 .planner-detail-delete {
   width: 100%;
   padding: 8px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: #3f1d1d;
+  border: 1px solid #7f2d2d;
   border-radius: 7px;
-  color: #dc2626;
+  color: #f87171;
   font-size: 13px;
   cursor: pointer;
 }
-.planner-detail-delete:hover { background: #fee2e2; }
+.planner-detail-delete:hover { background: #4a2323; }
 </style>

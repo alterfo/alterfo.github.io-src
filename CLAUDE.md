@@ -280,7 +280,7 @@ Brier and buckets score **only reviewed** decisions (`outcome !== null`); `corre
 
 ## Design system «Spiral»
 
-Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue / BlogList.vue / CountDown.vue). The internal UI of Journal / Piano / IDEF0 / OpenPose is **not** part of this system — those keep their own styling.
+Unified visual identity for the **portfolio shell** (Portfolio.vue / Layout.vue / BlogList.vue / CountDown.vue). The internal UI of the apps is **not** part of this system, but since 2026-06-12 all six apps share one **dark slate palette** (user request — было: IDEF0 белый, Journal серый, Piano/OpenPose тёмно-синие, Planner/Decisions с белой рабочей зоной): app/page bg `#0f172a`, panels/sidebars/cards `#1e293b`, raised/hover `#273449`, controls `#334155`, borders `#334155`/`#475569`, text `#e2e8f0` / muted `#94a3b8` / dim `#64748b`, danger `#3f1d1d`/`#f87171`. Every `*.md` app page wrapper uses bg `#0f172a` + header `#1e293b` with the sphere-colored title/border. Each app keeps its own **accent** colors (journal indigo `#5555dd`, planner blue `#2563eb`, decisions teal `#0d9488`, etc.). Two deliberate light surfaces remain: the IDEF0 SVG canvas (`#f8fafc` “paper” — the diagram and its exports stay black-on-white) and the Journal lined-paper textarea. Keep new app UI on this palette.
 
 ### Palette source of truth (two mirrors, same hex)
 

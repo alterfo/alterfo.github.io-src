@@ -4,7 +4,7 @@ description: "Браузерный планировщик проектов и з
 layout: false
 ---
 
-<div style="height:100vh;display:flex;flex-direction:column;background:#f3f4f6;">
+<div style="height:100vh;display:flex;flex-direction:column;background:#0f172a;">
   <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:#1e293b;color:#fff;border-bottom:1px solid rgba(255,153,51,.3);flex-shrink:0;">
     <HomeMark active="planner" />
     <strong style="font-size:14px;color:#ff9933;">Planner</strong>

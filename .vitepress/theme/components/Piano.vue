@@ -781,8 +781,8 @@ onUnmounted(() => {
   flex-direction: column;
   position: relative;
   height: 100%;
-  background: #1a1a2e;
-  color: #ddd;
+  background: #0f172a;
+  color: #e2e8f0;
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
   overflow: hidden;
@@ -794,16 +794,16 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: #12122a;
-  border-bottom: 1px solid #2a2a4a;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .piano-select {
-  background: #252545;
-  color: #ddd;
-  border: 1px solid #444;
+  background: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
   border-radius: 5px;
   padding: 4px 8px;
   font-size: 13px;
@@ -819,9 +819,9 @@ onUnmounted(() => {
 
 .level-btn,
 .tempo-btn {
-  background: #252545;
-  color: #999;
-  border: 1px solid #3a3a5a;
+  background: #334155;
+  color: #94a3b8;
+  border: 1px solid #475569;
   border-radius: 4px;
   padding: 3px 9px;
   font-size: 11px;
@@ -840,8 +840,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #252545;
-  border: 1px solid #3a3a5a;
+  background: #334155;
+  border: 1px solid #475569;
   border-radius: 4px;
   padding: 4px 8px;
   cursor: pointer;
@@ -853,7 +853,7 @@ onUnmounted(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #445;
+  background: #475569;
   transition: background .1s, transform .1s;
   display: block;
 }
@@ -863,9 +863,9 @@ onUnmounted(() => {
 }
 
 .tb-btn {
-  background: #252545;
-  color: #aaa;
-  border: 1px solid #3a3a5a;
+  background: #334155;
+  color: #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 4px;
   padding: 3px 9px;
   font-size: 11px;
@@ -873,7 +873,7 @@ onUnmounted(() => {
   transition: background .15s, color .15s;
   white-space: nowrap;
 }
-.tb-btn:hover:not(:disabled) { background: #353565; color: #fff; }
+.tb-btn:hover:not(:disabled) { background: #475569; color: #fff; }
 .tb-btn:disabled { opacity: 0.6; cursor: default; }
 .tb-btn.primary { background: #4040aa; color: #fff; border-color: #6060cc; }
 .tb-btn.primary:hover:not(:disabled) { background: #5555cc; }
@@ -911,8 +911,8 @@ onUnmounted(() => {
 }
 .abc-modal,
 .timesig-dialog {
-  background: #1e1e3a;
-  border: 1px solid #3a3a5a;
+  background: #1e293b;
+  border: 1px solid #475569;
   border-radius: 8px;
   padding: 20px;
   width: min(520px, 90vw);
@@ -922,9 +922,9 @@ onUnmounted(() => {
 .abc-textarea {
   width: 100%;
   min-height: 180px;
-  background: #12122a;
-  color: #ddd;
-  border: 1px solid #3a3a5a;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #475569;
   border-radius: 5px;
   padding: 8px;
   font-family: monospace;
@@ -946,7 +946,7 @@ onUnmounted(() => {
   color: #ff8888;
   font-size: 12px;
 }
-.timesig-dialog p { margin: 0 0 14px; color: #ddd; font-size: 13px; }
+.timesig-dialog p { margin: 0 0 14px; color: #e2e8f0; font-size: 13px; }
 .timesig-options {
   display: flex;
   gap: 8px;
@@ -954,9 +954,9 @@ onUnmounted(() => {
 }
 .ts-btn {
   flex: 1;
-  background: #252545;
-  color: #aaa;
-  border: 1px solid #3a3a5a;
+  background: #334155;
+  color: #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 5px;
   padding: 10px 0;
   font-size: 15px;
@@ -974,7 +974,7 @@ onUnmounted(() => {
 .piano-midi-status {
   margin-left: auto;
   font-size: 11px;
-  color: #555;
+  color: #64748b;
   white-space: nowrap;
 }
 .piano-midi-status.connected { color: #4caf50; }
@@ -989,7 +989,7 @@ onUnmounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px 12px 8px;
-  background: #1a1a2e;
+  background: #0f172a;
 }
 
 .piano-stave-container {
@@ -1014,7 +1014,7 @@ onUnmounted(() => {
 }
 .complete-icon { font-size: 48px; }
 .complete-text { font-size: 22px; font-weight: 600; color: #fff; }
-.complete-stats { font-size: 14px; color: #aaa; }
+.complete-stats { font-size: 14px; color: #94a3b8; }
 .restart-btn {
   background: #4040aa;
   color: #fff;
@@ -1033,15 +1033,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 14px;
   padding: 5px 14px;
-  background: #141424;
-  border-top: 1px solid #2a2a4a;
-  border-bottom: 1px solid #2a2a4a;
+  background: #1e293b;
+  border-top: 1px solid #334155;
+  border-bottom: 1px solid #334155;
   flex-shrink: 0;
   font-size: 11px;
   flex-wrap: wrap;
 }
 
-.pos-label { color: #888; }
+.pos-label { color: #94a3b8; }
 
 .key-badge {
   background: #1e2e1e;
@@ -1063,8 +1063,8 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.stat-item { color: #666; }
-.stat-val { color: #aaa; font-weight: 600; }
+.stat-item { color: #64748b; }
+.stat-val { color: #cbd5e1; font-weight: 600; }
 
 .status-notes {
   font-family: monospace;
@@ -1075,21 +1075,21 @@ onUnmounted(() => {
 
 .repeat-btn {
   margin-left: auto;
-  background: #252545;
-  color: #aaa;
-  border: 1px solid #3a3a5a;
+  background: #334155;
+  color: #cbd5e1;
+  border: 1px solid #475569;
   border-radius: 4px;
   padding: 3px 10px;
   font-size: 11px;
   cursor: pointer;
 }
-.repeat-btn:hover { background: #353565; color: #fff; }
+.repeat-btn:hover { background: #475569; color: #fff; }
 
 /* ── Keyboard ────────────────────────────────────────────────── */
 .piano-keyboard-wrap {
   flex-shrink: 0;
-  background: #0f0f1e;
-  border-top: 1px solid #2a2a4a;
+  background: #0b1120;
+  border-top: 1px solid #334155;
   padding: 8px 0 0;
   overflow: hidden;
 }
@@ -1102,7 +1102,7 @@ onUnmounted(() => {
 
 .piano-scale-hint {
   font-size: 10px;
-  color: #555;
+  color: #64748b;
   padding: 3px 10px 6px;
   letter-spacing: 0.03em;
 }
@@ -1114,8 +1114,8 @@ onUnmounted(() => {
 
 /* ── Audio unlock banner ─────────────────────────────────────── */
 .piano-audio-banner {
-  background: #1a1a3a;
-  border-bottom: 1px solid #3a3a6a;
+  background: #1e1b4b;
+  border-bottom: 1px solid #312e81;
   color: #8888cc;
   font-size: 12px;
   text-align: center;
@@ -1123,6 +1123,6 @@ onUnmounted(() => {
   cursor: pointer;
   flex-shrink: 0;
 }
-.piano-audio-banner:hover { color: #aaaaff; background: #222244; }
+.piano-audio-banner:hover { color: #aaaaff; background: #312e81; }
 
 </style>

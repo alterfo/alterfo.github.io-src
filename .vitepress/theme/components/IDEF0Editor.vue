@@ -1192,7 +1192,7 @@ onUnmounted(() => {
     </div>
 
     <!-- ═══ HELP MODAL ═══ -->
-    <HelpModal v-model="showHelp" light>
+    <HelpModal v-model="showHelp">
       <h2>IDEF0 Редактор</h2>
       <p>Функциональные диаграммы по стандарту FIPS 183</p>
 
@@ -1243,40 +1243,40 @@ onUnmounted(() => {
 .idef0-toolbar {
   display: flex; align-items: center; gap: 6px;
   padding: 0 14px; height: 46px;
-  background: #fff; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
+  background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0;
 }
 .tb-btn {
-  padding: 4px 12px; background: #fff; border: 1px solid #d1d5db;
-  border-radius: 6px; cursor: pointer; font-size: 13px; color: #374151; white-space: nowrap;
+  padding: 4px 12px; background: #334155; border: 1px solid #475569;
+  border-radius: 6px; cursor: pointer; font-size: 13px; color: #cbd5e1; white-space: nowrap;
 }
-.tb-btn:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+.tb-btn:hover:not(:disabled) { background: #475569; border-color: #64748b; }
 .tb-btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.tb-btn-doc { background: #f0fdf4; border-color: #86efac; color: #166534; }
-.tb-btn-doc:hover:not(:disabled) { background: #dcfce7; border-color: #4ade80; }
-.tb-btn-danger { background: #fff1f2; border-color: #fca5a5; color: #b91c1c; }
-.tb-btn-danger:hover:not(:disabled) { background: #fee2e2; border-color: #f87171; }
-.tb-sep { width: 1px; height: 22px; background: #e5e7eb; margin: 0 2px; }
-.tb-diag { font-weight: 700; color: #1d4ed8; }
-.tb-title { color: #6b7280; font-size: 12px; }
+.tb-btn-doc { background: #14321f; border-color: #1f6e3d; color: #34d399; }
+.tb-btn-doc:hover:not(:disabled) { background: #1a4029; border-color: #34d399; }
+.tb-btn-danger { background: #3f1d1d; border-color: #7f2d2d; color: #f87171; }
+.tb-btn-danger:hover:not(:disabled) { background: #4a2323; border-color: #ef4444; }
+.tb-sep { width: 1px; height: 22px; background: #334155; margin: 0 2px; }
+.tb-diag { font-weight: 700; color: #60a5fa; }
+.tb-title { color: #94a3b8; font-size: 12px; }
 .tb-spacer { flex: 1; }
 
 /* Panels */
 .idef0-main { display: grid; grid-template-columns: 210px 1fr 280px; flex: 1; min-height: 0; }
 
 /* Left nav */
-.idef0-nav { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; padding-bottom: 12px; }
+.idef0-nav { background: #1e293b; border-right: 1px solid #334155; overflow-y: auto; padding-bottom: 12px; }
 .panel-title {
   font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.07em; color: #9ca3af; padding: 14px 14px 6px;
+  letter-spacing: 0.07em; color: #94a3b8; padding: 14px 14px 6px;
 }
 .nav-item {
   padding: 7px 14px; cursor: pointer; border-radius: 5px;
   margin: 1px 8px; display: flex; flex-direction: column; gap: 1px;
 }
-.nav-item:hover { background: #f3f4f6; }
-.nav-item.active { background: #eff6ff; }
-.nav-id { font-weight: 600; color: #1d4ed8; font-size: 13px; }
-.nav-sub { font-size: 11px; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-item:hover { background: #273449; }
+.nav-item.active { background: #334155; }
+.nav-id { font-weight: 600; color: #60a5fa; font-size: 13px; }
+.nav-sub { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Canvas */
 .idef0-canvas-wrap { position: relative; overflow: hidden; background: #f8fafc; }
@@ -1290,16 +1290,16 @@ onUnmounted(() => {
 .zoom-bar {
   position: absolute; bottom: 16px; left: 16px;
   display: flex; align-items: center; gap: 2px;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
-  padding: 3px; box-shadow: 0 1px 4px #0001;
+  background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+  padding: 3px; box-shadow: 0 1px 4px #0003;
 }
 .zoom-btn {
   width: 28px; height: 28px; border: none; background: none;
-  cursor: pointer; font-size: 16px; color: #374151; border-radius: 5px;
+  cursor: pointer; font-size: 16px; color: #cbd5e1; border-radius: 5px;
   display: flex; align-items: center; justify-content: center;
 }
-.zoom-btn:hover { background: #f3f4f6; }
-.zoom-pct { font-size: 11px; color: #9ca3af; padding: 0 5px; min-width: 36px; text-align: center; }
+.zoom-btn:hover { background: #334155; }
+.zoom-pct { font-size: 11px; color: #94a3b8; padding: 0 5px; min-width: 36px; text-align: center; }
 
 /* Drag hint */
 .drag-hint {
@@ -1310,44 +1310,44 @@ onUnmounted(() => {
 }
 
 /* Properties */
-.idef0-props { background: #fff; border-left: 1px solid #e5e7eb; overflow-y: auto; padding: 0 14px 20px; }
+.idef0-props { background: #1e293b; border-left: 1px solid #334155; overflow-y: auto; padding: 0 14px 20px; }
 .idef0-props .panel-title { padding-left: 0; }
 
 .prop-field { margin-bottom: 11px; }
-.prop-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 4px; }
+.prop-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 4px; }
 .prop-input, .prop-textarea {
-  width: 100%; padding: 6px 9px; border: 1px solid #d1d5db; border-radius: 6px;
-  font-size: 13px; color: #111; background: #fff; box-sizing: border-box; font-family: inherit;
+  width: 100%; padding: 6px 9px; border: 1px solid #475569; border-radius: 6px;
+  font-size: 13px; color: #e2e8f0; background: #0f172a; box-sizing: border-box; font-family: inherit;
 }
-.prop-input:focus, .prop-textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe55; }
+.prop-input:focus, .prop-textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #3b82f655; }
 .prop-textarea { resize: vertical; line-height: 1.5; }
 
 /* Arrow sections */
-.arrow-sec { margin-bottom: 10px; border: 1px solid #e5e7eb; border-radius: 7px; overflow: hidden; }
+.arrow-sec { margin-bottom: 10px; border: 1px solid #334155; border-radius: 7px; overflow: hidden; }
 .arrow-sec-hdr {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 7px 10px; background: #f9fafb; font-size: 12px; font-weight: 500; color: #374151;
+  padding: 7px 10px; background: #273449; font-size: 12px; font-weight: 500; color: #cbd5e1;
 }
 .arrow-add {
-  width: 22px; height: 22px; border: 1px solid #d1d5db; border-radius: 4px;
-  background: #fff; cursor: pointer; font-size: 14px; color: #374151;
+  width: 22px; height: 22px; border: 1px solid #475569; border-radius: 4px;
+  background: #334155; cursor: pointer; font-size: 14px; color: #cbd5e1;
   display: flex; align-items: center; justify-content: center; line-height: 1;
 }
-.arrow-add:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
-.arrow-row { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-top: 1px solid #f3f4f6; }
+.arrow-add:hover { background: #1e3a5f; border-color: #60a5fa; color: #93c5fd; }
+.arrow-row { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-top: 1px solid #334155; }
 .arrow-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.arrow-name { flex: 1; border: none; background: transparent; font-size: 13px; color: #111; padding: 1px 0; outline: none; font-family: inherit; }
-.arrow-name:focus { border-bottom: 1px solid #3b82f6; }
-.arrow-connected { font-size: 10px; color: #10b981; font-weight: 600; white-space: nowrap; }
-.arrow-del { background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 17px; line-height: 1; padding: 0 2px; }
-.arrow-del:hover { color: #ef4444; }
+.arrow-name { flex: 1; border: none; background: transparent; font-size: 13px; color: #e2e8f0; padding: 1px 0; outline: none; font-family: inherit; }
+.arrow-name:focus { border-bottom: 1px solid #60a5fa; }
+.arrow-connected { font-size: 10px; color: #34d399; font-weight: 600; white-space: nowrap; }
+.arrow-del { background: none; border: none; cursor: pointer; color: #64748b; font-size: 17px; line-height: 1; padding: 0 2px; }
+.arrow-del:hover { color: #f87171; }
 
 .delete-btn {
   width: 100%; padding: 8px; margin-top: 16px;
-  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
+  background: #3f1d1d; color: #f87171; border: 1px solid #7f2d2d;
   border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit;
 }
-.delete-btn:hover { background: #fee2e2; }
+.delete-btn:hover { background: #4a2323; }
 
-.no-sel { color: #9ca3af; text-align: center; margin-top: 40px; line-height: 1.6; font-size: 13px; }
+.no-sel { color: #64748b; text-align: center; margin-top: 40px; line-height: 1.6; font-size: 13px; }
 </style>
