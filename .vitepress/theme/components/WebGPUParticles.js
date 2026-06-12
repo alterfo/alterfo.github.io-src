@@ -65,7 +65,19 @@ export class WebGPUParticles {
   // 8 float'ов на частицу: x, y, size, angle, r, g, b, alpha.
   _seedData() {
     const { width, height } = this.params;
-    const particleData = this._seedData();
+    const particleData = new Float32Array(this.particleCount * 8);
+    for (let i = 0; i < this.particleCount; i++) {
+      const offset = i * 8;
+      const color = this.getRandomColor();
+      particleData[offset] = Math.random() * width;
+      particleData[offset + 1] = Math.random() * height;
+      particleData[offset + 2] = 0.3 + Math.random() * 1.2;
+      particleData[offset + 3] = Math.random() * 360;
+      particleData[offset + 4] = color[0];
+      particleData[offset + 5] = color[1];
+      particleData[offset + 6] = color[2];
+      particleData[offset + 7] = 0.4 + Math.random() * 0.5;
+    }
     return particleData;
   }
 
@@ -109,20 +121,7 @@ export class WebGPUParticles {
     this.maxParticleCount = this.particleCount;
     const bufferSize = this.particleCount * 32;
 
-    const particleData = new Float32Array(this.particleCount * 8);
-    for (let i = 0; i < this.particleCount; i++) {
-      const offset = i * 8;
-      const color = this.getRandomColor();
-      
-      particleData[offset] = Math.random() * width;
-      particleData[offset + 1] = Math.random() * height;
-      particleData[offset + 2] = 0.3 + Math.random() * 1.2;
-      particleData[offset + 3] = Math.random() * 360;
-      particleData[offset + 4] = color[0];
-      particleData[offset + 5] = color[1];
-      particleData[offset + 6] = color[2];
-      particleData[offset + 7] = 0.4 + Math.random() * 0.5;
-    }
+    const particleData = this._seedData();
 
     this.particlesBuffer = this.device.createBuffer({
       size: bufferSize,
