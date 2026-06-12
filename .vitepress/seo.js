@@ -4,6 +4,8 @@
 // config.mts imports these; one source of truth keeps canonical URLs and the
 // sitemap <loc> in sync (they used to drift on the trailing slash).
 
+import { ALBUMS, ARTIST } from './theme/components/music.js'
+
 export const SITE_URL = 'https://alterfo.github.io'
 export const AUTHOR = 'Oleg Sidorkin'
 
@@ -41,13 +43,6 @@ export const TOOL_CATEGORY = {
   'decision-journal.md': 'BusinessApplication',
 }
 
-// Albums data inlined for the MusicGroup JSON-LD — sync with music.js when albums change.
-const MUSIC_ALBUMS_LD = [
-  { '@type': 'MusicAlbum', name: 'Impressions', datePublished: '2025' },
-  { '@type': 'MusicAlbum', name: 'Механика близости', datePublished: '2026' },
-]
-const ARTIST_YANDEX_URL = 'https://music.yandex.ru/artist/25224352'
-
 // Build the per-page JSON-LD object (or null if the page type has none).
 export function jsonLdFor(rel, title, desc, url) {
   if (rel === 'index.md') {
@@ -57,10 +52,10 @@ export function jsonLdFor(rel, title, desc, url) {
     return {
       '@context': 'https://schema.org',
       '@type': 'MusicGroup',
-      name: 'Alterfo',
+      name: ARTIST.name,
       url,
-      sameAs: [ARTIST_YANDEX_URL],
-      album: MUSIC_ALBUMS_LD,
+      sameAs: [ARTIST.url],
+      album: ALBUMS.map(a => ({ '@type': 'MusicAlbum', name: a.title, datePublished: String(a.year) })),
     }
   }
   if (rel in TOOL_CATEGORY) {

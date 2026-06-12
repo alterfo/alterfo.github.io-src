@@ -9,6 +9,7 @@ import {
   sitemapPriority,
   TOOL_CATEGORY,
 } from './seo.js'
+import { ALBUMS } from './theme/components/music.js'
 
 test('canonicalPath: root index collapses to /', () => {
   assert.equal(canonicalPath('index.md'), '/')
@@ -96,12 +97,16 @@ test('jsonLdFor: music.md → MusicGroup with albums and sameAs', () => {
   assert.equal(ld.url, 'https://alterfo.github.io/music')
   assert.ok(Array.isArray(ld.sameAs) && ld.sameAs.length > 0, 'sameAs contains artist link')
   assert.ok(ld.sameAs[0].includes('yandex'), 'sameAs points to Yandex Music')
-  assert.ok(Array.isArray(ld.album) && ld.album.length === 2, 'two albums')
+  assert.equal(ld.album.length, ALBUMS.length, 'album count matches ALBUMS data source')
   assert.equal(ld.album[0]['@type'], 'MusicAlbum')
   assert.equal(ld.album[0].name, 'Impressions')
   assert.equal(ld.album[0].datePublished, '2025')
   assert.equal(ld.album[1].name, 'Механика близости')
   assert.equal(ld.album[1].datePublished, '2026')
+})
+
+test('music.md is not in TOOL_CATEGORY — it is a content page, not SoftwareApplication', () => {
+  assert.ok(!('music.md' in TOOL_CATEGORY), 'music.md must not be in TOOL_CATEGORY')
 })
 
 test('sitemapPriority: tiers per page type', () => {

@@ -189,4 +189,9 @@ test('buildSegments: generalizes to 8 spheres (span = 45°, last ends at 358°)'
   })
   // the 8th sphere's trailing edge closes the ring at 358° (360 − 2° gap)
   assert.ok(Math.abs((8 * span - 2) - 358) < 1e-9)
+  // mid angles: 22.5,67.5,112.5,157.5 → right half (start); 202.5,247.5,292.5,337.5 → left (end)
+  assert.deepEqual(
+    segs.map((s) => s.anchor),
+    ['start', 'start', 'start', 'start', 'end', 'end', 'end', 'end'],
+  )
 })

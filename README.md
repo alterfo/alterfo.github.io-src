@@ -6,7 +6,7 @@
 
 ## Дизайн-система «Spiral»
 
-Единая визуальная идентичность оболочки-портфолио (Portfolio / Layout / BlogList / CountDown). Спектр из 7 цветов = «сферы круга жизни» (из блога), они же — цвета проектов. Источник правды: CSS-токены в `.vitepress/theme/styles/vars.css` + JS-зеркало `components/spectrum.js` (менять hex в обоих). Particle-фон — один модуль `components/ConnectingParticles.js` (шапка + портфолио); countdown «1000 дней роста» — `CountDown.vue` + чистая дата-математика `countdown.js`; колесо жизни «LifeCircle» (`LifeCircle.vue` + геометрия `lifecircle.js`) — 7 сфер-проектов, внешний радиус кодирует готовность (1–10), заменило сетку проектов на главной. Подробности — в `CLAUDE.md` → «## Design system «Spiral»».
+Единая визуальная идентичность оболочки-портфолио (Portfolio / Layout / BlogList / CountDown). Спектр из 8 цветов = «сферы круга жизни» (из блога), они же — цвета проектов. Источник правды: CSS-токены в `.vitepress/theme/styles/vars.css` + JS-зеркало `components/spectrum.js` (менять hex в обоих). Particle-фон — один модуль `components/ConnectingParticles.js` (шапка + портфолио); countdown «1000 дней роста» — `CountDown.vue` + чистая дата-математика `countdown.js`; колесо жизни «LifeCircle» (`LifeCircle.vue` + геометрия `lifecircle.js`) — 8 сфер-проектов, внешний радиус кодирует готовность (1–10), заменило сетку проектов на главной. Подробности — в `CLAUDE.md` → «## Design system «Spiral»».
 
 ## Структура
 
@@ -23,7 +23,8 @@
       spectrum.js          JS-зеркало палитры (SPECTRUM/CANVAS_PALETTE/PROJECT_COLORS)
       ConnectingParticles.js  единый particle-модуль (createField + чистые хелперы)
       CountDown.vue / countdown.js  обратный отсчёт + чистая дата-математика
-      LifeCircle.vue / lifecircle.js  колесо жизни — 7 сфер-проектов, радиус = готовность (SVG + чистая геометрия)
+      LifeCircle.vue / lifecircle.js  колесо жизни — 8 сфер-проектов, радиус = готовность (SVG + чистая геометрия)
+      MusicAlbums.vue / music.js      страница /music — карточки альбомов, ленивый iframe-плеер (Яндекс.Музыка)
       BlogList.vue         индекс блога (токен-driven)
       IDEF0Editor.vue      редактор функциональных диаграмм (Vue 3, SVG)
       Journal.vue          приватный шифрованный дневник (WebCrypto)

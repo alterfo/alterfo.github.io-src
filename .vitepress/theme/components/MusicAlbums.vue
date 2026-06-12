@@ -24,7 +24,7 @@ function togglePlayer(id) {
         <div class="album-info">
           <h2 class="album-title">{{ album.title }}</h2>
           <p class="album-meta">{{ album.year }}&thinsp;·&thinsp;{{ album.tracks.length }}&nbsp;треков&thinsp;·&thinsp;{{ album.genreLabel }}</p>
-          <ol class="track-list">
+          <ol class="track-list" role="list">
             <li v-for="(track, i) in album.tracks" :key="i" class="track-item">
               <span class="track-num">{{ i + 1 }}</span>
               <span class="track-title">{{ track.title }}</span>
@@ -33,6 +33,7 @@ function togglePlayer(id) {
           </ol>
           <div class="album-actions">
             <button
+              type="button"
               class="btn-listen"
               :class="{ active: expandedId === album.id }"
               @click="togglePlayer(album.id)"
@@ -41,7 +42,7 @@ function togglePlayer(id) {
               class="btn-yandex"
               :href="albumUrl(album.id)"
               target="_blank"
-              rel="noopener"
+              rel="noopener noreferrer"
             >Открыть в&nbsp;Яндекс&nbsp;Музыке&nbsp;→</a>
           </div>
         </div>
@@ -49,6 +50,7 @@ function togglePlayer(id) {
       <div v-if="expandedId === album.id" class="player-wrap">
         <iframe
           :src="embedUrl(album.id)"
+          :title="`Плеер: ${album.title}`"
           class="player-frame"
           frameborder="0"
           allow="autoplay"

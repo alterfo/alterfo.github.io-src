@@ -21,14 +21,20 @@ describe('formatDuration', () => {
 })
 
 describe('albumUrl', () => {
-  it('builds correct Yandex album URL', () => {
+  it('builds correct Yandex album URL for first album', () => {
     assert.equal(albumUrl(39942489), 'https://music.yandex.ru/album/39942489')
+  })
+  it('builds correct Yandex album URL for second album', () => {
+    assert.equal(albumUrl(41458836), 'https://music.yandex.ru/album/41458836')
   })
 })
 
 describe('embedUrl', () => {
-  it('builds correct Yandex embed URL', () => {
+  it('builds correct Yandex embed URL for first album', () => {
     assert.equal(embedUrl(39942489), 'https://music.yandex.ru/iframe/#album/39942489')
+  })
+  it('builds correct Yandex embed URL for second album', () => {
+    assert.equal(embedUrl(41458836), 'https://music.yandex.ru/iframe/#album/41458836')
   })
 })
 
@@ -42,9 +48,9 @@ describe('ALBUMS', () => {
   it('second album (Механика близости) has 8 tracks', () => {
     assert.equal(ALBUMS[1].tracks.length, 8)
   })
-  it('every album has cover, year, genreLabel, id', () => {
+  it('every album has cover at /music/<name>.(jpg|png|webp), year, genreLabel, id', () => {
     for (const album of ALBUMS) {
-      assert.ok(album.cover, `${album.title}: missing cover`)
+      assert.match(album.cover, /^\/music\/.+\.(jpg|png|webp)$/i, `${album.title}: cover must be a root-relative /music/ path`)
       assert.ok(album.year, `${album.title}: missing year`)
       assert.ok(album.genreLabel, `${album.title}: missing genreLabel`)
       assert.ok(album.id, `${album.title}: missing id`)
@@ -71,6 +77,6 @@ describe('ARTIST', () => {
     assert.equal(ARTIST.name, 'Alterfo')
   })
   it('has correct Yandex artist URL', () => {
-    assert.ok(ARTIST.url.includes('25224352'))
+    assert.equal(ARTIST.url, 'https://music.yandex.ru/artist/25224352')
   })
 })
