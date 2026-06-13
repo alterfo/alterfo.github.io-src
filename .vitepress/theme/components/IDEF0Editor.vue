@@ -354,10 +354,7 @@ function arrowPoints(arrow) {
   }
 
   // ── Boundary arrow ──
-  // In the interactive editor, arrows use a fixed length so the layout stays compact.
-  // Labels may visually extend past the arrow endpoint — that is intentional.
-  // The export path (arrowPtsForDiag) stretches arrows to fit labels exactly.
-  const gap = BOUNDARY_GAP
+  const gap = boundaryGap(arrow)
   let farPt
   switch (arrow.type) {
     case 'input':    farPt = { x: boxPt.x - gap, y: boxPt.y }; break
