@@ -1,0 +1,13 @@
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: white; }
+  .page {
+    width: 11in; height: 8.5in;
+    display: flex; overflow: hidden;
+    page-break-after: always; break-after: page;
+  }
+  .page:last-child { page-break-after: avoid; break-after: avoid; }
+  .page > svg { width: 100%; height: 100%; display: block; }
+  @media print {
+    @page { size: 11in 8.5in; margin: 0; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
