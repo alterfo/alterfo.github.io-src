@@ -56,10 +56,6 @@ export default defineConfig({
   },
   ignoreDeadLinks: [/^\/(reflection|stack-1|stack-2|stack-3)$/],
   srcExclude: [
-    'blog/_posts/**',
-    'blog/.vuepress/**',
-    'blog/about.md',
-    'blog/idef0.md',
     'node_modules/**',
     'KODA.md',
     'README.md',
@@ -100,7 +96,7 @@ export default defineConfig({
         ],
       },
       { text: 'Музыка', link: '/music' },
-      { text: 'Блог', link: '/blog/' },
+      { text: 'Блог', link: '/blog' },
     ],
   },
   transformPageData(pageData) {

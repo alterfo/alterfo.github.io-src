@@ -9,8 +9,8 @@ import { ALBUMS, ARTIST } from './theme/components/music.js'
 export const SITE_URL = 'https://alterfo.github.io'
 export const AUTHOR = 'Oleg Sidorkin'
 
-// Source relativePath (e.g. 'blog/index.md') → canonical path ('/blog/').
-// `index` collapses to the directory: 'index.md' → '/', 'blog/index.md' → '/blog/'.
+// Source relativePath (e.g. 'blog.md') → canonical path ('/blog').
+// `index` collapses to the directory: 'index.md' → '/', 'posts/index.md' → '/posts/'.
 export function canonicalPath(rel) {
   let p = rel.replace(/\.md$/, '').replace(/(^|\/)index$/, '$1')
   if (!p.startsWith('/')) p = '/' + p
