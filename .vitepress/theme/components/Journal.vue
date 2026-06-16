@@ -5,6 +5,9 @@ import { emptyVault, upsertEntry, countWords, goalMet, computeStreak, mergeVault
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
 import { exportEnvelope, readEnvelopeFile } from './Journal/exporter.js'
 import { createOffer, acceptOffer, closeSync, sendEnvelope, receiveAndMerge, diffVaultDates } from './Journal/sync.js'
+import { blobToSyncUrl, parseSyncUrl } from './Sync/qr.js'
+import QRDisplay from './QRDisplay.vue'
+import QRScanner from './QRScanner.vue'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
 
@@ -19,8 +22,36 @@ let _iterations = 600000
 // ---- Reactive UI state ----
 const phase = ref('loading')   // 'loading' | 'locked' | 'unlocked'
 // Show the help modal on the first unlock only — never over the password screen.
-watch(phase, (p) => {
-  if (p === 'unlocked' && shouldShowOnboarding('journal:seen-help')) showHelp.value = true
+// Also: if a sync URL was captured from the page hash (QR scan), open sync modal after unlock.
+watch(phase, async (p) => {
+  if (p !== 'unlocked') return
+  if (shouldShowOnboarding('journal:seen-help')) showHelp.value = true
+  if (_pendingSyncUrl) {
+    const url = _pendingSyncUrl
+    _pendingSyncUrl = null
+    await nextTick()
+    const parsed = parseSyncUrl(url)
+    if (parsed?.role === 'offer') {
+      // Phone opened the page from a desktop offer QR.
+      // Pre-fill the offer blob and open sync modal in answer mode.
+      // User still needs to enter their password and click "Создать ответ".
+      openSync()
+      await nextTick()
+      syncRole.value = 'answer'
+      syncPeerBlob.value = parsed.blobStr
+    } else if (parsed?.role === 'answer') {
+      // Desktop received answer URL (e.g. scanned phone's answer QR or tapped link).
+      // Open sync modal; if the offer is still active, auto-submit the answer.
+      openSync()
+      await nextTick()
+      if (_syncConn) {
+        submitAnswer(parsed.blobStr)
+      } else {
+        // The offer session wasn't active — show a note so user can start fresh.
+        syncError.value = 'Сессия синхронизации устарела. Создайте новый код.'
+      }
+    }
+  }
 })
 const hasVault = ref(false)
 const passphraseInput = ref('')
@@ -448,12 +479,14 @@ const showSync = ref(false)
 const syncRole = ref(null)        // null | 'offer' | 'answer'
 const syncStage = ref('idle')     // 'idle' | 'blob-ready' | 'waiting' | 'connected' | 'merged' | 'error'
 const syncBlob = ref('')          // our blob (offer/answer) to hand to the peer
+const syncBlobUrl = ref('')       // shareable URL encoding the blob (for copy-link + QR)
 const syncPeerBlob = ref('')      // the peer's blob pasted in
 const syncPass = ref('')          // journal password — decrypts the peer's envelope
 const syncError = ref('')
 const syncResult = ref('')        // human summary after a merge
 const syncConnState = ref('')     // raw pc.connectionState (from onState) for the status line
 const syncCopied = ref(false)     // brief copied-feedback flag on the copy button
+const syncLinkCopied = ref(false) // brief copied-feedback flag on the copy-link button
 const syncRetry = ref(false)      // true after a received envelope failed to decrypt → show password + retry
 const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallback
 
@@ -461,6 +494,7 @@ const _syncBlobTextarea = ref(null)  // DOM node for the execCommand copy fallba
 let _syncPc = null
 let _syncConn = null              // object returned by createOffer / acceptOffer
 let _pendingSyncEnvelope = null   // last envelope received over the channel (for password retry)
+let _pendingSyncUrl = null        // sync URL from the page hash — applied after unlock
 
 const syncStageLabel = computed(() => {
   if (syncStage.value === 'waiting') {
@@ -485,12 +519,14 @@ function syncReset() {
   syncRole.value = null
   syncStage.value = 'idle'
   syncBlob.value = ''
+  syncBlobUrl.value = ''
   syncPeerBlob.value = ''
   syncPass.value = ''
   syncError.value = ''
   syncResult.value = ''
   syncConnState.value = ''
   syncCopied.value = false
+  syncLinkCopied.value = false
   syncRetry.value = false
 }
 
@@ -601,6 +637,7 @@ async function startOffer() {
     _syncConn = await createOffer(onSyncState)
     _syncPc = _syncConn.pc
     syncBlob.value = _syncConn.blobStr
+    syncBlobUrl.value = blobToSyncUrl(_syncConn.blobStr, 'offer')
     syncStage.value = 'blob-ready'
   } catch {
     syncError.value = 'Не удалось создать код соединения.'
@@ -609,13 +646,17 @@ async function startOffer() {
 }
 
 // Initiator step 2: accept the answer blob pasted back from the peer.
-async function submitAnswer() {
+// rawInput is set when auto-filling from a QR scan or a sync URL.
+async function submitAnswer(rawInput) {
   syncError.value = ''
-  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте ответ со второго устройства.'; return }
+  const raw = (rawInput ?? syncPeerBlob.value).trim()
+  if (!raw) { syncError.value = 'Вставьте ответ со второго устройства.'; return }
+  const parsed = parseSyncUrl(raw)
+  const blobStr = parsed ? parsed.blobStr : raw
   try {
-    await _syncConn.acceptAnswer(syncPeerBlob.value.trim())
-  } catch {
-    syncError.value = 'Неверный код ответа — проверьте и вставьте заново.'
+    await _syncConn.acceptAnswer(blobStr)
+  } catch (e) {
+    syncError.value = e?.message || 'Неверный код ответа — проверьте и вставьте заново.'
     return
   }
   startWaiting()
@@ -630,17 +671,21 @@ function startAnswer() {
 }
 
 // Responder step 2: accept the offer blob, produce the answer, and wait.
-async function submitOffer() {
+async function submitOffer(rawInput) {
   syncError.value = ''
-  if (!syncPeerBlob.value.trim()) { syncError.value = 'Вставьте код с первого устройства.'; return }
+  const raw = (rawInput ?? syncPeerBlob.value).trim()
+  if (!raw) { syncError.value = 'Вставьте код с первого устройства.'; return }
+  const parsed = parseSyncUrl(raw)
+  const blobStr = parsed ? parsed.blobStr : raw
   try {
-    _syncConn = await acceptOffer(syncPeerBlob.value.trim(), onSyncState)
-  } catch {
-    syncError.value = 'Неверный код — проверьте и вставьте заново.'
+    _syncConn = await acceptOffer(blobStr, onSyncState)
+  } catch (e) {
+    syncError.value = e?.message || 'Неверный код — проверьте и вставьте заново.'
     return
   }
   _syncPc = _syncConn.pc
   syncBlob.value = _syncConn.blobStr
+  syncBlobUrl.value = blobToSyncUrl(_syncConn.blobStr, 'answer')
   startWaiting()
 }
 
@@ -657,6 +702,27 @@ async function copySyncBlob() {
     }
   }
   if (syncCopied.value) setTimeout(() => { syncCopied.value = false }, 1500)
+}
+
+// Copy the shareable sync URL (for laptop-to-laptop via AirDrop / messenger).
+async function copySyncLink() {
+  if (!syncBlobUrl.value) return
+  try {
+    await navigator.clipboard.writeText(syncBlobUrl.value)
+    syncLinkCopied.value = true
+    setTimeout(() => { syncLinkCopied.value = false }, 1500)
+  } catch { /* clipboard unavailable */ }
+}
+
+// Called when QRScanner emits 'scanned' — auto-submit without user paste.
+function onScanOffer(text) {
+  syncPeerBlob.value = text
+  submitOffer(text)
+}
+
+function onScanAnswer(text) {
+  syncPeerBlob.value = text
+  submitAnswer(text)
 }
 
 // Close the modal on Escape (the change-password modal closes on backdrop only;
@@ -676,6 +742,14 @@ onMounted(async () => {
   const envelopeStr = await loadEnvelope()
   hasVault.value = envelopeStr != null
   phase.value = 'locked'
+
+  // Detect a sync URL in the hash (placed there when a user scans a QR code).
+  // Keep the URL and strip the hash so it doesn't persist across reloads.
+  const hash = window.location.hash
+  if (hash.startsWith('#sync-')) {
+    _pendingSyncUrl = window.location.href
+    history.replaceState(null, '', window.location.pathname + window.location.search)
+  }
 
   scheduleDayRollover()
   IDLE_EVENTS.forEach(e => document.addEventListener(e, resetIdleTimer, { passive: true }))
@@ -958,8 +1032,9 @@ onUnmounted(() => {
           <!-- Role selection -->
           <template v-if="syncRole === null">
             <p class="sync-desc">
-              Прямое P2P-соединение между вашими устройствами в одной сети&nbsp;— без серверов и облака.
-              Код передаётся на другое устройство копипастой: через мессенджер, AirDrop или файл.
+              Прямое P2P-соединение в одной сети&nbsp;— без серверов и облака.<br>
+              <strong>Ноутбук↔ноутбук:</strong> скопируйте ссылку и пришлите через AirDrop или мессенджер.<br>
+              <strong>Ноутбук↔телефон:</strong> телефон сканирует QR прямо с экрана.
             </p>
             <input
               v-model="syncPass"
@@ -971,62 +1046,78 @@ onUnmounted(() => {
               Нужен для расшифровки данных с другого устройства&nbsp;— тот же пароль, что и на нём.
             </div>
             <div class="sync-role-actions">
-              <button class="journal-btn journal-btn-primary" @click="startOffer">Создать код</button>
+              <button class="journal-btn journal-btn-primary" @click="startOffer">Показать QR / ссылку</button>
               <button class="journal-btn journal-btn-sync sync-role-btn" @click="startAnswer">
-                Ввести код с другого устройства
+                Сканировать или вставить код
               </button>
             </div>
           </template>
 
           <!-- Offer / answer blob exchange -->
           <template v-else>
-            <!-- Initiator: show our offer, then take the peer's answer -->
+            <!-- Initiator: show our offer QR + link, then take the peer's answer -->
             <template v-if="syncRole === 'offer'">
-              <div class="sync-block-label">Ваш код — передайте его на другое устройство:</div>
-              <textarea
-                ref="_syncBlobTextarea"
-                class="sync-blob"
-                readonly
-                :value="syncBlob"
-                @focus="$event.target.select()"
-              ></textarea>
-              <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
-                {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
-              </button>
+              <div class="sync-block-label">Отсканируйте QR на другом устройстве или скопируйте ссылку:</div>
+              <QRDisplay v-if="syncBlob" :text="syncBlobUrl" class="sync-qr" />
+              <div class="sync-share-row">
+                <button class="journal-btn journal-btn-sync" @click="copySyncLink">
+                  {{ syncLinkCopied ? 'Скопировано ✓' : 'Скопировать ссылку' }}
+                </button>
+                <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                  {{ syncCopied ? 'Код скопирован ✓' : 'Скопировать код' }}
+                </button>
+              </div>
               <template v-if="syncStage === 'blob-ready'">
-                <div class="sync-block-label">Вставьте ответ со второго устройства:</div>
+                <div class="sync-block-label sync-block-label-mt">Ответ со второго устройства:</div>
+                <QRScanner @scanned="onScanAnswer" @error="syncError = $event" class="sync-scanner" />
+                <div class="sync-or">или вставьте текстом</div>
                 <textarea
                   v-model="syncPeerBlob"
-                  class="sync-blob"
-                  placeholder="Ответный код…"
+                  class="sync-blob sync-blob-sm"
+                  placeholder="Ответный код или ссылка…"
                 ></textarea>
-                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitAnswer">Подключиться</button>
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitAnswer()">Подключиться</button>
               </template>
             </template>
 
-            <!-- Responder: take the offer, then show our answer -->
+            <!-- Responder: scan offer QR or paste, then show answer QR + link -->
             <template v-else-if="syncRole === 'answer'">
               <template v-if="syncStage === 'idle'">
-                <div class="sync-block-label">Вставьте код с первого устройства:</div>
+                <div class="sync-block-label">Сканируйте QR с первого устройства или вставьте код / ссылку:</div>
+                <QRScanner @scanned="onScanOffer" @error="syncError = $event" class="sync-scanner" />
+                <div class="sync-or">или вставьте текстом</div>
                 <textarea
                   v-model="syncPeerBlob"
-                  class="sync-blob"
-                  placeholder="Код приглашения…"
+                  class="sync-blob sync-blob-sm"
+                  placeholder="Код приглашения или ссылка…"
                 ></textarea>
-                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitOffer">Создать ответ</button>
+                <input
+                  v-model="syncPass"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="Пароль дневника (для расшифровки)"
+                  style="margin-top:10px"
+                />
+                <button class="journal-btn journal-btn-primary sync-go-btn" @click="submitOffer()">Создать ответ</button>
               </template>
               <template v-else>
-                <div class="sync-block-label">Ваш ответ — вставьте его на первом устройстве:</div>
+                <div class="sync-block-label">Ваш ответ&nbsp;— отсканируйте или скопируйте ссылку на первом устройстве:</div>
+                <QRDisplay v-if="syncBlob" :text="syncBlobUrl" class="sync-qr" />
+                <div class="sync-share-row">
+                  <button class="journal-btn journal-btn-sync" @click="copySyncLink">
+                    {{ syncLinkCopied ? 'Скопировано ✓' : 'Скопировать ссылку' }}
+                  </button>
+                  <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
+                    {{ syncCopied ? 'Код скопирован ✓' : 'Скопировать код' }}
+                  </button>
+                </div>
                 <textarea
                   ref="_syncBlobTextarea"
-                  class="sync-blob"
+                  class="sync-blob sync-blob-sm"
                   readonly
                   :value="syncBlob"
                   @focus="$event.target.select()"
                 ></textarea>
-                <button class="journal-btn journal-btn-sync sync-copy-btn" @click="copySyncBlob">
-                  {{ syncCopied ? 'Скопировано ✓' : 'Скопировать' }}
-                </button>
               </template>
             </template>
 
@@ -1105,651 +1196,4 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped>
-/* ══════════════════════════════════════════════
-   Root
-══════════════════════════════════════════════ */
-.journal-root {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #0f172a;
-  font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
-  color: #e2e8f0;
-  min-height: 0;
-}
-
-/* ══════════════════════════════════════════════
-   Lock screen
-══════════════════════════════════════════════ */
-.journal-center {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.journal-lock-card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 14px;
-  padding: 40px 48px;
-  width: 100%;
-  max-width: 420px;
-  text-align: center;
-  box-shadow: 0 8px 40px rgba(0,0,0,.5);
-}
-
-.journal-lock-icon { font-size: 40px; margin-bottom: 14px; }
-.journal-lock-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #f1f5f9; }
-.journal-lock-desc { margin: 0 0 24px; font-size: 14px; color: #94a3b8; line-height: 1.6; }
-
-.journal-passphrase-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 16px;
-  font-size: 15px;
-  background: #0f172a;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  color: #e2e8f0;
-  outline: none;
-  transition: border-color .15s;
-}
-.journal-passphrase-input:focus { border-color: #8888ff; }
-
-.journal-lock-actions { margin-top: 18px; }
-
-.journal-btn {
-  padding: 10px 28px;
-  font-size: 15px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: opacity .15s;
-}
-.journal-btn:hover { opacity: .85; }
-.journal-btn-primary { background: #5555dd; color: #fff; }
-
-.journal-error {
-  margin-top: 14px;
-  color: #f87171;
-  font-size: 13px;
-}
-
-.journal-lock-reason {
-  margin-top: 14px;
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.journal-pw-strength {
-  margin-top: 8px;
-  font-size: 12px;
-  text-align: left;
-  padding: 5px 10px;
-  border-radius: 6px;
-  line-height: 1.4;
-}
-.pw-weak   { background: rgba(255,80,80,0.12); color: #ff8080; border: 1px solid rgba(255,80,80,0.3); }
-.pw-medium { background: rgba(255,190,50,0.12); color: #ffcc55; border: 1px solid rgba(255,190,50,0.3); }
-.pw-strong { background: rgba(80,200,100,0.12); color: #77cc77; border: 1px solid rgba(80,200,100,0.3); }
-
-/* ══════════════════════════════════════════════
-   Layout
-══════════════════════════════════════════════ */
-.journal-layout {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ══════════════════════════════════════════════
-   Horizontal calendar strip
-══════════════════════════════════════════════ */
-.journal-cal-strip {
-  flex-shrink: 0;
-  background: #0f172a;
-  border-bottom: 1px solid #334155;
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.cal-nav-btn {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color .15s;
-}
-.cal-nav-btn:hover { color: #cbd5e1; }
-.cal-nav-btn:disabled { color: #475569; cursor: default; }
-
-.cal-strip-label {
-  font-size: 11px;
-  color: #94a3b8;
-  white-space: nowrap;
-  text-transform: capitalize;
-  min-width: 90px;
-  text-align: center;
-}
-.cal-strip-scroll {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  flex: 1;
-  scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
-}
-.cal-strip-scroll::-webkit-scrollbar { height: 3px; }
-.cal-strip-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
-
-.cal-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 34px;
-  padding: 4px 2px;
-  border-radius: 5px;
-  cursor: default;
-  flex-shrink: 0;
-  background: #334155;
-}
-.cal-chip-n {
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  color: #cbd5e1;
-}
-.cal-chip-w {
-  font-size: 9px;
-  color: #94a3b8;
-  margin-top: 2px;
-  line-height: 1;
-}
-
-.cal-chip.cal-today    { background: #3a3aaa; }
-.cal-chip.cal-today .cal-chip-n { color: #fff; }
-.cal-chip.cal-today .cal-chip-w { color: #aaaaff; }
-.cal-chip.cal-future   { background: #1e293b; }
-.cal-chip.cal-future .cal-chip-n { color: #475569; }
-.cal-chip.cal-future .cal-chip-w { color: #475569; }
-.cal-chip.cal-empty    { background: #273449; }
-.cal-chip.cal-empty .cal-chip-w { color: #64748b; }
-.cal-chip.cal-partial  { background: #1e3a1e; }
-.cal-chip.cal-partial .cal-chip-n { color: #99dd99; }
-.cal-chip.cal-partial .cal-chip-w { color: #77bb77; }
-.cal-chip.cal-goal     { background: #3a1e1e; }
-.cal-chip.cal-goal .cal-chip-n { color: #ff9999; }
-.cal-chip.cal-goal .cal-chip-w { color: #dd6666; }
-
-.cal-chip.cal-goal,
-.cal-chip.cal-partial,
-.cal-chip.cal-zero {
-  cursor: pointer;
-}
-.cal-chip.cal-goal:hover,
-.cal-chip.cal-partial:hover,
-.cal-chip.cal-zero:hover {
-  opacity: 0.75;
-}
-.cal-chip.cal-selected {
-  outline: 2px solid #94a3b8;
-  outline-offset: 1px;
-}
-
-/* ══════════════════════════════════════════════
-   Layout: body row (sidebar + main)
-══════════════════════════════════════════════ */
-.journal-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ══════════════════════════════════════════════
-   Sidebar
-══════════════════════════════════════════════ */
-.journal-sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  background: #1e293b;
-  border-right: 1px solid #334155;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 14px;
-  gap: 18px;
-  overflow-y: auto;
-}
-
-/* Streak */
-.journal-streak-box {
-  text-align: center;
-  background: #273449;
-  border-radius: 10px;
-  padding: 14px 8px;
-  border: 1px solid #334155;
-}
-.journal-streak-count {
-  font-size: 42px;
-  font-weight: 700;
-  color: #8a8aff;
-  line-height: 1;
-}
-.journal-streak-label {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 4px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
-
-/* Sync */
-.journal-section-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: #64748b;
-}
-.journal-sync-section {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.journal-btn-lock {
-  background: #273449;
-  color: #94a3b8;
-  font-size: 11px;
-  padding: 7px 10px;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: background .15s;
-}
-.journal-btn-lock:hover { background: #3f1d1d; color: #f87171; border-color: #7f2d2d; }
-
-.journal-btn-sync {
-  background: #273449;
-  color: #94a3b8;
-  font-size: 11px;
-  padding: 7px 10px;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: background .15s;
-}
-.journal-btn-sync:hover { background: #334155; color: #e2e8f0; }
-
-.journal-import-dialog {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.journal-import-label { font-size: 10px; color: #94a3b8; }
-.journal-passphrase-input--small { font-size: 12px; padding: 7px 10px; }
-.journal-import-actions { display: flex; gap: 6px; }
-.journal-btn--sm { font-size: 11px; padding: 5px 12px; }
-.journal-btn-cancel { background: #334155; color: #cbd5e1; border: 1px solid #475569; }
-.journal-btn-cancel:hover { background: #475569; }
-
-/* ══════════════════════════════════════════════
-   Main editor
-══════════════════════════════════════════════ */
-.journal-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  background: #0f172a;
-}
-
-/* Top bar */
-.journal-topbar {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 10px;
-  padding: 16px 16px 0;
-}
-.journal-viewer { padding: 16px; }
-.journal-viewer-topbar {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.journal-viewer-back {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
-}
-.journal-viewer-back:hover { color: #cbd5e1; }
-.journal-viewer-date { font-size: 15px; font-weight: 600; color: #94a3b8; }
-.journal-viewer-words { font-size: 11px; color: #64748b; }
-.journal-viewer-text {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #cbd5e1;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.journal-today-date {
-  font-size: 17px;
-  font-weight: 600;
-  color: #e2e8f0;
-  flex: 1;
-}
-.journal-save-status {
-  font-size: 12px;
-  transition: opacity .3s;
-}
-.save-idle { opacity: 0; }
-.save-saving { color: #94a3b8; opacity: 1; }
-.save-saved { color: #77cc77; opacity: 1; }
-
-.journal-word-count {
-  font-size: 13px;
-  color: #94a3b8;
-  transition: color .2s;
-}
-.wc-met { color: #77cc77; font-weight: 600; }
-
-/* Progress bar */
-.journal-progress-track {
-  height: 4px;
-  background: #334155;
-  border-radius: 999px;
-  margin: 0 16px 14px;
-  overflow: hidden;
-}
-.journal-progress-fill {
-  height: 100%;
-  background: #5555dd;
-  border-radius: 999px;
-  transition: width .3s ease, background .3s;
-}
-.pf-met { background: #44aa44; }
-
-/* ── Grow-wrap auto-height textarea ── */
-.grow-wrap {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-}
-.grow-wrap::after {
-  content: attr(data-replicated-value) " ";
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  visibility: hidden;
-  grid-area: 1 / 1 / 2 / 2;
-  /* must match textarea exactly */
-  font-size: 24px;
-  line-height: 40px;
-  font-family: Georgia, 'Times New Roman', serif;
-  padding: 50px 5% 34px calc(6.2% + 16px);
-  box-sizing: border-box;
-  border-radius: 12px;
-  border: 1px solid transparent;
-}
-
-/* Lined-paper textarea — images from ng2-words
-   lines.png: 1453×40, red margin at x=90 = 6.19% of width.
-   background-size: 100% 40px scales it to full element width.
-   padding-left: calc(6.2% + 16px) keeps text right of the scaled margin. */
-.journal-textarea {
-  grid-area: 1 / 1 / 2 / 2;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  outline: none;
-  border-radius: 12px;
-  border: none;
-  box-shadow: 0 2px 14px rgba(0,0,0,.6);
-
-  font-size: 24px;
-  line-height: 40px;
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #222;
-  padding: 50px 5% 34px calc(6.2% + 16px);
-
-  background:
-    url(/assets/img/lines.png) repeat-y,
-    url(/assets/img/paper.png) repeat;
-  background-size: 100% 40px, auto;
-  background-attachment: local, local;
-  min-height: 400px;
-}
-
-/* Goal banner */
-.journal-goal-banner {
-  margin: 12px 16px 16px;
-  font-size: 13px;
-  color: #77cc77;
-  font-weight: 500;
-  text-align: right;
-}
-
-.journal-muted { color: #64748b; }
-
-/* ══════════════════════════════════════════════
-   Past entries
-══════════════════════════════════════════════ */
-.journal-past {
-  margin: 16px 0 32px;
-  padding: 0 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.journal-past-header {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: #64748b;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #334155;
-}
-.journal-past-entry {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: background .12s, border-color .12s;
-}
-.journal-past-entry:hover {
-  background: #273449;
-}
-.journal-past-entry--active {
-  border-color: #475569;
-}
-.journal-past-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.journal-past-date {
-  font-size: 13px;
-  font-weight: 600;
-  color: #94a3b8;
-}
-.journal-past-words {
-  font-size: 11px;
-  color: #64748b;
-}
-.journal-past-text {
-  font-size: 14px;
-  line-height: 1.65;
-  color: #cbd5e1;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 120px;
-  overflow: hidden;
-  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-}
-
-/* ══════════════════════════════════════════════
-   Change-password modal (teleported to body)
-══════════════════════════════════════════════ */
-.cp-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0,0,0,.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-.cp-modal {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 14px;
-  padding: 28px 28px 24px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 8px 40px rgba(0,0,0,.5);
-  font-family: 'PT Sans Caption', 'Segoe UI', system-ui, sans-serif;
-  color: #e2e8f0;
-}
-.cp-modal h3 {
-  margin: 0 0 18px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #f1f5f9;
-  text-align: center;
-}
-.cp-modal input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 16px;
-  margin-bottom: 10px;
-  font-size: 15px;
-  background: #0f172a;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  color: #e2e8f0;
-  outline: none;
-  transition: border-color .15s;
-}
-.cp-modal input:focus { border-color: #8888ff; }
-.cp-error {
-  margin: 4px 0 0;
-  color: #f87171;
-  font-size: 13px;
-}
-.cp-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
-}
-.cp-actions .journal-btn { padding: 10px 22px; }
-.cp-actions .journal-btn-primary:disabled {
-  opacity: .5;
-  cursor: default;
-}
-
-/* ══════════════════════════════════════════════
-   Sync modal (teleported to body; reuses cp-backdrop/cp-modal)
-══════════════════════════════════════════════ */
-.sync-modal { max-width: 440px; }
-.sync-modal h3 { text-align: left; }
-.sync-desc {
-  font-size: 13px;
-  color: #94a3b8;
-  line-height: 1.6;
-  margin: 0 0 16px;
-}
-.sync-hint {
-  font-size: 11px;
-  color: #64748b;
-  line-height: 1.5;
-  margin: -4px 0 0;
-}
-.sync-role-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-}
-.sync-role-actions .journal-btn {
-  width: 100%;
-  text-align: center;
-  padding: 11px 14px;
-  font-size: 14px;
-}
-.sync-stage-line {
-  font-size: 13px;
-  color: #cbd5e1;
-  margin: 4px 0 0;
-}
-.sync-result-line {
-  font-size: 13px;
-  color: #77cc77;
-  margin: 8px 0 0;
-}
-.sync-block-label {
-  font-size: 12px;
-  color: #94a3b8;
-  margin: 14px 0 6px;
-}
-.sync-blob {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 84px;
-  resize: vertical;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 11px;
-  line-height: 1.4;
-  background: #0f172a;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  color: #cbd5e1;
-  padding: 9px 11px;
-  outline: none;
-  word-break: break-all;
-}
-.sync-blob:focus { border-color: #8888ff; }
-.sync-copy-btn {
-  margin-top: 6px;
-  text-align: center;
-}
-.sync-go-btn {
-  margin-top: 10px;
-  width: 100%;
-}
-</style>
+<style scoped src="./Journal.css"></style>

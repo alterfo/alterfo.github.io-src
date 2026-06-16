@@ -3,14 +3,21 @@ import assert from 'node:assert/strict'
 import { packBlob, unpackBlob, receiveAndMerge, diffVaultDates, sendEnvelope, closeSync, CHANNEL_TIMEOUT_MS } from './sync.js'
 
 describe('packBlob / unpackBlob', () => {
-  it('round-trips a plain SDP string', () => {
+  it('round-trips a plain SDP string without type', () => {
     const sdp = 'v=0\r\no=- 1234 2 IN IP4 127.0.0.1\r\n'
-    assert.equal(unpackBlob(packBlob(sdp)), sdp)
+    assert.equal(unpackBlob(packBlob(sdp)).sdp, sdp)
+  })
+
+  it('round-trips a plain SDP string with type', () => {
+    const sdp = 'v=0\r\no=- 1234 2 IN IP4 127.0.0.1\r\n'
+    const { sdp: s, type } = unpackBlob(packBlob(sdp, 'offer'))
+    assert.equal(s, sdp)
+    assert.equal(type, 'offer')
   })
 
   it('round-trips a long SDP with special chars', () => {
     const sdp = 'a=ice-ufrag:abc+def/ghi=\r\na=fingerprint:sha-256 AA:BB:CC\r\n'.repeat(10)
-    assert.equal(unpackBlob(packBlob(sdp)), sdp)
+    assert.equal(unpackBlob(packBlob(sdp, 'answer')).sdp, sdp)
   })
 
   it('unpackBlob throws on invalid JSON', () => {
@@ -18,12 +25,11 @@ describe('packBlob / unpackBlob', () => {
   })
 
   it('unpackBlob returns undefined sdp for missing field', () => {
-    const result = unpackBlob(JSON.stringify({ other: 'x' }))
-    assert.equal(result, undefined)
+    const { sdp } = unpackBlob(JSON.stringify({ other: 'x' }))
+    assert.equal(sdp, undefined)
   })
 
-  it('unpackBlob throws when the JSON parses to null (destructuring a non-object)', () => {
-    // A pasted "null" parses fine but `const { sdp } = null` throws TypeError.
+  it('unpackBlob throws when the JSON parses to null (non-object)', () => {
     assert.throws(() => unpackBlob('null'), TypeError)
   })
 })

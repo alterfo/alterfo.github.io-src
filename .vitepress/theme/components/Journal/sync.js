@@ -4,13 +4,16 @@
 // Only the encrypted envelope is sent over the channel — never plaintext.
 
 // Serialize/deserialize the SDP blob (pure, testable).
-export function packBlob(sdp) {
-  return JSON.stringify({ sdp })
+// `type` ('offer'|'answer') is included so the receiver can detect a wrong paste.
+export function packBlob(sdp, type) {
+  return JSON.stringify(type ? { type, sdp } : { sdp })
 }
 
 export function unpackBlob(str) {
-  const { sdp } = JSON.parse(str)
-  return sdp
+  const parsed = JSON.parse(str)
+  if (!parsed || typeof parsed !== 'object') throw new TypeError('Неверный формат кода синхронизации.')
+  const { sdp, type } = parsed
+  return { sdp, type }
 }
 
 // Wait for ICE gathering to complete and return the full local SDP.
@@ -52,7 +55,7 @@ export async function createOffer(onState) {
   const offer = await pc.createOffer()
   await pc.setLocalDescription(offer)
   const localDesc = await gatheringComplete(pc)
-  const blobStr = packBlob(localDesc.sdp)
+  const blobStr = packBlob(localDesc.sdp, 'offer')
 
   function waitForChannel(onEnvelope, timeoutMs = CHANNEL_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
@@ -67,7 +70,8 @@ export async function createOffer(onState) {
   }
 
   async function acceptAnswer(answerBlobStr) {
-    const sdp = unpackBlob(answerBlobStr)
+    const { sdp, type } = unpackBlob(answerBlobStr)
+    if (type && type !== 'answer') throw new Error('Вставлен код предложения вместо ответа. Скопируйте ответный код со второго устройства.')
     await pc.setRemoteDescription({ type: 'answer', sdp })
   }
 
@@ -80,13 +84,14 @@ export async function acceptOffer(offerBlobStr, onState) {
   const pc = makePc()
   if (onState) pc.onconnectionstatechange = () => onState(pc.connectionState)
 
-  const offerSdp = unpackBlob(offerBlobStr)
+  const { sdp: offerSdp, type } = unpackBlob(offerBlobStr)
+  if (type && type !== 'offer') throw new Error('Вставлен ответный код вместо кода предложения. Скопируйте код предложения с первого устройства.')
   await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp })
 
   const answer = await pc.createAnswer()
   await pc.setLocalDescription(answer)
   const localDesc = await gatheringComplete(pc)
-  const blobStr = packBlob(localDesc.sdp)
+  const blobStr = packBlob(localDesc.sdp, 'answer')
 
   function waitForChannel(onEnvelope, timeoutMs = CHANNEL_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
