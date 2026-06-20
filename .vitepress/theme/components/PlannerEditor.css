@@ -167,24 +167,6 @@
   gap: 8px;
   flex-shrink: 0;
 }
-.planner-fs-chip {
-  font-size: 12px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  text-align: center;
-  border: none;
-  width: 100%;
-  cursor: pointer;
-  font-family: inherit;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.planner-fs-chip:hover { filter: brightness(1.15); }
-.planner-fs-chip.fs-none { background: #273449; color: #94a3b8; }
-.planner-fs-chip.fs-reconnect { background: #3b2f14; color: #f59e0b; }
-.planner-fs-chip.fs-synced { background: #14321f; color: #34d399; }
-
 /* Import passphrase dialog (sidebar footer) */
 .planner-import-dialog {
   background: #0f172a;

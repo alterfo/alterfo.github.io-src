@@ -30,7 +30,7 @@
       Journal.vue          приватный шифрованный дневник (WebCrypto)
       Piano.vue            MIDI-тренажёр (Web MIDI, VexFlow)
       OpenPoseEditor.vue   редактор поз (MediaPipe BlazePose, WASM)
-      PlannerEditor.vue    шифрованный планировщик задач (WebCrypto, File System Access)
+      PlannerEditor.vue    шифрованный планировщик задач (WebCrypto, IndexedDB, .planner export/import)
       DecisionJournal.vue  шифрованный журнал решений с калибровкой (WebCrypto, Brier score)
       WebGPUParticles.js   particle-система шапки (WebGPU → Canvas 2D fallback)
 posts/                 36 постов в формате YYYY-MM-DD-slug.md

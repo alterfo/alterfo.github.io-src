@@ -143,16 +143,16 @@ export function sortTasks(tasks, field, dir = 'asc', projectNameById = {}) {
   })
 }
 
-// Merge the file's projects back into local projects (kept deliberately simple — projects
-// carry no updatedAt, so there is no LWW). Returns a NEW array; never mutates inputs.
-//   - file project with unknown id → added (agent created it)
-//   - file project with known id   → its name/color are taken as the on-disk source of truth
-//     (so an agent's rename / recolor on disk flows back in)
-//   - deletion is MONOTONIC: a file's deleted:true tombstones a known project, but a file
-//     can never un-delete a local tombstone. Projects have no updatedAt, so without this
+// Merge a remote snapshot's projects (a decrypted `.planner` import or a cross-tab vault
+// update) back into local projects — kept deliberately simple (projects carry no updatedAt,
+// so there is no LWW). Returns a NEW array; never mutates inputs.
+//   - remote project with unknown id → added
+//   - remote project with known id   → its name/color are taken as the source of truth
+//   - deletion is MONOTONIC: a remote deleted:true tombstones a known project, but can
+//     never un-delete a local tombstone. Projects have no updatedAt, so without this
 //     "deletion wins" rule a stale snapshot (written before the delete landed) or a
 //     cross-tab merge would resurrect a deleted project. There is no project-restore UI.
-//   - local projects absent from the file are KEPT (absence ≠ deletion)
+//   - local projects absent from the snapshot are KEPT (absence ≠ deletion)
 export function mergeProjectsFromFile(localProjects, fileProjects) {
   const merged = (localProjects || []).map(p => ({ ...p }))
   const byId = new Map(merged.map(p => [p.id, p]))
