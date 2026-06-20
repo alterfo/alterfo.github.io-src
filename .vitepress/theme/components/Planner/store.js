@@ -26,9 +26,9 @@ export function renameProject(id, name) {
 
 export function removeProject(id) {
   // Tombstone (deleted:true) rather than hard-splice. A hard delete is incompatible with the
-  // "absence ≠ deletion" merge model: a cross-tab sync or a stale tasks.json would re-add the
-  // project (and its tasks) as "unknown ids", silently resurrecting it. The project tombstone
-  // propagates monotonically through mergeProjectsFromFile; the tasks tombstone via LWW.
+  // "absence ≠ deletion" merge model: a cross-tab sync would re-add the project (and its tasks)
+  // as "unknown ids", silently resurrecting it. The project tombstone propagates monotonically
+  // through mergeProjectsFromFile; the tasks tombstone via LWW.
   const p = state.projects.find(p => p.id === id)
   if (p) p.deleted = true
   const now = Date.now()
@@ -108,8 +108,8 @@ export function visibleTasks(tasks, { projectId = null, tag = null, tags = null,
 const PRIORITY_RANK = { low: 0, medium: 1, high: 2 }
 const STATUS_RANK = { todo: 0, 'in-progress': 1, done: 2 }
 
-// Allow-lists for enum fields. Values arriving from an agent-edited tasks.json or an imported
-// .planner file are untrusted — an unknown priority/status would make PRIORITY[task.priority]
+// Allow-lists for enum fields. Values arriving from an imported .planner file or a cross-tab
+// vault snapshot are untrusted — an unknown priority/status would make PRIORITY[task.priority]
 // undefined in the template (crashing the whole board) and drop the task from every kanban
 // column. Clamp unknown values to a safe default at every ingestion boundary instead.
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high'])
@@ -143,86 +143,6 @@ export function sortTasks(tasks, field, dir = 'asc', projectNameById = {}) {
   })
 }
 
-// One-line contract for the agent editing tasks.json on disk.
-const FILE_README =
-  'Edit tasks below. To signal a change set updatedAt to Date.now() (epoch ms). ' +
-  'Set deleted:true to remove. Notes are private and not shown here.'
-
-// Plaintext projection written to tasks.json — `note` is NEVER included (security).
-export function projectForFile(state) {
-  return {
-    _readme: FILE_README,
-    projects: (state.projects || []).map(p => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      deleted: p.deleted,
-      createdAt: p.createdAt,
-    })),
-    tasks: (state.tasks || []).map(t => ({
-      id: t.id,
-      projectId: t.projectId,
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate,
-      tags: t.tags,
-      deleted: t.deleted,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    })),
-  }
-}
-
-// Single-user last-write-wins merge of an edited tasks.json back into local tasks.
-// Returns a NEW array; never mutates inputs and NEVER touches `note`.
-//   - file task with unknown id → added as a new task with note:'' (agent created it)
-//   - file task newer (updatedAt) → patch shared fields only; note preserved
-//   - file task older-or-equal → ignored (app copy is newer)
-//   - local tasks absent from the file are KEPT (absence ≠ deletion); deletion is
-//     explicit via deleted:true.
-export function mergeFromFile(localTasks, fileTasks) {
-  // Clone locals so neither the array nor its task objects are mutated.
-  const merged = (localTasks || []).map(t => ({ ...t }))
-  const byId = new Map(merged.map(t => [t.id, t]))
-
-  for (const f of fileTasks || []) {
-    if (!f || !f.id) continue
-    const l = byId.get(f.id)
-    if (!l) {
-      const task = {
-        id: f.id,
-        projectId: f.projectId ?? null,
-        title: f.title ?? '',
-        status: clampStatus(f.status),
-        priority: clampPriority(f.priority),
-        dueDate: f.dueDate ?? null,
-        tags: Array.isArray(f.tags) ? [...f.tags] : [],
-        note: '', // private note never travels through the file
-        deleted: f.deleted === true,
-        createdAt: f.createdAt ?? Date.now(),
-        updatedAt: f.updatedAt ?? Date.now(),
-      }
-      merged.push(task)
-      byId.set(task.id, task)
-    } else if (f.updatedAt > l.updatedAt) {
-      // File copy is newer → patch shared fields ONLY (note stays as-is).
-      l.title = f.title ?? l.title
-      l.status = clampStatus(f.status, l.status)
-      l.priority = clampPriority(f.priority, l.priority)
-      l.dueDate = f.dueDate !== undefined ? f.dueDate : l.dueDate
-      l.tags = Array.isArray(f.tags) ? [...f.tags] : l.tags
-      // Only an explicit `deleted` in the file changes the flag (mirrors the dueDate guard
-      // above). A hand-edited file that omits the field must NOT resurrect a local tombstone —
-      // deletion/restoration is explicit, never implied by absence.
-      if (f.deleted !== undefined) l.deleted = f.deleted === true
-      l.updatedAt = f.updatedAt
-    }
-    // else: app copy newer-or-equal → ignore the file's version
-  }
-  return merged
-}
-
 // Merge the file's projects back into local projects (kept deliberately simple — projects
 // carry no updatedAt, so there is no LWW). Returns a NEW array; never mutates inputs.
 //   - file project with unknown id → added (agent created it)
@@ -230,7 +150,7 @@ export function mergeFromFile(localTasks, fileTasks) {
 //     (so an agent's rename / recolor on disk flows back in)
 //   - deletion is MONOTONIC: a file's deleted:true tombstones a known project, but a file
 //     can never un-delete a local tombstone. Projects have no updatedAt, so without this
-//     "deletion wins" rule a stale tasks.json (written before the delete landed) or a
+//     "deletion wins" rule a stale snapshot (written before the delete landed) or a
 //     cross-tab merge would resurrect a deleted project. There is no project-restore UI.
 //   - local projects absent from the file are KEPT (absence ≠ deletion)
 export function mergeProjectsFromFile(localProjects, fileProjects) {
@@ -261,8 +181,8 @@ export function mergeProjectsFromFile(localProjects, fileProjects) {
 
 // Full task-level LWW merge of a DECRYPTED remote vault snapshot into local tasks — used for
 // cross-tab sync, where the "remote" is the same encrypted vault another tab just wrote to the
-// shared IndexedDB. Unlike mergeFromFile (the plaintext on-disk projection, where `note` must
-// never travel), here the remote IS the full encrypted vault, so `note` is merged too.
+// shared IndexedDB. The remote IS the full encrypted vault, so `note` is merged too (it never
+// leaves the encrypted store).
 // Returns a NEW array; never mutates inputs.
 //   - remote task with unknown id → added (clamped enums)
 //   - remote task newer (updatedAt) → adopt all fields incl. note (clamped enums)

@@ -14,8 +14,6 @@ import {
   isDueToday,
   visibleTasks,
   sortTasks,
-  projectForFile,
-  mergeFromFile,
   mergeProjectsFromFile,
   mergeVaultTasks,
   loadData,
@@ -303,152 +301,6 @@ describe('sortTasks', () => {
   })
 })
 
-describe('projectForFile (security: strips note)', () => {
-  it('omits note from every task and includes the contract readme', () => {
-    const snap = {
-      projects: [{ id: 'p1', name: 'Site', color: '#fff', createdAt: 1 }],
-      tasks: [task({ id: 't1', note: 'TOP SECRET private note' })],
-    }
-    const file = projectForFile(snap)
-    assert.ok(typeof file._readme === 'string' && file._readme.length > 0)
-    assert.equal(file.tasks.length, 1)
-    assert.equal('note' in file.tasks[0], false)
-    // and the whole serialized blob must not contain the secret
-    assert.equal(JSON.stringify(file).includes('TOP SECRET'), false)
-  })
-
-  it('projects carry only id/name/color/deleted/createdAt (no extra fields)', () => {
-    const snap = {
-      projects: [{ id: 'p1', name: 'Site', color: '#fff', deleted: false, createdAt: 1, extra: 'x' }],
-      tasks: [],
-    }
-    const file = projectForFile(snap)
-    assert.deepEqual(Object.keys(file.projects[0]).sort(), ['color', 'createdAt', 'deleted', 'id', 'name'])
-    assert.equal(file.projects[0].deleted, false)
-  })
-})
-
-describe('mergeFromFile (LWW, note-safe)', () => {
-  it('adds a new task from the file with an empty note', () => {
-    const local = [task({ id: 'a', updatedAt: 100 })]
-    const file = [{ id: 'b', projectId: 'p1', title: 'Agent task', status: 'todo', priority: 'high', dueDate: null, tags: ['x'], deleted: false, createdAt: 200, updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.length, 2)
-    const added = merged.find(t => t.id === 'b')
-    assert.equal(added.title, 'Agent task')
-    assert.equal(added.note, '')
-  })
-
-  it('newer file updatedAt patches shared fields but preserves note', () => {
-    const local = [task({ id: 'a', title: 'Old', status: 'todo', note: 'keep me', updatedAt: 100 })]
-    const file = [{ id: 'a', title: 'New', status: 'done', priority: 'high', dueDate: '2026-07-01', tags: ['y'], deleted: false, updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    const t = merged.find(x => x.id === 'a')
-    assert.equal(t.title, 'New')
-    assert.equal(t.status, 'done')
-    assert.equal(t.dueDate, '2026-07-01')
-    assert.deepEqual(t.tags, ['y'])
-    assert.equal(t.updatedAt, 200)
-    assert.equal(t.note, 'keep me') // note never overwritten by file
-  })
-
-  it('older-or-equal file updatedAt is ignored (app copy wins)', () => {
-    const local = [task({ id: 'a', title: 'Local newer', updatedAt: 300 })]
-    const file = [{ id: 'a', title: 'File older', updatedAt: 100 }]
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').title, 'Local newer')
-
-    const fileEqual = [{ id: 'a', title: 'File equal', updatedAt: 300 }]
-    const merged2 = mergeFromFile(local, fileEqual)
-    assert.equal(merged2.find(t => t.id === 'a').title, 'Local newer')
-  })
-
-  it('deleted:true in a newer file entry tombstones the task', () => {
-    const local = [task({ id: 'a', deleted: false, updatedAt: 100 })]
-    const file = [{ id: 'a', deleted: true, updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').deleted, true)
-  })
-
-  it('local task absent from the file is KEPT (absence ≠ deletion)', () => {
-    const local = [task({ id: 'a', updatedAt: 100 }), task({ id: 'b', updatedAt: 100 })]
-    const file = [{ id: 'a', title: 'still here', updatedAt: 50 }]
-    const merged = mergeFromFile(local, file)
-    assert.ok(merged.find(t => t.id === 'b'))
-    assert.equal(merged.length, 2)
-  })
-
-  it('does not mutate the input array or its tasks', () => {
-    const original = task({ id: 'a', title: 'Old', updatedAt: 100 })
-    const local = [original]
-    const file = [{ id: 'a', title: 'New', updatedAt: 200 }]
-    mergeFromFile(local, file)
-    assert.equal(original.title, 'Old')
-    assert.equal(local.length, 1)
-  })
-
-  it('is idempotent for a single user', () => {
-    const local = [task({ id: 'a', title: 'X', updatedAt: 100 })]
-    const file = [{ id: 'a', title: 'Y', updatedAt: 200 }]
-    const once = mergeFromFile(local, file)
-    const twice = mergeFromFile(once, file)
-    assert.deepEqual(twice, once)
-  })
-
-  it('clears dueDate when the newer file sets it to null', () => {
-    const local = [task({ id: 'a', dueDate: '2026-06-01', updatedAt: 100 })]
-    const file = [{ id: 'a', dueDate: null, updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').dueDate, null)
-  })
-
-  it('a newer file entry that OMITS dueDate preserves the local dueDate', () => {
-    const local = [task({ id: 'a', dueDate: '2026-06-01', updatedAt: 100 })]
-    const file = [{ id: 'a', title: 'edited', updatedAt: 200 }] // no dueDate key
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').dueDate, '2026-06-01')
-  })
-
-  it('a newer file entry that OMITS deleted does NOT resurrect a local tombstone', () => {
-    const local = [task({ id: 'a', deleted: true, updatedAt: 100 })]
-    const file = [{ id: 'a', title: 'edited', updatedAt: 200 }] // no deleted key
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').deleted, true) // stays deleted
-    assert.equal(merged.find(t => t.id === 'a').title, 'edited') // other fields still patch
-  })
-
-  it('an explicit deleted:false in a newer file entry restores the task', () => {
-    const local = [task({ id: 'a', deleted: true, updatedAt: 100 })]
-    const file = [{ id: 'a', deleted: false, updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    assert.equal(merged.find(t => t.id === 'a').deleted, false)
-  })
-
-  it('skips null and id-less file entries (hand-edited corruption)', () => {
-    const local = [task({ id: 'a', updatedAt: 100 })]
-    const file = [null, { title: 'no id here' }, { id: 'b', title: 'ok', updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    assert.deepEqual(merged.map(t => t.id).sort(), ['a', 'b'])
-  })
-
-  it('clamps an invalid priority/status on a NEW file task to safe defaults', () => {
-    const file = [{ id: 'b', title: 'bad enums', priority: 'urgent', status: 'blocked', updatedAt: 200 }]
-    const merged = mergeFromFile([], file)
-    const t = merged.find(x => x.id === 'b')
-    assert.equal(t.priority, 'medium')
-    assert.equal(t.status, 'todo')
-  })
-
-  it('an invalid priority/status in a newer file UPDATE falls back to the local value', () => {
-    const local = [task({ id: 'a', priority: 'high', status: 'done', updatedAt: 100 })]
-    const file = [{ id: 'a', priority: 'urgent', status: 'blocked', updatedAt: 200 }]
-    const merged = mergeFromFile(local, file)
-    const t = merged.find(x => x.id === 'a')
-    assert.equal(t.priority, 'high') // bad value rejected, local kept
-    assert.equal(t.status, 'done')
-  })
-})
-
 describe('mergeVaultTasks (cross-tab full LWW, note-aware)', () => {
   it('adds a remote-only task including its note', () => {
     const local = [task({ id: 'a', updatedAt: 100 })]
@@ -458,7 +310,7 @@ describe('mergeVaultTasks (cross-tab full LWW, note-aware)', () => {
     assert.equal(merged.find(t => t.id === 'b').note, 'secret')
   })
 
-  it('newer remote task overwrites note too (unlike mergeFromFile)', () => {
+  it('newer remote task overwrites note too (full vault LWW, note included)', () => {
     const local = [task({ id: 'a', note: 'old note', title: 'Old', updatedAt: 100 })]
     const remote = [task({ id: 'a', note: 'new note', title: 'New', updatedAt: 200 })]
     const merged = mergeVaultTasks(local, remote)
@@ -606,26 +458,6 @@ describe('cross-tab / file project deletion does not resurrect', () => {
     assert.equal(mergedProjects.find(x => x.id === p.id).deleted, true)
     // Its tasks that exist in both are tombstoned by the newer updatedAt from Tab A.
     assert.equal(mergedTasks.find(t => t.id === a.id).deleted, true)
-  })
-})
-
-describe('tasks.json round-trip (projectForFile → JSON → merge)', () => {
-  it('a write→read cycle preserves tasks/projects and the private note', () => {
-    const snapshot = {
-      projects: [{ id: 'p1', name: 'Site', color: '#fff', createdAt: 1 }],
-      tasks: [task({ id: 't1', title: 'Ship', note: 'PRIVATE', tags: ['seo'], updatedAt: 100 })],
-    }
-    // Serialize to the plaintext projection and back (what the FS bridge does on disk).
-    const onDisk = JSON.parse(JSON.stringify(projectForFile(snapshot)))
-    const tasks = mergeFromFile(snapshot.tasks, onDisk.tasks)
-    const projects = mergeProjectsFromFile(snapshot.projects, onDisk.projects)
-    // No spurious changes: timestamps are equal so the file never wins.
-    assert.deepEqual(projects, snapshot.projects)
-    assert.equal(tasks.length, 1)
-    assert.equal(tasks[0].title, 'Ship')
-    assert.deepEqual(tasks[0].tags, ['seo'])
-    assert.equal(tasks[0].note, 'PRIVATE') // note survives locally, never written to disk
-    assert.equal(JSON.stringify(onDisk).includes('PRIVATE'), false)
   })
 })
 
