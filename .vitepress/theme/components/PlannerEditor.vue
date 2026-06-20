@@ -6,24 +6,20 @@
 // (Planner/db.js). The key lives ONLY in memory (`cryptoKey` ref below) for the session and
 // is re-derived on every unlock.
 //
-// The full UI (sidebar, kanban, list, detail panel, FS sync) is built in later tasks; this
-// file currently provides the lock screen + a minimal unlocked placeholder so the lifecycle
-// is wired and testable end-to-end.
+// Planner data lives ONLY in the encrypted IndexedDB vault; the encrypted .planner
+// export/import is the backup path. There is no plaintext on-disk projection.
 
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackEnvelope } from './crypto.js'
-import { loadSalt, saveSalt, writeVault, loadVault, saveVault, saveDirHandle, loadDirHandle, initCrossTabSync } from './Planner/db.js'
+import { loadSalt, saveSalt, writeVault, loadVault, saveVault, initCrossTabSync } from './Planner/db.js'
 import { STATUS, PRIORITY } from './Planner/constants.js'
-import {
-  fsSupported, pickDirectory, checkPermission, ensurePermission, writeTasksJson, readTasksJson,
-} from './Planner/fsbridge.js'
 import { exportEnvelope, readEnvelopeFile } from './Planner/exporter.js'
 import {
   state, loadData, getSnapshot, resetState,
   selectedProjectId, selectedTaskId,
   addProject, renameProject, removeProject, addTask, updateTask,
   visibleTasks, sortTasks, isOverdue, isDueToday,
-  projectForFile, mergeFromFile, mergeProjectsFromFile, mergeVaultTasks,
+  mergeProjectsFromFile, mergeVaultTasks,
 } from './Planner/store.js'
 import HelpModal from './HelpModal.vue'
 import { shouldShowOnboarding } from './onboarding.js'
@@ -109,9 +105,6 @@ async function unlock() {
     else resetState() // record not written yet (created but never saved) → empty
     phase.value = 'unlocked'
     clearInputs()
-    // If a folder is already connected (granted handle restored on mount), pull any agent
-    // edits made while locked, then push the merged state back to disk.
-    if (fsStatus.value === 'synced') { await pullFromFile(); await writeTasksNow() }
   } catch {
     error.value = 'Неверный пароль или повреждённые данные.'
     cryptoKey.value = null
@@ -124,7 +117,6 @@ async function unlock() {
 function lockVault() {
   cryptoKey.value = null      // null first so the autosave watcher skips the reset below
   _salt = null
-  clearTimeout(_fsTimer)      // cancel any pending tasks.json write (now gated by cryptoKey anyway)
   resetState()
   phase.value = 'locked'
   clearInputs()
@@ -148,107 +140,6 @@ const viewMode = ref('kanban') // 'kanban' | 'list'
 
 // Active tag-filter chip (null = no filter).
 const activeTag = ref(null)
-
-// ---- File System Access bridge (Task 11) ----
-// The connected directory handle (FileSystemDirectoryHandle | null). Restored from IndexedDB
-// on mount; re-picked via the FS chip. tasks.json is the PLAINTEXT, note-free projection.
-const dirHandle = ref(null)
-const fsStatus = ref('none') // 'none' | 'reconnect' | 'synced'
-const fsChip = computed(() => {
-  switch (fsStatus.value) {
-    case 'synced': return { cls: 'fs-synced', label: '● ' + (dirHandle.value?.name || 'Синхронизировано') }
-    case 'reconnect': return { cls: 'fs-reconnect', label: '● Переподключить папку' }
-    default: return { cls: 'fs-none', label: '● Подключить папку' }
-  }
-})
-
-// Chip click dispatches based on current status. All paths run inside this user gesture so
-// showDirectoryPicker / requestPermission are allowed (see fsbridge.js gotcha #1).
-function onFsChipClick() {
-  if (!fsSupported) return
-  if (fsStatus.value === 'reconnect') reconnectFolder()
-  else connectFolder() // 'none' → pick; 'synced' → re-pick (switch folders)
-}
-
-// Connect (or switch) the synced folder, persist the handle, and seed tasks.json.
-async function connectFolder() {
-  if (!fsSupported) return
-  try {
-    const handle = await pickDirectory()
-    dirHandle.value = handle
-    await saveDirHandle(handle)
-    fsStatus.value = 'synced'
-    // Pull any tasks.json the agent already created, then write the current state.
-    await pullFromFile()
-    await writeTasksNow()
-  } catch (e) {
-    if (e?.name !== 'AbortError') console.warn('[planner] connectFolder failed:', e)
-  }
-}
-
-// Re-grant permission on a restored handle (post-reload it often reports 'prompt').
-async function reconnectFolder() {
-  if (!dirHandle.value) return connectFolder()
-  try {
-    if (!(await ensurePermission(dirHandle.value))) return
-    fsStatus.value = 'synced'
-    await pullFromFile()
-    await writeTasksNow()
-  } catch (e) {
-    console.warn('[planner] reconnectFolder failed:', e)
-  }
-}
-
-// Read tasks.json and LWW-merge agent edits back into state. No-op when not actively synced.
-// Returns true iff the merge actually changed local state. The change check matters: without it
-// every window focus would re-encrypt the vault AND rewrite tasks.json even when nothing was
-// edited on disk — needless churn that also keeps re-touching the file an agent may be watching.
-async function pullFromFile() {
-  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return false
-  try {
-    const file = await readTasksJson(dirHandle.value)
-    if (!file) return false
-    const tasks = mergeFromFile(state.tasks, file.tasks || [])
-    const projects = mergeProjectsFromFile(state.projects, file.projects || [])
-    if (JSON.stringify({ projects, tasks }) === JSON.stringify({ projects: state.projects, tasks: state.tasks })) {
-      return false // nothing changed on disk → leave state (and the vault) untouched
-    }
-    loadData({ projects, tasks }) // mutates state → autosave watcher re-encrypts the vault
-    return true
-  } catch (e) {
-    console.warn('[planner] pullFromFile failed:', e)
-    fsStatus.value = 'reconnect' // permission likely lapsed
-    return false
-  }
-}
-
-// Write the plaintext (note-free) projection to tasks.json. Guarded so a locked or
-// disconnected app never writes an empty file over a populated one.
-async function writeTasksNow() {
-  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
-  try {
-    await writeTasksJson(dirHandle.value, projectForFile(state))
-  } catch (e) {
-    console.warn('[planner] writeTasksJson failed:', e)
-    fsStatus.value = 'reconnect'
-  }
-}
-
-// Debounced tasks.json write (mirrors the 300 ms vault save) driven by the autosave watcher.
-let _fsTimer = null
-function scheduleFsWrite() {
-  if (!dirHandle.value || fsStatus.value !== 'synced' || !cryptoKey.value) return
-  clearTimeout(_fsTimer)
-  _fsTimer = setTimeout(writeTasksNow, 300)
-}
-
-// No file-watch API → re-read tasks.json on window focus and merge (fsbridge.js gotcha #3).
-// Only write the reconciled file back when the pull actually merged a change — a plain focus
-// with no on-disk edits must not rewrite tasks.json (which would clobber an agent mid-write).
-async function onWindowFocus() {
-  if (fsStatus.value !== 'synced' || !cryptoKey.value) return
-  if (await pullFromFile()) await writeTasksNow()
-}
 
 // Colors cycled through for newly created projects.
 const PROJECT_PALETTE = ['#1accff', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
@@ -339,8 +230,8 @@ const kanbanColumns = computed(() =>
   }))
 )
 
-// Safe PRIORITY lookup for the template: an unknown priority (e.g. a typo in an agent-edited
-// tasks.json that slipped past clamping) must not throw `undefined.color` and blank the board.
+// Safe PRIORITY lookup for the template: an unknown priority (e.g. a stray value in an
+// imported .planner file that slipped past clamping) must not throw `undefined.color` and blank the board.
 function priorityOf(p) {
   return PRIORITY[p] || PRIORITY.medium
 }
@@ -413,7 +304,7 @@ function closeDetail() {
   selectedTaskId.value = null
 }
 
-// Delete = tombstone (deleted:true) so the removal propagates through the tasks.json merge.
+// Delete = tombstone (deleted:true) so the removal propagates through import / cross-tab merges.
 function deleteSelectedTask() {
   const t = selectedTask.value
   if (!t) return
@@ -574,11 +465,10 @@ async function doImport() {
     const importKey = await deriveKey(importPassphrase.value, salt, iterations)
     const imported = await decryptJSON(importKey, { iv, ciphertext })
     // The .planner envelope is the full encrypted vault (notes included), so merge with the
-    // note-aware mergeVaultTasks — NOT mergeFromFile (the note-stripping tasks.json merge),
-    // which would drop every imported note. Same source kind as cross-tab sync (onCrossTabSave).
+    // note-aware mergeVaultTasks. Same source kind as cross-tab sync (onCrossTabSave).
     const tasks = mergeVaultTasks(state.tasks, imported.tasks || [])
     const projects = mergeProjectsFromFile(state.projects, imported.projects || [])
-    loadData({ projects, tasks }) // autosave watcher persists; FS write is scheduled too
+    loadData({ projects, tasks }) // autosave watcher persists the merged snapshot
     importPassphrase.value = ''
     _pendingImportStr = null
     importPhase.value = 'idle'
@@ -608,7 +498,6 @@ const stopAutosave = watch(
   s => {
     if (!cryptoKey.value || _applyingRemote) return
     saveVault(cryptoKey.value, s)
-    scheduleFsWrite() // mirror the change into tasks.json when a folder is connected
   },
   { deep: true }
 )
@@ -638,32 +527,16 @@ async function onCrossTabSave() {
 onMounted(async () => {
   document.addEventListener('mousedown', onDocMouseDown)
   document.addEventListener('keydown', onDocKeyDown)
-  window.addEventListener('focus', onWindowFocus)
   _cleanupSync = initCrossTabSync(onCrossTabSave)
   const salt = await loadSalt()
   hasVault.value = salt != null
-  // Restore a previously connected folder (handle survives reload; permission may not).
-  if (fsSupported) {
-    try {
-      const handle = await loadDirHandle()
-      if (handle) {
-        dirHandle.value = handle
-        // 'granted' → auto-sync once unlocked; 'prompt'/'denied' → show "Reconnect folder".
-        fsStatus.value = (await checkPermission(handle)) === 'granted' ? 'synced' : 'reconnect'
-      }
-    } catch (e) {
-      console.warn('[planner] restore folder failed:', e)
-    }
-  }
   phase.value = 'locked'
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', onDocMouseDown)
   document.removeEventListener('keydown', onDocKeyDown)
-  window.removeEventListener('focus', onWindowFocus)
   _cleanupSync()
-  clearTimeout(_fsTimer)
   stopAutosave()
   cryptoKey.value = null
 })
@@ -762,14 +635,6 @@ onUnmounted(() => {
         <button class="planner-new-project" @click="newProject">+ Новый проект</button>
 
         <div class="planner-sidebar-footer">
-          <button
-            v-if="fsSupported"
-            class="planner-fs-chip"
-            :class="fsChip.cls"
-            :title="fsStatus === 'synced' ? 'Сменить папку' : 'Подключить локальную папку для tasks.json'"
-            @click="onFsChipClick"
-          >{{ fsChip.label }}</button>
-
           <div class="planner-footer-actions">
             <button class="planner-btn-sm" @click="onExport">Экспорт</button>
             <button class="planner-btn-sm" @click="onImport">Импорт</button>
@@ -1061,7 +926,7 @@ onUnmounted(() => {
 
           <label class="planner-field planner-field-note">
             <span class="planner-field-label">
-              Заметка <em class="planner-note-hint">(приватная, не попадает в tasks.json)</em>
+              Заметка <em class="planner-note-hint">(приватная, шифруется на устройстве)</em>
             </span>
             <textarea
               class="planner-detail-note"
@@ -1097,16 +962,8 @@ onUnmounted(() => {
         <li>Клик по задаче открывает панель: статус, приоритет, срок, теги и приватная заметка</li>
       </ul>
 
-      <h3>Приватная заметка</h3>
-      <p>Поле «Заметка» в задаче <strong>шифруется и НИКОГДА не попадает в <code>tasks.json</code></strong> — её нельзя прочитать или изменить с диска.</p>
-
-      <h3>Мост tasks.json (для агента)</h3>
-      <p>Кнопка <strong>«Подключить папку»</strong> (только Chrome/Edge) пишет в выбранную папку плоский <code>tasks.json</code> — его может править агент (Claude Code) прямо на диске. Изменения подтянутся при фокусе окна по принципу «побеждает последнее обновление». Правила для правок на диске:</p>
-      <ul>
-        <li>Чтобы изменение применилось, <strong>обнови <code>updatedAt</code></strong> на <code>Date.now()</code> (мс)</li>
-        <li>Удаление — выставь <strong><code>deleted:true</code></strong> (тоже с бампом <code>updatedAt</code>)</li>
-        <li><strong>Отсутствие ≠ удаление</strong>: пропавшая из файла задача сохраняется, данные не теряются</li>
-      </ul>
+      <h3>Всё хранится зашифрованным</h3>
+      <p>Проекты, задачи и заметки <strong>никогда не записываются на диск в открытом виде</strong>. Единственное хранилище — зашифрованный сейф в браузере; резервная копия — зашифрованный файл <code>.planner</code>.</p>
 
       <h3>Экспорт / импорт</h3>
       <ul>
