@@ -1,0 +1,44 @@
+name: Smoke test
+
+# Runs after the Deploy workflow finishes (post-push to master). The script waits for
+# GitHub Pages to publish the fresh build, then checks every route on the live site and
+# captures screenshots (uploaded as the `smoke-screenshots` artifact). A broken/missing
+# page fails the run, which emails the repo owner.
+on:
+  workflow_run:
+    workflows: ["Deploy"]
+    types: [completed]
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    # Only after a successful deploy (or a manual dispatch).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Playwright is intentionally NOT a repo dependency (keeps package.json / Dependabot
+      # clean) — install it ephemerally just for this job.
+      - name: Install Playwright (Chromium)
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Smoke-test live site
+        run: node scripts/smoke.mjs
+        env:
+          SMOKE_BASE_URL: https://alterfo.github.io
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: smoke-shots/
+          if-no-files-found: warn
+          retention-days: 14
