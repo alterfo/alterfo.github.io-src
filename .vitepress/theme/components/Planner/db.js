@@ -1,8 +1,7 @@
 // Planner encrypted persistence — mirrors IDEF0Editor/db.js and Journal/db.js.
-// DB `planner` v1, three object stores (all keyPath:'id'):
+// DB `planner` v1, two object stores (all keyPath:'id'):
 //   vault — the encrypted snapshot envelope ({ id:'data', env })
 //   meta  — the PBKDF2 salt ({ id:'salt', salt:[...] }); presence ⇒ vault already created
-//   fs    — the File System Access directory handle ({ id:'dir', handle })
 // Only the { salt, iterations, iv, ciphertext } envelope is ever stored — never the key,
 // never plaintext. The derived key lives only in memory (PlannerEditor.vue) and is passed in.
 
@@ -12,11 +11,9 @@ const DB_NAME = 'planner'
 const DB_VERSION = 1
 const VAULT_STORE = 'vault'
 const META_STORE = 'meta'
-const FS_STORE = 'fs'
 
 const VAULT_KEY = 'data'
 const SALT_KEY = 'salt'
-const DIR_KEY = 'dir'
 
 // Iterations recorded in the envelope. Must match deriveKey's default (600000) used by the
 // unlock flow — the key is derived externally, so this value is informational at rest.
@@ -30,7 +27,9 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = e => {
       const db = e.target.result
-      for (const store of [VAULT_STORE, META_STORE, FS_STORE]) {
+      // Existing DBs (created before the FS-bridge removal) keep an orphaned empty `fs`
+      // store — harmless, nothing reads it; no DB version bump (avoids migration risk).
+      for (const store of [VAULT_STORE, META_STORE]) {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store, { keyPath: 'id' })
         }
@@ -123,25 +122,6 @@ async function loadVault(key) {
   return decryptJSON(key, envelope)
 }
 
-// ---- File System Access directory handle (fs store) ----
-
-// FileSystemDirectoryHandle is structured-cloneable — store the object directly,
-// do NOT serialize it. Permission must be re-checked/re-requested on reload (fsbridge.js).
-async function saveDirHandle(handle) {
-  return idbPut(FS_STORE, { id: DIR_KEY, handle })
-}
-
-async function loadDirHandle() {
-  if (typeof indexedDB === 'undefined') return null
-  try {
-    const rec = await idbGet(FS_STORE, DIR_KEY)
-    return rec ? rec.handle : null
-  } catch (err) {
-    console.warn('[planner] loadDirHandle failed:', err)
-    return null
-  }
-}
-
 // onReload runs when another tab saves; the storage event only fires in OTHER tabs.
 // Returns a cleanup function to remove the listener on unmount.
 function initCrossTabSync(onReload) {
@@ -159,7 +139,5 @@ export {
   writeVault,
   saveVault,
   loadVault,
-  saveDirHandle,
-  loadDirHandle,
   initCrossTabSync,
 }
