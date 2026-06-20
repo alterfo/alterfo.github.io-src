@@ -7,7 +7,7 @@ VitePress-based personal site with six fully client-side apps and one content pa
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 - `/openpose` — OpenPose pose editor (MediaPipe BlazePose WASM, drag-edit skeletons, ControlNet PNG + JSON export)
-- `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, agent-editable `tasks.json`)
+- `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, encrypted `.planner` export/import)
 - `/decision-journal` — encrypted decision journal with calibration (Brier score + confidence-bucket table)
 - `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
 
