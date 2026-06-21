@@ -38,7 +38,9 @@ projects/              лонгрид-разборы проектов (ar-engine
 public/particles/      WebGL шейдеры (legacy, шапка блога)
 public/og.png          Open Graph карточка (источник: public/og-source.svg)
 public/robots.txt      robots + ссылка на sitemap.xml (генерится в buildEnd)
+public/vacuum-rogues/  плейсхолдер «Скоро» для /vacuum-rogues/ (перезаписывается сборкой игры при деплое)
 ar-engine/             AudioReactiveVideo (WebGPU AR движок)
+vacuum-rogues/         git-сабмодуль приватной игры (alterfo/vacuum-rogues), копируется в dist/vacuum-rogues/ при деплое; entry — кораблик в центре колеса
 deploy.sh              локальный деплой
 .github/workflows/     CI деплой
 ```
@@ -67,4 +69,6 @@ ssh-keygen -t ed25519 -C "deploy" -f deploy_key -N ""
 
 **GitHub Actions** использует секрет `DEPLOY_KEY`.  
 **Локально:** `sh deploy.sh` (нужен SSH-агент с ключом).
+
+**Опционально:** секрет `VACUUM_ROGUES_DEPLOY_KEY` (read-only SSH deploy key к приватному репозиторию `alterfo/vacuum-rogues`). Когда он задан, CI подтягивает сабмодуль `vacuum-rogues/` и собирает игру в `/vacuum-rogues/`; когда пуст, сабмодуль не фетчится, деплой не падает, а `/vacuum-rogues/` отдаёт плейсхолдер из `public/vacuum-rogues/`.
 
