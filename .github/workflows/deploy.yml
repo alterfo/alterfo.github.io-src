@@ -11,7 +11,14 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       with:
-        submodules: recursive
+        # vacuum-rogues is a PRIVATE submodule (alterfo/vacuum-rogues, SSH URL in
+        # .gitmodules); the default GITHUB_TOKEN can't read another private repo. Fetch
+        # submodules ONLY when the read-only deploy-key secret exists — otherwise skip the
+        # fetch entirely so a missing key never hard-fails the main site deploy. With no key,
+        # /vacuum-rogues/ falls back to the public/ placeholder. See Post-Completion in
+        # docs/plans/20260621-vacuum-rogues-deploy-and-donut-logo.md for the secret setup.
+        submodules: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY != '' && 'recursive' || 'false' }}
+        ssh-key: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY }}
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
@@ -57,6 +64,25 @@ jobs:
           mkdir -p .vitepress/dist/ar
           cp -r ar-engine/web/. .vitepress/dist/ar/
         fi
+
+    # Serve the game at /vacuum-rogues/ (mirrors the /ar/ subpath). GATED + non-fatal:
+    # runs only if the private submodule actually checked out (needs the deploy-key secret —
+    # see the checkout step), and continue-on-error guarantees a missing/failed game build
+    # never breaks the main site deploy. The build runs `vite build` directly (skips `tsc`,
+    # whose type errors must not gate a deploy) with the subpath base, then overwrites the
+    # public/ placeholder already in dist/. Until the key lands, the placeholder is served.
+    - name: Build & copy vacuum-rogues game
+      continue-on-error: true
+      run: |
+        if [ ! -f vacuum-rogues/package.json ]; then
+          echo "vacuum-rogues submodule not checked out (no deploy key yet) — keeping placeholder"
+          exit 0
+        fi
+        ( cd vacuum-rogues && npm ci && npx vite build --base=/vacuum-rogues/ ) \
+          && mkdir -p .vitepress/dist/vacuum-rogues \
+          && cp -r vacuum-rogues/dist/. .vitepress/dist/vacuum-rogues/ \
+          && echo "vacuum-rogues built and copied" \
+          || echo "Warning: vacuum-rogues build/copy failed — keeping placeholder"
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4

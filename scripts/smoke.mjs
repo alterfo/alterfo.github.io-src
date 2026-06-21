@@ -27,6 +27,10 @@ const ROUTES = [
   { path: '/decision-journal', name: 'decisions', title: 'решений',  root: '.dj-root' },
   { path: '/music',            name: 'music',     title: 'Музыка',   root: '.music-albums' },
   { path: '/ar/',              name: 'ar',        title: 'AR Engine' },
+  // Currently serves the public/ placeholder (title "vacuum-rogues — скоро"). Once the
+  // private game submodule deploys, the route becomes the PixiJS app (title
+  // "Вакуумные Пройдохи", root '#app'/canvas) — update `title` and add `root: '#app'` then.
+  { path: '/vacuum-rogues/',   name: 'vacuum',    title: 'vacuum-rogues' },
 ]
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))

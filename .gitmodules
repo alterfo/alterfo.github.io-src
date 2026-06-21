@@ -1,0 +1,3 @@
+[submodule "vacuum-rogues"]
+	path = vacuum-rogues
+	url = git@github.com:alterfo/vacuum-rogues.git
