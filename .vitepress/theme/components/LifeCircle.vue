@@ -36,12 +36,40 @@
         </tspan>
       </text>
     </component>
+
+    <!-- Center mark: «ship-ranger» entry to /vacuum-rogues, afloat in the donut
+         hole. Inline vector (no raster asset), light monochrome so it reads on the
+         dark hole without competing with the colored spheres. MUST carry
+         target="_self" or VitePress's SPA router intercepts the click and 404s
+         (the directory route /vacuum-rogues/ lives outside the router). -->
+    <a
+      class="center-mark"
+      href="/vacuum-rogues/"
+      target="_self"
+    >
+      <title>vacuum-rogues</title>
+      <polygon class="ship-hull" :points="shipPoints" />
+      <circle
+        class="ship-cockpit"
+        :cx="center.cockpit.cx"
+        :cy="center.cockpit.cy"
+        :r="center.cockpit.r"
+      />
+      <circle
+        v-for="(e, i) in center.engines"
+        :key="i"
+        class="ship-engine"
+        :cx="e.cx"
+        :cy="e.cy"
+        :r="e.r"
+      />
+    </a>
   </svg>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { buildSegments } from './lifecircle.js'
+import { buildSegments, centerMark } from './lifecircle.js'
 
 // Wheel geometry (mirrors the unit-tested helper inputs).
 const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
@@ -62,6 +90,12 @@ const SEGMENTS = [
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))
+
+// «ship-ranger» mark inscribed in the donut hole (pure geometry, unit-tested).
+const center = computed(() => centerMark(GEOM))
+const shipPoints = computed(() =>
+  center.value.hull.map(([x, y]) => `${x},${y}`).join(' '),
+)
 
 // VitePress-префетчер в колбэке IntersectionObserver читает `.pathname` прямо
 // с элемента <a>. У SVGAElement такого свойства нет → pathToFile(undefined)
@@ -172,6 +206,38 @@ onMounted(() => {
 
 .segment:not(.soon):hover .seg-label {
   fill: var(--ds-text-strong);
+}
+
+/* Center «ship-ranger» mark — light monochrome on the dark hole. Hover mirrors
+   the .segment affordance: subtle scale + a neutral glow (no per-sphere color, so
+   it stays neutral against the 8 colored spheres). */
+.center-mark {
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.ship-hull {
+  fill: var(--ds-text);
+}
+
+/* Dark cockpit notch reads as a window on the light hull. */
+.ship-cockpit {
+  fill: var(--ds-void);
+}
+
+.ship-engine {
+  fill: var(--ds-text-muted);
+}
+
+.center-mark:hover {
+  transform: scale(1.06);
+}
+
+.center-mark:hover .ship-hull {
+  fill: var(--ds-text-strong);
+  filter: drop-shadow(0 0 6px var(--ds-text));
 }
 
 @media (max-width: 480px) {
