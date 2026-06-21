@@ -25,7 +25,9 @@ Unit-tested in `spectrum.test.mjs`.
 
 `theme/components/LifeCircle.vue` — donut wheel of 8 spheres, outer radius encodes readiness. `buildSegments` is generalized to `n = defs.length`: `span = 360/n`, 4° gap between spheres. Spheres/readiness: Дневник 9, IDEF0 8, AR 5, Piano 4, OpenPose 4, Планировщик 4, Решения 4, Музыка 3.
 
-Pure helpers in `lifecircle.js` (`deg2rad`, `arcPath`, `labelXY`, `fillRadius`, `buildSegments`) — all unit-tested in `lifecircle.test.mjs`.
+Pure helpers in `lifecircle.js` (`deg2rad`, `arcPath`, `labelXY`, `fillRadius`, `buildSegments`, `centerMark`) — all unit-tested in `lifecircle.test.mjs`.
+
+**Center mark**: the donut hole holds an `<a class="center-mark" href="/vacuum-rogues/" target="_self">` with an inline «ship-ranger» vector (no raster) — the entry point to the game. Geometry comes from `centerMark(GEOM)` (inscribed in `innerR:55`, centered on cx/cy); light monochrome so it reads on the dark hole without competing with the colored spheres. The `target="_self"` is mandatory or the SPA router 404s the directory route (same rule as `/ar/`). Out of scope by decision: `HomeMark.vue` / `public/home-wheel.svg` do NOT mirror this mark (logo only on the big home wheel).
 
 ### HomeMark.vue
 
@@ -55,8 +57,9 @@ All SEO is generated in `config.mts` via helpers in `seo.js` (pure ESM, unit-tes
 - `jsonLdFor(rel,…)`: `index.md` → `Person`; `TOOL_CATEGORY` → `SoftwareApplication`; `posts/*` → `BlogPosting` (date from filename prefix); `music.md` → `MusicGroup`. Projects pages and `blog.md` → no JSON-LD by design.
 - `jsonLdScript(ld)` escapes `<`/`>`/`&`/`</script>` to `\uXXXX` — VitePress embeds `<script>` body verbatim.
 - **Adding a new tool page**: add to `TOOL_CATEGORY` in `seo.js` AND add a `description` frontmatter.
-- Sitemap: hand-rolled in `buildEnd`, zero deps. Priority: `/` = 1.0, `TOOL_CATEGORY` or `music.md` = 0.8, `projects/` = 0.7, else 0.6. `/ar/` added via `EXTRA_URLS`.
+- Sitemap: hand-rolled in `buildEnd`, zero deps. Priority: `/` = 1.0, `TOOL_CATEGORY` or `music.md` = 0.8, `projects/` = 0.7, else 0.6. `/ar/` and `/vacuum-rogues/` added via `EXTRA_URLS` (in `seo.js`, unit-tested in `seo.test.mjs`).
 - **`/ar/` SEO is hand-maintained** in `ar-engine/web/index.html` — invisible to VitePress pipeline.
+- **`/vacuum-rogues/` follows the `/ar/` subpath pattern**: nav `target:'_self'` entry, `srcExclude: ['vacuum-rogues/**']`, `EXTRA_URLS` sitemap entry, deploy copies the game's `dist/` into `.vitepress/dist/vacuum-rogues/` after `npm run build` (overwrites the `public/vacuum-rogues/index.html` placeholder). The CI build step is gated on the `VACUUM_ROGUES_DEPLOY_KEY` secret + `continue-on-error`, so a missing/failed game build never breaks the main deploy. **Prerequisite before activating the real deploy**: the game's `dist/` must be size-optimized in the game repo (607 MB → target < ~80 MB; 22–26 MB PNG backdrops → WebP/AVIF) — too large for the Pages repo until then.
 - **OG image**: `public/og-source.svg` → `public/og.png`. Regenerate via headless Chrome (macOS `sips`/`qlmanage` mis-handle non-square aspect).
 
 ---
