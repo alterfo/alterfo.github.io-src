@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { SITE_URL, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
+import { SITE_URL, EXTRA_URLS, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
 import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
 
 function redirectHtml(target: string): string {
@@ -62,6 +62,7 @@ export default defineConfig({
     'CLAUDE.md',
     'docs/**',
     'ar-engine/**',
+    'vacuum-rogues/**',
   ],
   // Навигация дефолтной темы живёт в themeConfig (top-level `nav` VitePress
   // игнорирует — меню из-за этого вообще не рендерилось). Вместо надписи
@@ -84,6 +85,8 @@ export default defineConfig({
               { text: 'OpenPose Editor', link: '/openpose' },
               { text: 'Планировщик', link: '/planner' },
               { text: 'Журнал решений', link: '/decision-journal' },
+              // target: '_self' — /vacuum-rogues/ тоже вне VitePress-роутера
+              { text: 'vacuum-rogues', link: '/vacuum-rogues/', target: '_self' },
             ],
           },
           {
@@ -150,7 +153,7 @@ export default defineConfig({
     }
 
     // Hand-rolled sitemap.xml from source pages (md only → redirect stubs auto-excluded).
-    const EXTRA_URLS = ['/ar/'] // static apps not in siteConfig.pages
+    // EXTRA_URLS (static sub-apps not in siteConfig.pages) live in seo.js so they're unit-testable.
     const entries = siteConfig.pages
       .map((p: string) => {
         let lastmod = ''
