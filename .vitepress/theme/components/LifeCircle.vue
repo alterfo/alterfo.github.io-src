@@ -43,6 +43,7 @@
          target="_self" or VitePress's SPA router intercepts the click and 404s
          (the directory route /vacuum-rogues/ lives outside the router). -->
     <a
+      v-if="gameAvailable"
       class="center-mark"
       href="/vacuum-rogues/"
       target="_self"
@@ -68,7 +69,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { buildSegments, centerMark } from './lifecircle.js'
 
 // Wheel geometry (mirrors the unit-tested helper inputs).
@@ -97,19 +98,46 @@ const shipPoints = computed(() =>
   center.value.hull.map(([x, y]) => `${x},${y}`).join(' '),
 )
 
+const rootEl = ref(null)
+
+// Show the «ship-ranger» entry only when the game is actually reachable at
+// /vacuum-rogues/ (HEAD → 200). Until it's deployed there, the donut hole stays
+// empty rather than pointing at a 404 (or a "coming soon" placeholder). It auto-
+// appears once the game ships — no rebuild needed. `VITE_GAME_LOGO=1` forces it on
+// for local visual testing (where /vacuum-rogues/ doesn't exist).
+const gameAvailable = ref(false)
+
 // VitePress-префетчер в колбэке IntersectionObserver читает `.pathname` прямо
 // с элемента <a>. У SVGAElement такого свойства нет → pathToFile(undefined)
-// кидает TypeError и убивает префетч всего батча видимых ссылок («переходы
-// по ссылкам работают не сразу»). Полифиллим недостающие свойства — заодно
-// страницы сфер получают настоящий префетч.
-const rootEl = ref(null)
-onMounted(() => {
+// кидает TypeError и убивает префетч всего батча видимых ссылок. Полифиллим
+// недостающие свойства — заодно страницы сфер получают настоящий префетч.
+function polyfillAnchors() {
   rootEl.value?.querySelectorAll('a').forEach((a) => {
     const href = a.getAttribute('href')
     if (!href || 'pathname' in a) return
     a.pathname = href
     a.hostname = location.hostname
   })
+}
+
+onMounted(async () => {
+  polyfillAnchors()
+  if (import.meta.env.VITE_GAME_LOGO === '1') {
+    gameAvailable.value = true
+  } else {
+    try {
+      const res = await fetch('/vacuum-rogues/', { method: 'HEAD' })
+      gameAvailable.value = res.ok
+    } catch {
+      /* offline / network error → keep the hole empty */
+    }
+  }
+  // The center-mark anchor renders only after the probe flips the flag; polyfill
+  // it too so prefetch doesn't choke on the new SVG <a>.
+  if (gameAvailable.value) {
+    await nextTick()
+    polyfillAnchors()
+  }
 })
 </script>
 

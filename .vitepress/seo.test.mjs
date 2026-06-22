@@ -125,9 +125,10 @@ test('sitemapPriority: a page merely prefixed with a tool name is not a tool', (
   assert.equal(sitemapPriority('journalists.md'), '0.6')
 })
 
-test('EXTRA_URLS: static sub-apps (/ar/, /vacuum-rogues/) are in the sitemap URL set', () => {
+test('EXTRA_URLS: static sub-apps (/ar/) are in the sitemap URL set', () => {
   assert.ok(EXTRA_URLS.includes('/ar/'), '/ar/ present')
-  assert.ok(EXTRA_URLS.includes('/vacuum-rogues/'), '/vacuum-rogues/ present')
+  // /vacuum-rogues/ is intentionally absent until the game is deployed (no 404 in sitemap)
+  assert.ok(!EXTRA_URLS.includes('/vacuum-rogues/'), '/vacuum-rogues/ not advertised yet')
   // every EXTRA_URL is an absolute-path subpath with a trailing slash (served from dist/<subpath>/)
   for (const u of EXTRA_URLS) {
     assert.match(u, /^\/[\w-]+\/$/, `${u} is a /subpath/ form`)

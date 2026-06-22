@@ -44,6 +44,20 @@ export default defineConfig({
     },
   },
   vite: {
+    // Dev-only: proxy /vacuum-rogues/ to the locally-running game (default :4137) so the
+    // home-page center mark's `HEAD /vacuum-rogues/` probe sees it and the ship shows in
+    // `npm run dev`. Override the target with VACUUM_ROGUES_DEV_URL. No effect on build/prod.
+    // The probe only needs a 200 here; to actually PLAY locally, open the game's own dev
+    // server directly (it serves at base '/').
+    server: {
+      proxy: {
+        '/vacuum-rogues': {
+          target: process.env.VACUUM_ROGUES_DEV_URL || 'http://localhost:4137',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/vacuum-rogues/, '') || '/',
+        },
+      },
+    },
     build: {
       rollupOptions: {
         output: {
@@ -85,8 +99,6 @@ export default defineConfig({
               { text: 'OpenPose Editor', link: '/openpose' },
               { text: 'Планировщик', link: '/planner' },
               { text: 'Журнал решений', link: '/decision-journal' },
-              // target: '_self' — /vacuum-rogues/ тоже вне VitePress-роутера
-              { text: 'vacuum-rogues', link: '/vacuum-rogues/', target: '_self' },
             ],
           },
           {
