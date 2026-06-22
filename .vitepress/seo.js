@@ -9,6 +9,12 @@ import { ALBUMS, ARTIST } from './theme/components/music.js'
 export const SITE_URL = 'https://alterfo.github.io'
 export const AUTHOR = 'Oleg Sidorkin'
 
+// Static sub-apps served from dist/<subpath>/ that VitePress doesn't know about
+// (not in siteConfig.pages) — appended to the sitemap in buildEnd at priority 0.8.
+// `/vacuum-rogues/` is intentionally NOT listed: it isn't deployed yet (no placeholder),
+// so advertising it would put a 404 in the sitemap. Add it back when the game ships.
+export const EXTRA_URLS = ['/ar/']
+
 // Source relativePath (e.g. 'blog.md') → canonical path ('/blog').
 // `index` collapses to the directory: 'index.md' → '/', 'posts/index.md' → '/posts/'.
 export function canonicalPath(rel) {

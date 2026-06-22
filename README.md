@@ -39,6 +39,7 @@ public/particles/      WebGL шейдеры (legacy, шапка блога)
 public/og.png          Open Graph карточка (источник: public/og-source.svg)
 public/robots.txt      robots + ссылка на sitemap.xml (генерится в buildEnd)
 ar-engine/             AudioReactiveVideo (WebGPU AR движок)
+vacuum-rogues/         git-сабмодуль приватной игры (alterfo/vacuum-rogues) → собирается в dist/vacuum-rogues/ при деплое; вход — кораблик в центре колеса, виден только когда игра реально задеплоена (HEAD-проба /vacuum-rogues/)
 deploy.sh              локальный деплой
 .github/workflows/     CI деплой
 ```
@@ -67,4 +68,53 @@ ssh-keygen -t ed25519 -C "deploy" -f deploy_key -N ""
 
 **GitHub Actions** использует секрет `DEPLOY_KEY`.  
 **Локально:** `sh deploy.sh` (нужен SSH-агент с ключом).
+
+### Игра `/vacuum-rogues/` — ключ к приватному сабмодулю (один раз)
+
+`vacuum-rogues/` — это приватный репо `alterfo/vacuum-rogues`, подключённый сабмодулем.
+GitHub Actions не может читать чужой приватный репо стандартным `GITHUB_TOKEN`, поэтому нужен
+отдельный **read-only SSH deploy key**:
+
+```sh
+ssh-keygen -t ed25519 -C "vacuum-rogues deploy" -f vr_deploy_key -N ""
+```
+
+Это даёт пару ключей. Кладутся они в **два разных** места (частая путаница):
+
+| Файл | Куда | Где именно |
+|------|------|------------|
+| `vr_deploy_key.pub` (**публичный**) | в **приватный репо игры** `alterfo/vacuum-rogues` | Settings → Deploy keys → **Add deploy key** — **read-only** (НЕ ставить «Allow write access») |
+| `vr_deploy_key` (**приватный**) | в **этот** репо (`alterfo/alterfo.github.io-src`), где лежит `deploy.yml` | Settings → Secrets and variables → Actions → **New repository secret** → имя `VACUUM_ROGUES_DEPLOY_KEY`, значение — весь приватный ключ |
+
+```sh
+rm vr_deploy_key vr_deploy_key.pub   # локальные копии после загрузки не нужны
+```
+
+**Важно:** приватный ключ-секрет идёт в исходный репо сайта, а НЕ в репо игры. В репо игры
+кладётся только публичная половина (как Deploy key).
+
+Когда секрет `VACUUM_ROGUES_DEPLOY_KEY` задан, CI фетчит сабмодуль и собирает игру с
+`--base=/vacuum-rogues/` в `dist/vacuum-rogues/`. Когда пуст — сабмодуль не тянется, деплой не
+падает (`submodules: false` + `continue-on-error`), `/vacuum-rogues/` отдаёт 404, а кораблик в
+центре колеса прячется сам. **Перед боевым деплоем** в репо игры нужно ужать ассеты (сейчас
+`dist/` ≈ 607 МБ; PNG-задники 22–26 МБ → WebP/AVIF, цель < ~80 МБ) — иначе слишком тяжело для
+Pages.
+
+### Авто-подхват изменений игры (мгновенный кросс-репо деплой)
+
+Чтобы пуш в `master` репо игры **сам** пересобирал сайт (без ручного bump'а сабмодуля):
+
+1. **Сторона alterfo уже готова:** `deploy.yml` слушает `repository_dispatch` (тип
+   `vacuum-rogues-updated`) и при сборке игры подтягивает её **последний** `master`
+   (`git submodule update --remote`; `.gitmodules` → `branch = master`), а не запиненный коммит.
+2. **В репо игры** уже лежит workflow `.github/workflows/notify-alterfo.yml` — на пуш в `master`
+   он шлёт `repository_dispatch` в этот репо. Закоммить его в `alterfo/vacuum-rogues`.
+3. **Токен** в репо игры: создай PAT, который может слать dispatch на `alterfo/alterfo.github.io-src`
+   — fine-grained PAT на этот репо с правом **Contents: Read and write** (или classic PAT со scope
+   `repo`), и положи его в `alterfo/vacuum-rogues` → Settings → Secrets → Actions →
+   `ALTERFO_DISPATCH_TOKEN`.
+
+Итог: пуш в `master` игры → её workflow дёргает Deploy alterfo → собирается последний коммит игры
+→ сайт обновляется. Включать имеет смысл **после** оптимизации ассетов — иначе каждый автодеплой
+force-пушит сотни МБ в репо Pages.
 

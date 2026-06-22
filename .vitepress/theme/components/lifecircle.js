@@ -31,6 +31,31 @@ export function fillRadius(readiness, innerR, maxOuterR) {
   return innerR + (maxOuterR - innerR) * (clamped / 10)
 }
 
+// Center «ship-ranger» mark — the clickable entry to /vacuum-rogues inscribed in
+// the donut hole. The hole has radius `innerR` around (cx,cy); insetting it by
+// `pad` gives the usable radius `r` (≈40 for innerR 55), so the mark floats clear
+// of the inner sphere edges. All returned vertices and dot centers lie within `r`
+// of (cx,cy); the dot reach (center ± its radius) stays within `innerR`, so the
+// mark never spills past the hole. Coordinates are offsets-from-center translated
+// to absolute SVG units — pure data, the .vue only renders it. Unit-tested.
+export function centerMark(geom, pad = 15) {
+  const { cx, cy, innerR } = geom
+  const r = innerR - pad
+  // Nose-up wedge hull with a concave base («fin» silhouette), offsets from center.
+  const hull = [
+    [0, -32], // apex (nose up)
+    [20, 26], // right base corner
+    [0, 16],  // concave base notch
+    [-20, 26], // left base corner
+  ].map(([ox, oy]) => [cx + ox, cy + oy])
+  const cockpit = { cx, cy: cy - 12, r: 3.5 } // notch dot near the apex
+  const engines = [ // the «··» exhaust below the base
+    { cx: cx - 9, cy: cy + 32, r: 2.5 },
+    { cx: cx + 9, cy: cy + 32, r: 2.5 },
+  ]
+  return { cx, cy, r, hull, cockpit, engines }
+}
+
 // Per-segment render data for the wheel: background track + readiness fill paths,
 // outside label position and its text-anchor. Generalized to n = defs.length spheres:
 // span = 360/n, sphere `i` spans `i*span+2 … (i+1)*span−2` (a 4° gap between spheres),

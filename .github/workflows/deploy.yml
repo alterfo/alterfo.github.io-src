@@ -3,6 +3,11 @@ name: Deploy
 on:
   push:
     branches: [ master ]
+  # The game repo (alterfo/vacuum-rogues) fires this on its own push to master so a game
+  # change auto-rebuilds the site (no manual submodule bump). See README → "Авто-подхват
+  # изменений игры" for the token setup in the game repo.
+  repository_dispatch:
+    types: [vacuum-rogues-updated]
 
 jobs:
   build:
@@ -11,7 +16,14 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       with:
-        submodules: recursive
+        # vacuum-rogues is a PRIVATE submodule (alterfo/vacuum-rogues, SSH URL in
+        # .gitmodules); the default GITHUB_TOKEN can't read another private repo. Fetch
+        # submodules ONLY when the read-only deploy-key secret exists — otherwise skip the
+        # fetch entirely so a missing key never hard-fails the main site deploy. With no key,
+        # /vacuum-rogues/ stays a 404 and the home-page center mark hides itself (HEAD probe).
+        # See docs/plans/20260621-vacuum-rogues-deploy-and-donut-logo.md for the secret setup.
+        submodules: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY != '' && 'recursive' || 'false' }}
+        ssh-key: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY }}
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
@@ -57,6 +69,37 @@ jobs:
           mkdir -p .vitepress/dist/ar
           cp -r ar-engine/web/. .vitepress/dist/ar/
         fi
+
+    # Serve the game at /vacuum-rogues/ (mirrors the /ar/ subpath). GATED + non-fatal:
+    # runs only if the private submodule actually checked out (needs the deploy-key secret —
+    # see the checkout step), and continue-on-error guarantees a missing/failed game build
+    # never breaks the main site deploy. The build runs `vite build` directly (skips `tsc`,
+    # whose type errors must not gate a deploy) with the subpath base, then copies into dist/.
+    # Until the key lands, /vacuum-rogues/ doesn't exist and the home center mark stays hidden.
+    - name: Build & copy vacuum-rogues game
+      continue-on-error: true
+      env:
+        VR_DEPLOY_KEY: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY }}
+      run: |
+        if [ ! -f vacuum-rogues/package.json ]; then
+          echo "vacuum-rogues submodule not checked out (no deploy key yet) — no game served"
+          exit 0
+        fi
+        # Build the LATEST game commit, not the pinned submodule SHA, so a game push
+        # (delivered via repository_dispatch) ships without bumping the pin in this repo.
+        # Uses the same read-only deploy key for the private fetch (.gitmodules pins
+        # branch=master). If the fetch fails, fall back to the pinned commit.
+        if [ -n "$VR_DEPLOY_KEY" ]; then
+          mkdir -p ~/.ssh && printf '%s\n' "$VR_DEPLOY_KEY" > ~/.ssh/vr_key && chmod 600 ~/.ssh/vr_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/vr_key -o StrictHostKeyChecking=accept-new"
+          git submodule update --remote --recursive vacuum-rogues \
+            || echo "Warning: could not fast-forward to latest game — building the pinned commit"
+        fi
+        ( cd vacuum-rogues && npm ci && npx vite build --base=/vacuum-rogues/ ) \
+          && mkdir -p .vitepress/dist/vacuum-rogues \
+          && cp -r vacuum-rogues/dist/. .vitepress/dist/vacuum-rogues/ \
+          && echo "vacuum-rogues built and copied" \
+          || echo "Warning: vacuum-rogues build/copy failed — no game served"
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4

@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deg2rad, arcPath, labelXY, fillRadius, buildSegments } from './lifecircle.js'
+import { deg2rad, arcPath, labelXY, fillRadius, buildSegments, centerMark } from './lifecircle.js'
+
+const dist = (cx, cy, x, y) => Math.hypot(x - cx, y - cy)
 
 test('deg2rad: 0° (top) maps to -π/2 radians', () => {
   assert.ok(Math.abs(deg2rad(0) - (-Math.PI / 2)) < 1e-9)
@@ -83,6 +85,51 @@ const DEFS = [
   { id: 'e', title: 'E', href: '/e', color: '#555', readiness: 4 },
   { id: 'f', title: 'F', href: null, color: '#666', readiness: 4, soon: true },
 ]
+
+test('centerMark: is centered on the geom cx/cy', () => {
+  const m = centerMark(GEOM)
+  assert.equal(m.cx, GEOM.cx)
+  assert.equal(m.cy, GEOM.cy)
+})
+
+test('centerMark: usable radius insets innerR by the pad and stays inside the hole', () => {
+  const m = centerMark(GEOM, 15)
+  assert.equal(m.r, GEOM.innerR - 15) // 55 - 15 = 40
+  assert.ok(m.r > 0 && m.r < GEOM.innerR)
+})
+
+test('centerMark: every hull vertex lies within the usable radius of center', () => {
+  const m = centerMark(GEOM)
+  for (const [x, y] of m.hull) {
+    assert.ok(dist(m.cx, m.cy, x, y) <= m.r + 1e-9, `vertex ${x},${y} outside r=${m.r}`)
+  }
+})
+
+test('centerMark: cockpit and engine dots (incl. their radius) stay within the hole', () => {
+  const m = centerMark(GEOM)
+  for (const dot of [m.cockpit, ...m.engines]) {
+    // center within the usable radius…
+    assert.ok(dist(m.cx, m.cy, dot.cx, dot.cy) <= m.r + 1e-9)
+    // …and the dot's outer reach never spills past the donut hole (innerR).
+    assert.ok(dist(m.cx, m.cy, dot.cx, dot.cy) + dot.r <= GEOM.innerR + 1e-9)
+  }
+})
+
+test('centerMark: hull is a nose-up wedge (apex above center, base below)', () => {
+  const m = centerMark(GEOM)
+  const [apex, , notch] = m.hull
+  assert.ok(apex[1] < m.cy) // apex above center (smaller y = higher)
+  assert.ok(notch[1] > m.cy) // concave base notch below center
+  assert.equal(apex[0], m.cx) // apex horizontally centered
+})
+
+test('centerMark: translates with the geom center', () => {
+  const moved = centerMark({ cx: 100, cy: 300, innerR: 55 })
+  assert.equal(moved.cx, 100)
+  assert.equal(moved.cy, 300)
+  // apex offset (0,-32) tracks the new center
+  assert.deepEqual(moved.hull[0], [100, 268])
+})
 
 test('buildSegments: returns one render record per def, preserving fields', () => {
   const segs = buildSegments(DEFS, GEOM)

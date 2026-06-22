@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { SITE_URL, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
+import { SITE_URL, EXTRA_URLS, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
 import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
 
 function redirectHtml(target: string): string {
@@ -44,6 +44,20 @@ export default defineConfig({
     },
   },
   vite: {
+    // Dev-only: proxy /vacuum-rogues/ to the locally-running game (default :4137) so the
+    // home-page center mark's `HEAD /vacuum-rogues/` probe sees it and the ship shows in
+    // `npm run dev`. Override the target with VACUUM_ROGUES_DEV_URL. No effect on build/prod.
+    // The probe only needs a 200 here; to actually PLAY locally, open the game's own dev
+    // server directly (it serves at base '/').
+    server: {
+      proxy: {
+        '/vacuum-rogues': {
+          target: process.env.VACUUM_ROGUES_DEV_URL || 'http://localhost:4137',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/vacuum-rogues/, '') || '/',
+        },
+      },
+    },
     build: {
       rollupOptions: {
         output: {
@@ -62,6 +76,7 @@ export default defineConfig({
     'CLAUDE.md',
     'docs/**',
     'ar-engine/**',
+    'vacuum-rogues/**',
   ],
   // Навигация дефолтной темы живёт в themeConfig (top-level `nav` VitePress
   // игнорирует — меню из-за этого вообще не рендерилось). Вместо надписи
@@ -150,7 +165,7 @@ export default defineConfig({
     }
 
     // Hand-rolled sitemap.xml from source pages (md only → redirect stubs auto-excluded).
-    const EXTRA_URLS = ['/ar/'] // static apps not in siteConfig.pages
+    // EXTRA_URLS (static sub-apps not in siteConfig.pages) live in seo.js so they're unit-testable.
     const entries = siteConfig.pages
       .map((p: string) => {
         let lastmod = ''

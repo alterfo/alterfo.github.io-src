@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   SITE_URL,
+  EXTRA_URLS,
   canonicalPath,
   canonicalFor,
   jsonLdFor,
@@ -122,6 +123,16 @@ test('sitemapPriority: tiers per page type', () => {
 test('sitemapPriority: a page merely prefixed with a tool name is not a tool', () => {
   // the old /^(idef0|planner|journal)/ regex would have matched 'journalists.md'
   assert.equal(sitemapPriority('journalists.md'), '0.6')
+})
+
+test('EXTRA_URLS: static sub-apps (/ar/) are in the sitemap URL set', () => {
+  assert.ok(EXTRA_URLS.includes('/ar/'), '/ar/ present')
+  // /vacuum-rogues/ is intentionally absent until the game is deployed (no 404 in sitemap)
+  assert.ok(!EXTRA_URLS.includes('/vacuum-rogues/'), '/vacuum-rogues/ not advertised yet')
+  // every EXTRA_URL is an absolute-path subpath with a trailing slash (served from dist/<subpath>/)
+  for (const u of EXTRA_URLS) {
+    assert.match(u, /^\/[\w-]+\/$/, `${u} is a /subpath/ form`)
+  }
 })
 
 test('sitemap <loc> matches the page canonical for every page type (no drift)', () => {
