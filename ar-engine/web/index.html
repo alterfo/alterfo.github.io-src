@@ -344,10 +344,10 @@
     </a>
 
     <!-- drag-drop overlay -->
-    <div id="drop-overlay" role="button" aria-label="Drop audio files or a folder, or click to browse">
+    <div id="drop-overlay" role="button" aria-label="Перетащите аудиофайлы или папку, либо нажмите для выбора">
       <div class="drop-icon">🎵</div>
-      <div class="drop-text">Drop audio files or a folder here</div>
-      <div class="drop-hint">mp3 · flac · wav · ogg — multi-select &amp; folders supported</div>
+      <div class="drop-text">Перетащите сюда аудиофайлы или папку</div>
+      <div class="drop-hint">mp3 · flac · wav · ogg — можно выбрать несколько файлов или папок</div>
     </div>
     <!-- File inputs live OUTSIDE the overlay: as children, input.click() would bubble
          back to the overlay's click handler and open a second picker. -->
@@ -370,21 +370,21 @@
 
     <!-- playback + record controls (hidden until audio source loaded) -->
     <div id="controls">
-      <button class="ctrl-btn" id="btn-prev" title="Previous track" style="display:none">⏮</button>
-      <button class="ctrl-btn" id="btn-play" title="Play / Pause">▶</button>
-      <button class="ctrl-btn" id="btn-next" title="Next track" style="display:none">⏭</button>
-      <div id="progress" title="Seek"><div id="progress-fill"></div></div>
+      <button class="ctrl-btn" id="btn-prev" title="Предыдущий трек" style="display:none">⏮</button>
+      <button class="ctrl-btn" id="btn-play" title="Воспроизведение / пауза">▶</button>
+      <button class="ctrl-btn" id="btn-next" title="Следующий трек" style="display:none">⏭</button>
+      <div id="progress" title="Перемотка"><div id="progress-fill"></div></div>
       <span id="time-label">0:00 / 0:00</span>
-      <button class="ctrl-btn" id="btn-loop" title="Loop track">🔁</button>
-      <button class="ctrl-btn" id="btn-rec"  title="Record">⏺</button>
+      <button class="ctrl-btn" id="btn-loop" title="Повтор трека">🔁</button>
+      <button class="ctrl-btn" id="btn-rec"  title="Запись">⏺</button>
     </div>
 
     <!-- bottom-right icon bar: always visible -->
     <div id="icon-bar">
       <button class="icon-btn" id="btn-ym"      title="Яндекс Музыка">🟣</button>
-      <button class="icon-btn" id="btn-load"    title="Load audio file(s)">📁</button>
-      <button class="icon-btn" id="btn-load-dir" title="Load a music folder">📂</button>
-      <button class="icon-btn" id="btn-fs"      title="Fullscreen (F)">⛶</button>
+      <button class="icon-btn" id="btn-load"    title="Загрузить аудиофайлы">📁</button>
+      <button class="icon-btn" id="btn-load-dir" title="Загрузить папку с музыкой">📂</button>
+      <button class="icon-btn" id="btn-fs"      title="Во весь экран (F)">⛶</button>
     </div>
 
     <!-- Yandex Music iframe panel -->
@@ -792,7 +792,7 @@
         const audio = [...files].filter(_isAudioFile).sort((a, b) =>
           (a.webkitRelativePath || a.name).localeCompare(
             (b.webkitRelativePath || b.name), undefined, { numeric: true, sensitivity: 'base' }));
-        if (audio.length === 0) { alert('No audio files found (mp3, flac, wav, ogg…).'); return; }
+        if (audio.length === 0) { alert('Аудиофайлы не найдены (mp3, flac, wav, ogg…).'); return; }
         _playlist  = audio;
         _playIndex = 0;
         _updatePlaylistUI();
@@ -877,10 +877,10 @@
 
       async function _loadAndPlay(file) {
         if (!_isAudioFile(file)) {
-          alert('Please choose an audio file (mp3, flac, wav, ogg…).');
+          alert('Выберите аудиофайл (mp3, flac, wav, ogg…).');
           return;
         }
-        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        if (!engineReady) { alert('Движок не готов — не удалось загрузить WASM.'); return; }
         try {
           const { name, duration } = await audioLoadFile(file);
           _trackName = name;
@@ -892,7 +892,7 @@
           btnPlay.textContent = '⏸';
         } catch (e) {
           console.error('[audio] load failed:', e);
-          alert('Failed to load audio: ' + e.message);
+          alert('Не удалось загрузить аудио: ' + e.message);
         }
       }
 
@@ -915,7 +915,7 @@
         const next = !isLoop();
         setLoop(next);
         btnLoop.classList.toggle('active', next);
-        btnLoop.title = next ? 'Loop ON — click to disable' : 'Loop track';
+        btnLoop.title = next ? 'Повтор включён — нажмите, чтобы выключить' : 'Повтор трека';
       });
 
       /* ---- record button ---- */
@@ -995,7 +995,7 @@
       btnYmClose.addEventListener('click', _closeYmPanel);
 
       btnYmCapt.addEventListener('click', async () => {
-        if (!engineReady) { alert('Engine not ready — WASM failed to load.'); return; }
+        if (!engineReady) { alert('Движок не готов — не удалось загрузить WASM.'); return; }
         try {
           // No preferCurrentTab — user picks any tab (Yandex Music, Spotify, etc.)
           const { name } = await connectStream();
@@ -1039,7 +1039,7 @@
 
       document.addEventListener('fullscreenchange', () => {
         const isFull = !!document.fullscreenElement;
-        btnFs.title       = isFull ? 'Exit fullscreen (Esc)' : 'Fullscreen (F)';
+        btnFs.title       = isFull ? 'Выйти из полноэкранного режима (Esc)' : 'Во весь экран (F)';
         btnFs.textContent = isFull ? '⊠' : '⛶';
         if (!isFull) {
           clearTimeout(_fsHideTimer); _fsHideTimer = null;
