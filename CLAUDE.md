@@ -12,7 +12,7 @@ VitePress-based personal site with six fully client-side apps and one content pa
 - `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
 
 Plus two **external apps served as subpaths** (not in-tree client apps, copied into `dist/<subpath>/` at deploy, mirroring each other):
-- `/ar` — AR Engine (`ar-engine/`, SEO hand-maintained in `ar-engine/web/index.html`)
+- `/ar` — Аудио-реактив (`ar-engine/`, SEO hand-maintained in `ar-engine/web/index.html`)
 - `/vacuum-rogues` — browser game (private repo `alterfo/vacuum-rogues`, Vite + PixiJS + onnxruntime-web; vendored as a git submodule at `vacuum-rogues/`, built in CI gated on the `VACUUM_ROGUES_DEPLOY_KEY` secret, placeholder until then). Its entry point is the **ship-ranger logo in the center of the LifeCircle donut** on the home page (`<a href="/vacuum-rogues/" target="_self">`).
 
 ## Key entry points

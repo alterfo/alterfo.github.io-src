@@ -38,7 +38,7 @@ projects/              лонгрид-разборы проектов (ar-engine
 public/particles/      WebGL шейдеры (legacy, шапка блога)
 public/og.png          Open Graph карточка (источник: public/og-source.svg)
 public/robots.txt      robots + ссылка на sitemap.xml (генерится в buildEnd)
-ar-engine/             AudioReactiveVideo (WebGPU AR движок)
+ar-engine/             Аудио-реактив (аудиовизуализатор на WebGPU)
 vacuum-rogues/         git-сабмодуль приватной игры (alterfo/vacuum-rogues) → собирается в dist/vacuum-rogues/ при деплое; вход — кораблик в центре колеса, виден только когда игра реально задеплоена (HEAD-проба /vacuum-rogues/)
 deploy.sh              локальный деплой
 .github/workflows/     CI деплой

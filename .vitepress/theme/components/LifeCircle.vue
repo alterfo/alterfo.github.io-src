@@ -82,7 +82,7 @@ const SEGMENTS = [
   // external: /ar/ — статическое приложение вне VitePress-роутера. Любой атрибут
   // target (даже _self) заставляет роутер отдать клик браузеру (hasAttribute('target')
   // в router.js) — иначе SPA-навигация ведёт на клиентский 404.
-  { id: 'ar',        title: 'AR Engine',    href: '/ar/',              color: '#b34dff', readiness: 5, external: true },
+  { id: 'ar',        title: 'Аудио-реактив', href: '/ar/',              color: '#b34dff', readiness: 5, external: true },
   { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#ffaa22', readiness: 4 },
   { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#1accff', readiness: 4 },
   { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#ff9933', readiness: 4 },

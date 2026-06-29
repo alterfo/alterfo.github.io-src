@@ -138,9 +138,9 @@ describe('getActiveKey / modulations', () => {
 })
 
 describe('loadScore / listScores', () => {
-  it('listScores returns 5 entries', () => {
+  it('listScores returns 6 entries', () => {
     const list = listScores()
-    assert.equal(list.length, 5)
+    assert.equal(list.length, 6)
   })
 
   it('listScores entries have id, title, composer, key, tempo', () => {
@@ -201,7 +201,7 @@ describe('loadScore / listScores', () => {
 
   it('all built-in notes have valid duration codes', () => {
     const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16', '8t'])
-    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d'].map(loadScore)) {
+    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
           for (const note of measure.notes) {
@@ -212,9 +212,13 @@ describe('loadScore / listScores', () => {
     }
   })
 
-  it('all built-in notes beats sum to timeSignature[0] per hand', () => {
-    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d']) {
+  it('all built-in notes beats sum to the measure length per hand', () => {
+    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune']) {
       const score = loadScore(id)
+      // DURATION_BEATS counts in quarter-note beats, so a bar holds
+      // beats × (4 / beatType) quarters — 4 for 4/4, 3 for 3/4, 4.5 for 9/8.
+      const [beats, beatType] = score.timeSignature
+      const expectedBeats = beats * (4 / beatType)
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
           const byHand = {}
@@ -225,8 +229,8 @@ describe('loadScore / listScores', () => {
           for (const [hand, sum] of Object.entries(byHand)) {
             // Float tolerance: triplet eighths ('8t' = 1/3) don't sum to an integer exactly
             // (9 × 1/3 = 2.9999999999999996), so compare within epsilon rather than ===.
-            assert.ok(Math.abs(sum - score.timeSignature[0]) < 1e-9,
-              `${id} measure ${measure.id} hand ${hand}: expected ${score.timeSignature[0]} beats, got ${sum}`)
+            assert.ok(Math.abs(sum - expectedBeats) < 1e-9,
+              `${id} measure ${measure.id} hand ${hand}: expected ${expectedBeats} beats, got ${sum}`)
           }
         }
       }
@@ -338,6 +342,36 @@ describe('loadScore / listScores', () => {
         assert.ok(lh.every(n => n.duration === '8t'), `${measure.id} LH must all be '8t'`)
       }
     }
+  })
+
+  it('CLAIR_DE_LUNE is in Db major, 9/8, Andante (♩=50)', () => {
+    const score = loadScore('clair-de-lune')
+    assert.equal(score.id, 'clair-de-lune')
+    assert.equal(score.key.root, 'Db')
+    assert.equal(score.key.mode, 'major')
+    assert.equal(score.tempo, 50)
+    assert.deepEqual(score.timeSignature, [9, 8])
+  })
+
+  it('CLAIR_DE_LUNE has 2 phrases of 4 measures, all with both hands', () => {
+    const score = loadScore('clair-de-lune')
+    assert.equal(score.phrases.length, 2)
+    for (const phrase of score.phrases) {
+      assert.equal(phrase.measures.length, 4)
+      for (const measure of phrase.measures) {
+        assert.ok(measure.notes.some(n => n.hand === 'right'), `${measure.id} missing RH`)
+        assert.ok(measure.notes.some(n => n.hand === 'left'), `${measure.id} missing LH`)
+      }
+    }
+  })
+
+  it('CLAIR_DE_LUNE opens on the <F4 Ab4> pickup after an eighth rest', () => {
+    const score = loadScore('clair-de-lune')
+    const rh = score.phrases[0].measures[0].notes.filter(n => n.hand === 'right')
+    assert.equal(rh[0].rest, true, 'm1 RH starts with a rest')
+    assert.equal(rh[0].duration, '8')
+    assert.deepEqual(rh[1].midi, [65, 68], 'pickup is F4+Ab4')
+    assert.deepEqual(rh[2].midi, [77, 80], 'then leaps an octave to F5+Ab5')
   })
 })
 

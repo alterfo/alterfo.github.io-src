@@ -26,7 +26,7 @@ const ROUTES = [
   { path: '/planner',          name: 'planner',   title: 'Planner',  root: '.planner-root' },
   { path: '/decision-journal', name: 'decisions', title: 'решений',  root: '.dj-root' },
   { path: '/music',            name: 'music',     title: 'Музыка',   root: '.music-albums' },
-  { path: '/ar/',              name: 'ar',        title: 'AR Engine' },
+  { path: '/ar/',              name: 'ar',        title: 'Аудио-реактив' },
   // The private game submodule, built in CI and served at this subpath (PixiJS app).
   // Asserting the real <title> + mount root proves the deploy key worked and the game
   // actually shipped (not a 404, not the old placeholder). If the game's title changes,

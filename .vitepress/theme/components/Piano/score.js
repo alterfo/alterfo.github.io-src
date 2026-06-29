@@ -551,7 +551,122 @@ const RACHMANINOFF_PRELUDE_D = {
   ],
 }
 
-const SCORES = [C_MAJOR_SCALE, TWINKLE, MINUET_G, ODE_TO_JOY, RACHMANINOFF_PRELUDE_D]
+// Debussy — Clair de Lune (Лунный свет), from Suite bergamasque L. 75 №3. Opening 8 bars.
+// Db major, 9/8 "Andante très expressif". Transcribed from the Mutopia public-domain
+// engraving. RH carries the melody in parallel thirds (single-line from bar 5); LH holds
+// the harmony in close, treble register at first, descending to the bass from bar 6.
+// In 9/8 each hand fills 4.5 quarter-beats (= 9 eighths). Original ties are merged inside a
+// bar into one longer note, or re-articulated across a barline — the trainer treats every
+// written note as a keypress, so a held chord re-struck once a bar reads naturally. The
+// bar-3 duplets (2 notes in the time of 3 eighths) are written as dotted eighths
+// ('8.' = 0.75 beat): two of them equal a duplet exactly, same rhythm without a tuplet.
+// Note: bar 2 LH is <Gb Bbb> in the score; Bbb sounds A♮ (midi 69) and is spelled A♮ in
+// this flat key — same pitch, one fewer accidental for a learner.
+const CLAIR_DE_LUNE = {
+  id: 'clair-de-lune',
+  title: 'Лунный свет',
+  composer: 'К. Дебюсси',
+  tempo: 50, // Andante très expressif (the score gives no metronome mark)
+  key: { root: 'Db', mode: 'major' },
+  timeSignature: [9, 8],
+  modulations: [],
+  phrases: [
+    // ─── Phrase 1 — the theme in thirds: pickup, octave leap, gentle descent ───────
+    {
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { duration: '8', hand: 'right', rest: true },
+          { midi: [65, 68], duration: '8',  hand: 'right' }, // F4+Ab4 (pickup)
+          { midi: [77, 80], duration: 'h',  hand: 'right' }, // F5+Ab5 (octave up, held)
+          { midi: [73, 77], duration: 'q.', hand: 'right' }, // Db5+F5
+          { duration: '8', hand: 'left', rest: true },
+          { midi: [65, 68], duration: 'q',  hand: 'left'  }, // F4+Ab4
+          { midi: [65, 68], duration: 'h.', hand: 'left'  }, // (held to bar end)
+        ]},
+        { id: 'm2', notes: [
+          { midi: [73, 77], duration: '8',  hand: 'right' }, // Db5+F5
+          { midi: [72, 75], duration: '8',  hand: 'right' }, // C5+Eb5
+          { midi: [73, 77], duration: '8',  hand: 'right' }, // Db5+F5
+          { midi: [72, 75], duration: 'h.', hand: 'right' }, // C5+Eb5
+          { midi: [66, 69], duration: 'h.', hand: 'left'  }, // Gb4+A4 (Bbb)
+          { midi: [66, 69], duration: 'q.', hand: 'left'  },
+        ]},
+        { id: 'm3', notes: [
+          { midi: [72, 75], duration: '8',  hand: 'right' }, // C5+Eb5
+          { midi: [70, 73], duration: '8',  hand: 'right' }, // Bb4+Db5
+          { midi: [72, 75], duration: '8',  hand: 'right' }, // C5+Eb5
+          { midi: 73, duration: '8.', hand: 'right' }, // Db5 ┐ duplet
+          { midi: 77, duration: '8.', hand: 'right' }, // F5  ┘
+          { midi: 77, duration: '8.', hand: 'right' }, // F5  ┐ duplet
+          { midi: 73, duration: '8.', hand: 'right' }, // Db5 ┘
+          { midi: [65, 68], duration: 'h.', hand: 'left'  }, // F4+Ab4
+          { midi: [65, 68], duration: 'q.', hand: 'left'  },
+        ]},
+        { id: 'm4', notes: [
+          { midi: 73, duration: '8',  hand: 'right' }, // Db5
+          { midi: [68, 72], duration: '8',  hand: 'right' }, // Ab4+C5
+          { midi: [70, 73], duration: '8',  hand: 'right' }, // Bb4+Db5
+          { midi: [68, 72], duration: 'h.', hand: 'right' }, // Ab4+C5
+          { midi: [63, 66], duration: 'h.', hand: 'left'  }, // Eb4+Gb4
+          { midi: [63, 66], duration: 'q.', hand: 'left'  },
+        ]},
+      ],
+    },
+    // ─── Phrase 2 — single-line answer, sinking into the bass ──────────────────────
+    {
+      id: 'p2',
+      measures: [
+        { id: 'm5', notes: [
+          { midi: 72, duration: '8', hand: 'right' }, // C5
+          { midi: 70, duration: '8', hand: 'right' }, // Bb4
+          { midi: 72, duration: '8', hand: 'right' }, // C5
+          { midi: 70, duration: '8', hand: 'right' }, // Bb4
+          { midi: 75, duration: '8', hand: 'right' }, // Eb5
+          { midi: 70, duration: '8', hand: 'right' }, // Bb4
+          { midi: 68, duration: '8', hand: 'right' }, // Ab4
+          { midi: 70, duration: '8', hand: 'right' }, // Bb4
+          { midi: 68, duration: '8', hand: 'right' }, // Ab4
+          { midi: 63, duration: 'h.', hand: 'left'  }, // Eb4
+          { midi: 63, duration: 'q.', hand: 'left'  }, // Eb4
+        ]},
+        { id: 'm6', notes: [
+          { midi: 68, duration: '8',  hand: 'right' }, // Ab4
+          { midi: 66, duration: '8',  hand: 'right' }, // Gb4
+          { midi: 68, duration: '8',  hand: 'right' }, // Ab4
+          { midi: 66, duration: 'q.', hand: 'right' }, // Gb4
+          { midi: 65, duration: 'q.', hand: 'right' }, // F4
+          { midi: 61, duration: 'h.', hand: 'left'  }, // Db4
+          { midi: 60, duration: 'q.', hand: 'left'  }, // C4
+        ]},
+        { id: 'm7', notes: [
+          { midi: 65, duration: '8', hand: 'right' }, // F4
+          { midi: 65, duration: '8', hand: 'right' }, // F4
+          { midi: 66, duration: '8', hand: 'right' }, // Gb4
+          { midi: 65, duration: '8', hand: 'right' }, // F4
+          { midi: 70, duration: '8', hand: 'right' }, // Bb4
+          { midi: 65, duration: '8', hand: 'right' }, // F4
+          { midi: 63, duration: '8', hand: 'right' }, // Eb4
+          { midi: 65, duration: '8', hand: 'right' }, // F4
+          { midi: 63, duration: '8', hand: 'right' }, // Eb4
+          { midi: 58, duration: 'h.', hand: 'left'  }, // Bb3
+          { midi: 58, duration: 'q.', hand: 'left'  }, // Bb3
+        ]},
+        { id: 'm8', notes: [
+          { midi: 63, duration: '8',  hand: 'right' }, // Eb4
+          { midi: 61, duration: '8',  hand: 'right' }, // Db4
+          { midi: 63, duration: '8',  hand: 'right' }, // Eb4
+          { midi: 61, duration: 'q.', hand: 'right' }, // Db4
+          { midi: 60, duration: 'q.', hand: 'right' }, // C4
+          { midi: 56, duration: 'h.', hand: 'left'  }, // Ab3
+          { midi: 54, duration: 'q.', hand: 'left'  }, // Gb3
+        ]},
+      ],
+    },
+  ],
+}
+
+const SCORES = [C_MAJOR_SCALE, TWINKLE, MINUET_G, ODE_TO_JOY, RACHMANINOFF_PRELUDE_D, CLAIR_DE_LUNE]
 
 export function listScores() {
   return SCORES.map(s => ({ id: s.id, title: s.title, composer: s.composer, key: s.key, tempo: s.tempo }))

@@ -94,7 +94,7 @@ export default defineConfig({
               { text: 'Дневник', link: '/journal' },
               { text: 'IDEF0-редактор', link: '/idef0' },
               // target: '_self' — /ar/ живёт вне VitePress-роутера (см. LifeCircle)
-              { text: 'AR Engine', link: '/ar/', target: '_self' },
+              { text: 'Аудио-реактив', link: '/ar/', target: '_self' },
               { text: 'Piano Teacher', link: '/piano' },
               { text: 'OpenPose Editor', link: '/openpose' },
               { text: 'Планировщик', link: '/planner' },
@@ -104,7 +104,7 @@ export default defineConfig({
           {
             text: 'Разборы',
             items: [
-              { text: 'AR Engine — архитектура', link: '/projects/ar-engine' },
+              { text: 'Аудио-реактив — архитектура', link: '/projects/ar-engine' },
               { text: 'IDEF0 Editor — архитектура', link: '/projects/idef0-editor' },
             ],
           },

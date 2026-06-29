@@ -20,7 +20,7 @@
         <LifeCircle />
         <p class="case-study-links">
           <span class="case-study-label">Разборы:</span>
-          <a href="/projects/ar-engine">AR Engine&nbsp;→</a>
+          <a href="/projects/ar-engine">Аудио-реактив&nbsp;→</a>
           <a href="/projects/idef0-editor">IDEF0 Editor&nbsp;→</a>
         </p>
       </div>
