@@ -33,9 +33,14 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
-import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
 import { createField } from './components/ConnectingParticles.js'
 import Portfolio from './Portfolio.vue'
+
+// Cheap capability check, kept inline so it never pulls in WebGPUParticles.js
+// (shaders + render/compute pipeline code) just to find out WebGPU is unsupported.
+function gpuAvailable() {
+  return typeof navigator !== 'undefined' && !!navigator.gpu
+}
 
 const DefaultLayout = DefaultTheme.Layout
 
@@ -86,11 +91,14 @@ function ensureField2D() {
 let webgpuInit: Promise<boolean> | null = null
 
 function initWebGPU(): Promise<boolean> {
-  if (!canvasEl.value || !isWebGPUSupported()) return Promise.resolve(false)
+  if (!canvasEl.value || !gpuAvailable()) return Promise.resolve(false)
   if (!webgpuInit) {
     boundEl = canvasEl.value
-    particles = new WebGPUParticles(canvasEl.value)
-    webgpuInit = particles.init(width, height).then((success: boolean) => {
+    webgpuInit = import('./components/WebGPUParticles.js').then(({ WebGPUParticles }) => {
+      if (!canvasEl.value) return false
+      particles = new WebGPUParticles(canvasEl.value)
+      return particles.init(width, height)
+    }).then((success: boolean) => {
       if (success) useWebGPU = true
       return success
     })
@@ -113,7 +121,7 @@ function initHeader() {
   canvasEl.value.width = width
   canvasEl.value.height = height
 
-  if (!useWebGPU && isWebGPUSupported()) {
+  if (!useWebGPU && gpuAvailable()) {
     initWebGPU().then(success => {
       if (success) {
         particles.render()
