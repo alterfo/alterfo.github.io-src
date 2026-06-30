@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepParticle, connectionAlpha, createParticles } from './ConnectingParticles.js'
+import { stepParticle, connectionAlpha, createParticles, prefersReducedMotion, createField } from './ConnectingParticles.js'
 
 test('stepParticle wraps left edge to right', () => {
   assert.equal(stepParticle({ x: -1, y: 5, vx: 0, vy: 0 }, 100, 100).x, 100)
@@ -50,4 +50,55 @@ test('createParticles uses the supplied palette', () => {
 
 test('createParticles with count 0 returns an empty array', () => {
   assert.deepEqual(createParticles(0, 100, 100), [])
+})
+
+test('prefersReducedMotion reads mql.matches', () => {
+  assert.equal(prefersReducedMotion({ matches: true }), true)
+  assert.equal(prefersReducedMotion({ matches: false }), false)
+})
+
+test('prefersReducedMotion defaults to false without a matcher', () => {
+  assert.equal(prefersReducedMotion(null), false)
+  assert.equal(prefersReducedMotion(undefined), false)
+})
+
+// Minimal fake <canvas> — createField only needs getContext()/offsetWidth/
+// offsetHeight/width/height, never the real DOM.
+function fakeCanvas(w = 100, h = 100) {
+  const ctx = {
+    fillStyle: '', strokeStyle: '', lineWidth: 0,
+    fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {},
+  }
+  return { offsetWidth: w, offsetHeight: h, width: 0, height: 0, getContext: () => ctx }
+}
+
+// node has no requestAnimationFrame/matchMedia — stub them around each case.
+function withFakeRaf(fn) {
+  let called = false
+  const origRaf = globalThis.requestAnimationFrame
+  const origCancel = globalThis.cancelAnimationFrame
+  globalThis.requestAnimationFrame = () => { called = true; return 1 }
+  globalThis.cancelAnimationFrame = () => {}
+  try {
+    fn(() => called)
+  } finally {
+    globalThis.requestAnimationFrame = origRaf
+    globalThis.cancelAnimationFrame = origCancel
+  }
+}
+
+test('createField with reducedMotion true never starts the rAF loop (static frame only)', () => {
+  withFakeRaf((rafWasCalled) => {
+    const field = createField(fakeCanvas(), { reducedMotion: true, count: 2 })
+    assert.equal(rafWasCalled(), false, 'autoStart must not schedule a frame')
+    field.start()
+    assert.equal(rafWasCalled(), false, 'explicit start() stays a no-op under reduced motion')
+  })
+})
+
+test('createField with reducedMotion false animates via requestAnimationFrame', () => {
+  withFakeRaf((rafWasCalled) => {
+    createField(fakeCanvas(), { reducedMotion: false, count: 2 })
+    assert.equal(rafWasCalled(), true)
+  })
 })

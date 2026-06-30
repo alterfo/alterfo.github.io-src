@@ -33,6 +33,19 @@ export function createParticles(count, w, h, palette = CANVAS_PALETTE) {
   return arr
 }
 
+// Pure: whether a MediaQueryList-like object signals prefers-reduced-motion.
+// Inject the matcher (a real MediaQueryList, or a `{ matches }` stub) so this
+// is testable under node --test, which has no DOM/matchMedia.
+export function prefersReducedMotion(mql) {
+  return !!(mql && mql.matches)
+}
+
+// Browser-only: read the live OS/browser preference via matchMedia.
+function osReducedMotion() {
+  if (typeof matchMedia !== 'function') return false
+  return prefersReducedMotion(matchMedia('(prefers-reduced-motion: reduce)'))
+}
+
 // Browser-only factory. opts:
 //   density        — pixels-of-width per particle (count = floor(w / density)); ignored if `count` set
 //   count          — explicit particle count, number or () => number (overrides density)
@@ -42,6 +55,8 @@ export function createParticles(count, w, h, palette = CANVAS_PALETTE) {
 //   lineWidth      — connection line width
 //   autoStart      — begin the rAF loop immediately (default true)
 //   getSize        — () => ({ w, h }); default reads canvas.offsetWidth/Height
+//   reducedMotion  — force the static-frame, no-rAF-loop gate; default reads
+//                    the live `prefers-reduced-motion` media query
 // returns { start(), stop(), resize(), destroy() }
 export function createField(canvas, opts = {}) {
   const {
@@ -53,6 +68,7 @@ export function createField(canvas, opts = {}) {
     lineWidth = 0.8,
     autoStart = true,
     getSize = null,
+    reducedMotion = osReducedMotion(),
   } = opts
 
   const ctx = canvas.getContext('2d')
@@ -111,6 +127,7 @@ export function createField(canvas, opts = {}) {
   }
 
   function start() {
+    if (reducedMotion) return
     if (raf != null) return
     raf = requestAnimationFrame(loop)
   }
