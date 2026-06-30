@@ -102,3 +102,37 @@ test('createField with reducedMotion false animates via requestAnimationFrame', 
     assert.equal(rafWasCalled(), true)
   })
 })
+
+// Both call sites omit `reducedMotion` and rely on createField's default,
+// which reads the live `prefers-reduced-motion` media query — stub matchMedia
+// to cover that default-wiring path, not just the explicit override above.
+function withFakeMatchMedia(matches, fn) {
+  const origMatchMedia = globalThis.matchMedia
+  globalThis.matchMedia = () => ({ matches })
+  try {
+    fn()
+  } finally {
+    if (origMatchMedia === undefined) delete globalThis.matchMedia
+    else globalThis.matchMedia = origMatchMedia
+  }
+}
+
+test('createField with no reducedMotion option defaults to the live prefers-reduced-motion query (true)', () => {
+  withFakeMatchMedia(true, () => {
+    withFakeRaf((rafWasCalled) => {
+      const field = createField(fakeCanvas(), { count: 2 })
+      assert.equal(rafWasCalled(), false, 'autoStart must not schedule a frame')
+      field.start()
+      assert.equal(rafWasCalled(), false, 'explicit start() stays a no-op')
+    })
+  })
+})
+
+test('createField with no reducedMotion option defaults to the live prefers-reduced-motion query (false)', () => {
+  withFakeMatchMedia(false, () => {
+    withFakeRaf((rafWasCalled) => {
+      createField(fakeCanvas(), { count: 2 })
+      assert.equal(rafWasCalled(), true)
+    })
+  })
+})

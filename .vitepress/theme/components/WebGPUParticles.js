@@ -312,7 +312,3 @@ export class WebGPUParticles {
     this.device = null;
   }
 }
-
-export function isWebGPUSupported() {
-  return !!navigator.gpu;
-}
