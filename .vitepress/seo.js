@@ -133,3 +133,31 @@ export function sitemapPriority(rel) {
   if (rel.startsWith('projects/')) return '0.7'
   return '0.6'
 }
+
+// Lazy app-root chunk basename -> the one page (relativePath) that actually
+// renders it. These six are reached via dynamic import() (defineAsyncComponent
+// in theme/index.mts, or Layout.vue's gpuAvailable()-gated WebGPUParticles
+// import) from every page's shared client entry, so without this VitePress
+// would tag all six as an eager <link rel="modulepreload"> on every single
+// page (incl. the home page, which renders none of them) - defeating the
+// lazy-load payload win documented in CLAUDE.md. WebGPUParticles has no
+// dedicated page (header animation, runtime-gated) so it's never eager.
+const LAZY_CHUNK_PAGE = {
+  IDEF0Editor: 'idef0.md',
+  Journal: 'journal.md',
+  Piano: 'piano.md',
+  OpenPoseEditor: 'openpose.md',
+  PlannerEditor: 'planner.md',
+  DecisionJournal: 'decision-journal.md',
+}
+const LAZY_CHUNK_RE = /\/(IDEF0Editor|Journal|Piano|OpenPoseEditor|PlannerEditor|DecisionJournal|WebGPUParticles)\.[^/]+\.js$/
+
+// VitePress's shouldPreload(link, page) hook (config.mts): false demotes a link
+// from an eager <link rel="modulepreload"> to a low-priority <link rel="prefetch">
+// (fetched on idle instead of contending with the current page's own resources).
+// Non-lazy-chunk links (vendor/runtime/page chunks) stay eager as before.
+export function shouldPreloadLink(link, page) {
+  const m = link.match(LAZY_CHUNK_RE)
+  if (!m) return true
+  return LAZY_CHUNK_PAGE[m[1]] === page
+}

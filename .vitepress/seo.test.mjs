@@ -13,6 +13,7 @@ import {
   jsonLdScript,
   sitemapPriority,
   TOOL_CATEGORY,
+  shouldPreloadLink,
 } from './seo.js'
 import { ALBUMS } from './theme/components/music.js'
 
@@ -170,6 +171,35 @@ test('SITE_HEAD: declares an SVG favicon, a PNG fallback, an apple-touch-icon an
 
 test('THEME_COLOR is a valid #rrggbb hex (mirrors --ds-void in vars.css)', () => {
   assert.match(THEME_COLOR, /^#[0-9a-f]{6}$/)
+})
+
+test('shouldPreloadLink: a lazy app-root chunk stays eager only on its own page', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'journal.md'), true)
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'index.md'), false)
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'piano.md'), false)
+})
+
+test('shouldPreloadLink: WebGPUParticles has no dedicated page, never eager', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/WebGPUParticles.DOdB0UkM.js', 'index.md'), false)
+  assert.equal(shouldPreloadLink('assets/chunks/WebGPUParticles.DOdB0UkM.js', 'journal.md'), false)
+})
+
+test('shouldPreloadLink: non-lazy-chunk links (vendor/runtime/page chunks) stay eager everywhere', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/runtime-core.esm-bundler.BcSW7cUG.js', 'index.md'), true)
+  assert.equal(shouldPreloadLink('assets/index.md.D5ONd-4T.lean.js', 'index.md'), true)
+})
+
+test('shouldPreloadLink: each tool app root chunk stays eager only on its own page', () => {
+  const cases = [
+    ['IDEF0Editor', 'idef0.md'],
+    ['OpenPoseEditor', 'openpose.md'],
+    ['PlannerEditor', 'planner.md'],
+    ['DecisionJournal', 'decision-journal.md'],
+  ]
+  for (const [chunk, page] of cases) {
+    assert.equal(shouldPreloadLink(`assets/chunks/${chunk}.hash.js`, page), true, `${chunk} eager on ${page}`)
+    assert.equal(shouldPreloadLink(`assets/chunks/${chunk}.hash.js`, 'index.md'), false, `${chunk} demoted on index.md`)
+  }
 })
 
 test('SITE_HEAD icon hrefs resolve to files actually vendored under public/ (no CDN, no dangling link)', () => {
