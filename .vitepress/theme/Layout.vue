@@ -6,9 +6,9 @@
         <canvas ref="canvasEl"></canvas>
 
         <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
-          <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
+          <button type="button" @click="animateHeader = !animateHeader">
             {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
-          </a>
+          </button>
         </div>
 
         <div
@@ -223,15 +223,21 @@ watch(animateHeader, val => {
   z-index: 2;
 }
 
-.site-header .animation-toggler a {
+.site-header .animation-toggler button {
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--ds-border);
+  margin: 0;
+  padding: 0;
+  font: inherit;
   color: var(--ds-text-muted);
   font-size: 0.825em;
   text-decoration: none;
-  border-bottom: 1px dotted var(--ds-border);
+  cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
 
-.site-header .animation-toggler a:hover {
+.site-header .animation-toggler button:hover {
   color: var(--ds-text-strong);
   border-color: var(--ds-cyan);
 }

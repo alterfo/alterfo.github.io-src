@@ -162,6 +162,11 @@ onMounted(async () => {
   cursor: default;
 }
 
+.segment:focus-visible {
+  outline: 2px solid var(--seg-color);
+  outline-offset: 4px;
+}
+
 /* Faint full-radius track that shows the «empty» part of each sphere. */
 .seg-bg {
   fill: var(--seg-color);
@@ -257,6 +262,11 @@ onMounted(async () => {
 
 .ship-engine {
   fill: var(--ds-text-muted);
+}
+
+.center-mark:focus-visible {
+  outline: 2px solid var(--ds-text);
+  outline-offset: 4px;
 }
 
 .center-mark:hover {
