@@ -95,8 +95,13 @@ function initWebGPU(): Promise<boolean> {
   if (!canvasEl.value || !gpuAvailable()) return Promise.resolve(false)
   if (shouldStartInit(webgpuInit)) {
     boundEl = canvasEl.value
+    // Capture identity: the dynamic import() opens an async gap during which
+    // watch(canvasEl) can reset boundEl/particles for a SPA navigation. Without
+    // this check the orphaned .then would still construct WebGPUParticles
+    // against whatever canvas is current, racing a fresh init started by the reset.
+    const initFor = boundEl
     webgpuInit = import('./components/WebGPUParticles.js').then(({ WebGPUParticles }) => {
-      if (!canvasEl.value) return false
+      if (canvasEl.value !== initFor) return false
       particles = new WebGPUParticles(canvasEl.value)
       return particles.init(width, height)
     }).then((success: boolean) => {
