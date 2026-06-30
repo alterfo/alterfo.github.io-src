@@ -30,6 +30,20 @@ test('headerAction: WebGPU flagged active but instance not constructed yet -> no
   assert.equal(headerAction({ useWebGPU: true, gpuAvailable: true, hasParticles: false }), 'noop')
 })
 
+test('headerAction: reduced motion routes away from WebGPU even when a device is available', () => {
+  assert.equal(
+    headerAction({ useWebGPU: false, gpuAvailable: true, hasParticles: false, reducedMotion: true }),
+    'field-2d'
+  )
+})
+
+test('headerAction: reduced motion does not interrupt an already-live WebGPU instance', () => {
+  assert.equal(
+    headerAction({ useWebGPU: true, gpuAvailable: true, hasParticles: true, reducedMotion: true }),
+    'reseed-render'
+  )
+})
+
 test('shouldResetForNewCanvas: first mount (no prior bound element) does not reset', () => {
   assert.equal(shouldResetForNewCanvas(null, {}), false)
 })

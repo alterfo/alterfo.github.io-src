@@ -17,8 +17,13 @@ export function shouldStartInit(existingInit) {
 // fallback), 'reseed-render' (resize+reseed+render the live WebGPU
 // instance on SPA navigation), 'noop' (WebGPU flagged active but the
 // instance isn't constructed yet — init() is still in flight).
-export function headerAction({ useWebGPU, gpuAvailable, hasParticles }) {
-  if (!useWebGPU && gpuAvailable) return 'init'
+//
+// reducedMotion routes away from 'init' even when a GPU is available:
+// WebGPUParticles has no reduced-motion gate of its own (unlike the 2D
+// field), so the only way to honor prefers-reduced-motion on a WebGPU-
+// capable browser is to never pick the WebGPU branch in the first place.
+export function headerAction({ useWebGPU, gpuAvailable, hasParticles, reducedMotion }) {
+  if (!useWebGPU && gpuAvailable && !reducedMotion) return 'init'
   if (!useWebGPU) return 'field-2d'
   if (hasParticles) return 'reseed-render'
   return 'noop'

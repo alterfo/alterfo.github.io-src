@@ -45,6 +45,8 @@ Mini replica of the LifeCircle wheel (8 sphere arcs). Used as home link in every
 
 Both call sites get the reduced-motion gate for free (no call-site changes needed) since `reducedMotion` defaults to the live media query inside `createField` itself.
 
+`WebGPUParticles.js` has no reduced-motion awareness of its own — its `start()` always runs the rAF loop. So on a WebGPU-capable browser, the gate has to happen one level up: `Layout.vue`'s `reducedMotionPreferred()` (reuses the exported `prefersReducedMotion` pure helper) feeds into `headerAction()` in `headerLifecycle.js`, which routes reduced-motion sessions to `'field-2d'` instead of `'init'` so the WebGPU branch is never taken at all.
+
 ### Countdown «1000 дней роста»
 
 `CountDown.vue` — 4 progress rings. Mounted in Portfolio hero (`<CountDown :countdownDays="1000" />`). **Do not pass `startDate`** (epoch hardcoded at 23/03/2025). Pure math in `countdown.js`, tested in `countdown.test.mjs`.

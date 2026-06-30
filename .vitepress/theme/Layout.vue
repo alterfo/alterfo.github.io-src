@@ -33,7 +33,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
-import { createField } from './components/ConnectingParticles.js'
+import { createField, prefersReducedMotion } from './components/ConnectingParticles.js'
 import { shouldStartInit, headerAction, shouldResetForNewCanvas } from './components/headerLifecycle.js'
 import Portfolio from './Portfolio.vue'
 
@@ -41,6 +41,13 @@ import Portfolio from './Portfolio.vue'
 // (shaders + render/compute pipeline code) just to find out WebGPU is unsupported.
 function gpuAvailable() {
   return typeof navigator !== 'undefined' && !!navigator.gpu
+}
+
+// WebGPUParticles has no reduced-motion gate of its own, so headerAction()
+// uses this to route reduced-motion users to the (already-gated) 2D field
+// instead of ever picking the WebGPU branch.
+function reducedMotionPreferred() {
+  return typeof matchMedia === 'function' && prefersReducedMotion(matchMedia('(prefers-reduced-motion: reduce)'))
 }
 
 const DefaultLayout = DefaultTheme.Layout
@@ -127,7 +134,12 @@ function initHeader() {
   canvasEl.value.width = width
   canvasEl.value.height = height
 
-  const action = headerAction({ useWebGPU, gpuAvailable: gpuAvailable(), hasParticles: !!particles })
+  const action = headerAction({
+    useWebGPU,
+    gpuAvailable: gpuAvailable(),
+    hasParticles: !!particles,
+    reducedMotion: reducedMotionPreferred(),
+  })
   if (action === 'init') {
     initWebGPU().then(success => {
       if (success) {
