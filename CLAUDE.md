@@ -64,6 +64,7 @@ node --test .vitepress/theme/components/onboarding.test.mjs
 - **`vitepress preview` 404s new hashed assets after rebuild** — restart preview after every build.
 - **CDP debugging**: `chrome --headless=new --remote-debugging-port=N --user-data-dir=/tmp/x about:blank`; create tab via `/json/new?url=about:blank` then `Page.navigate`; subscribe to `Runtime.exceptionThrown`; WebGPU canvases only via `Page.captureScreenshot`.
 - Plan files: `docs/plans/` (git-ignored, local only).
+- **Known deferred advisory**: GHSA-67mh-4wv8-2f99 (esbuild ≤0.24.2 dev-server CORS) surfaces as 3 `npm audit` findings via `esbuild → vite → vitepress 1.6.4`. Dev-server only — the deployed static site is unaffected. No fix in vitepress 1.x; re-evaluate when vitepress 2.0 stable ships.
 
 ## Code intelligence — GitNexus
 
