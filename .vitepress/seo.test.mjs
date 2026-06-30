@@ -1,16 +1,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   SITE_URL,
   EXTRA_URLS,
+  SITE_HEAD,
+  THEME_COLOR,
   canonicalPath,
   canonicalFor,
   jsonLdFor,
   jsonLdScript,
   sitemapPriority,
   TOOL_CATEGORY,
+  shouldPreloadLink,
 } from './seo.js'
 import { ALBUMS } from './theme/components/music.js'
+
+const publicDir = fileURLToPath(new URL('../public/', import.meta.url))
 
 test('canonicalPath: root index collapses to /', () => {
   assert.equal(canonicalPath('index.md'), '/')
@@ -138,5 +145,67 @@ test('EXTRA_URLS: static sub-apps (/ar/) are in the sitemap URL set', () => {
 test('sitemap <loc> matches the page canonical for every page type (no drift)', () => {
   for (const rel of ['index.md', 'blog/index.md', 'idef0.md', 'projects/ar-engine.md', 'posts/2020-01-01-x.md']) {
     assert.equal(canonicalFor(rel), SITE_URL + canonicalPath(rel))
+  }
+})
+
+test('SITE_HEAD: declares an SVG favicon, a PNG fallback, an apple-touch-icon and theme-color', () => {
+  const find = (tag, attrMatch) => SITE_HEAD.find(([t, a]) => t === tag && Object.entries(attrMatch).every(([k, v]) => a[k] === v))
+
+  const svgIcon = find('link', { rel: 'icon', type: 'image/svg+xml' })
+  assert.ok(svgIcon, 'SVG favicon link present')
+  assert.equal(svgIcon[1].href, '/home-wheel.svg')
+
+  const pngIcon = find('link', { rel: 'icon', type: 'image/png' })
+  assert.ok(pngIcon, 'PNG favicon fallback present')
+  assert.equal(pngIcon[1].href, '/favicon.png')
+
+  const appleIcon = find('link', { rel: 'apple-touch-icon' })
+  assert.ok(appleIcon, 'apple-touch-icon present')
+  assert.equal(appleIcon[1].href, '/apple-touch-icon.png')
+  assert.equal(appleIcon[1].sizes, '180x180')
+
+  const themeColor = find('meta', { name: 'theme-color' })
+  assert.ok(themeColor, 'theme-color meta present')
+  assert.equal(themeColor[1].content, THEME_COLOR)
+})
+
+test('THEME_COLOR is a valid #rrggbb hex (mirrors --ds-void in vars.css)', () => {
+  assert.match(THEME_COLOR, /^#[0-9a-f]{6}$/)
+})
+
+test('shouldPreloadLink: a lazy app-root chunk stays eager only on its own page', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'journal.md'), true)
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'index.md'), false)
+  assert.equal(shouldPreloadLink('assets/chunks/Journal.B6-X7JVB.js', 'piano.md'), false)
+})
+
+test('shouldPreloadLink: WebGPUParticles has no dedicated page, never eager', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/WebGPUParticles.DOdB0UkM.js', 'index.md'), false)
+  assert.equal(shouldPreloadLink('assets/chunks/WebGPUParticles.DOdB0UkM.js', 'journal.md'), false)
+})
+
+test('shouldPreloadLink: non-lazy-chunk links (vendor/runtime/page chunks) stay eager everywhere', () => {
+  assert.equal(shouldPreloadLink('assets/chunks/runtime-core.esm-bundler.BcSW7cUG.js', 'index.md'), true)
+  assert.equal(shouldPreloadLink('assets/index.md.D5ONd-4T.lean.js', 'index.md'), true)
+})
+
+test('shouldPreloadLink: each tool app root chunk stays eager only on its own page', () => {
+  const cases = [
+    ['IDEF0Editor', 'idef0.md'],
+    ['OpenPoseEditor', 'openpose.md'],
+    ['PlannerEditor', 'planner.md'],
+    ['DecisionJournal', 'decision-journal.md'],
+  ]
+  for (const [chunk, page] of cases) {
+    assert.equal(shouldPreloadLink(`assets/chunks/${chunk}.hash.js`, page), true, `${chunk} eager on ${page}`)
+    assert.equal(shouldPreloadLink(`assets/chunks/${chunk}.hash.js`, 'index.md'), false, `${chunk} demoted on index.md`)
+  }
+})
+
+test('SITE_HEAD icon hrefs resolve to files actually vendored under public/ (no CDN, no dangling link)', () => {
+  for (const [tag, attrs] of SITE_HEAD) {
+    if (tag !== 'link' || !attrs.href) continue
+    assert.ok(!/^https?:\/\//.test(attrs.href), `${attrs.href} must be a local path, not a remote URL`)
+    assert.ok(existsSync(publicDir + attrs.href.replace(/^\//, '')), `${attrs.href} must exist under public/`)
   }
 })

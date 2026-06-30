@@ -6,9 +6,9 @@
         <canvas ref="canvasEl"></canvas>
 
         <div :class="`animation-toggler ${animateHeader ? 'top-1' : 'top-2'}`">
-          <a href="javascript:void(0)" @click="animateHeader = !animateHeader">
+          <button type="button" @click="animateHeader = !animateHeader">
             {{ animateHeader ? 'Выключить анимацию!' : 'Включить анимацию!' }}
-          </a>
+          </button>
         </div>
 
         <div
@@ -33,9 +33,22 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
-import { WebGPUParticles, isWebGPUSupported } from './components/WebGPUParticles.js'
-import { createField } from './components/ConnectingParticles.js'
+import { createField, prefersReducedMotion } from './components/ConnectingParticles.js'
+import { shouldStartInit, headerAction, shouldResetForNewCanvas } from './components/headerLifecycle.js'
 import Portfolio from './Portfolio.vue'
+
+// Cheap capability check, kept inline so it never pulls in WebGPUParticles.js
+// (shaders + render/compute pipeline code) just to find out WebGPU is unsupported.
+function gpuAvailable() {
+  return typeof navigator !== 'undefined' && !!navigator.gpu
+}
+
+// WebGPUParticles has no reduced-motion gate of its own, so headerAction()
+// uses this to route reduced-motion users to the (already-gated) 2D field
+// instead of ever picking the WebGPU branch.
+function reducedMotionPreferred() {
+  return typeof matchMedia === 'function' && prefersReducedMotion(matchMedia('(prefers-reduced-motion: reduce)'))
+}
 
 const DefaultLayout = DefaultTheme.Layout
 
@@ -86,11 +99,19 @@ function ensureField2D() {
 let webgpuInit: Promise<boolean> | null = null
 
 function initWebGPU(): Promise<boolean> {
-  if (!canvasEl.value || !isWebGPUSupported()) return Promise.resolve(false)
-  if (!webgpuInit) {
+  if (!canvasEl.value || !gpuAvailable()) return Promise.resolve(false)
+  if (shouldStartInit(webgpuInit)) {
     boundEl = canvasEl.value
-    particles = new WebGPUParticles(canvasEl.value)
-    webgpuInit = particles.init(width, height).then((success: boolean) => {
+    // Capture identity: the dynamic import() opens an async gap during which
+    // watch(canvasEl) can reset boundEl/particles for a SPA navigation. Without
+    // this check the orphaned .then would still construct WebGPUParticles
+    // against whatever canvas is current, racing a fresh init started by the reset.
+    const initFor = boundEl
+    webgpuInit = import('./components/WebGPUParticles.js').then(({ WebGPUParticles }) => {
+      if (canvasEl.value !== initFor) return false
+      particles = new WebGPUParticles(canvasEl.value)
+      return particles.init(width, height)
+    }).then((success: boolean) => {
       if (success) useWebGPU = true
       return success
     })
@@ -113,7 +134,13 @@ function initHeader() {
   canvasEl.value.width = width
   canvasEl.value.height = height
 
-  if (!useWebGPU && isWebGPUSupported()) {
+  const action = headerAction({
+    useWebGPU,
+    gpuAvailable: gpuAvailable(),
+    hasParticles: !!particles,
+    reducedMotion: reducedMotionPreferred(),
+  })
+  if (action === 'init') {
     initWebGPU().then(success => {
       if (success) {
         particles.render()
@@ -121,15 +148,16 @@ function initHeader() {
         ensureField2D()
       }
     })
-  } else if (!useWebGPU) {
+  } else if (action === 'field-2d') {
     ensureField2D()
-  } else if (particles) {
+  } else if (action === 'reseed-render') {
     particles.resize(width, height)
     // Пересев на каждую страницу — по задумке узор частиц везде разный
     // (раньше это давала полная перезагрузка, теперь буфер живёт между SPA-переходами)
     particles.reseed()
     particles.render()
   }
+  // action === 'noop': WebGPU flagged active but init() is still in flight
 }
 
 function disableWhenScrolledHalf() {
@@ -158,7 +186,7 @@ onBeforeUnmount(() => {
 // повторном входе в блог шапка оставалась пустой. Новый элемент = полный сброс.
 watch(canvasEl, (el) => {
   if (!el) return
-  if (boundEl && el !== boundEl) {
+  if (shouldResetForNewCanvas(boundEl, el)) {
     if (particles && particles.destroy) particles.destroy()
     particles = null
     useWebGPU = false
@@ -215,15 +243,21 @@ watch(animateHeader, val => {
   z-index: 2;
 }
 
-.site-header .animation-toggler a {
+.site-header .animation-toggler button {
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--ds-border);
+  margin: 0;
+  padding: 0;
+  font: inherit;
   color: var(--ds-text-muted);
   font-size: 0.825em;
   text-decoration: none;
-  border-bottom: 1px dotted var(--ds-border);
+  cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
 
-.site-header .animation-toggler a:hover {
+.site-header .animation-toggler button:hover {
   color: var(--ds-text-strong);
   border-color: var(--ds-cyan);
 }

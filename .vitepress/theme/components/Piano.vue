@@ -579,7 +579,7 @@ onUnmounted(() => {
 
       <button
         v-if="userScores.find(s => s.id === selectedScoreId)"
-        class="tb-btn" title="Удалить импортированную пьесу"
+        class="tb-btn" title="Удалить импортированную пьесу" aria-label="Удалить импортированную пьесу"
         @click="deleteImportedScore(selectedScoreId)">✕</button>
 
       <button class="tb-btn" @click="triggerImport" title="Импортировать пьесу (MusicXML / MIDI / ABC)">⬆ Импорт</button>
@@ -600,7 +600,7 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <button :class="['metro-btn', { active: metronomeOn }]" @click="metronomeOn = !metronomeOn" title="Метроном">
+      <button :class="['metro-btn', { active: metronomeOn }]" @click="metronomeOn = !metronomeOn" title="Метроном" aria-label="Метроном">
         <span v-for="i in currentScore.timeSignature[0]" :key="i"
               :class="['metro-dot', { pulse: metronomeOn && beatPhase === i - 1 }]"></span>
       </button>
@@ -614,7 +614,7 @@ onUnmounted(() => {
         {{ samplerLoading ? 'Загрузка…' : audioMode === 'sampler' ? 'HD ✓' : samplerError ? 'HD ✗' : 'HD звук' }}
       </button>
 
-      <button class="tb-btn" @click="showHelp = true" title="Справка">?</button>
+      <button class="tb-btn" @click="showHelp = true" title="Справка" aria-label="Справка">?</button>
 
       <span class="piano-midi-status" :class="midiStatus">{{ midiLabel }}</span>
     </div>
@@ -627,7 +627,7 @@ onUnmounted(() => {
     <!-- ── Import error banner ──────────────────────────────── -->
     <div v-if="importError" class="piano-import-error">
       {{ importError }}
-      <button class="import-error-close" @click="importError = ''">✕</button>
+      <button class="import-error-close" @click="importError = ''" aria-label="Закрыть ошибку">✕</button>
     </div>
 
     <!-- ── MIDI time-signature dialog ───────────────────────── -->

@@ -575,7 +575,7 @@ onUnmounted(() => {
           <div class="dj-footer-actions">
             <button class="dj-btn-sm" @click="onExport">Экспорт</button>
             <button class="dj-btn-sm" @click="onImport">Импорт</button>
-            <button class="dj-btn-sm dj-help-btn" title="Справка" @click="showHelp = true">?</button>
+            <button class="dj-btn-sm dj-help-btn" title="Справка" aria-label="Справка" @click="showHelp = true">?</button>
           </div>
 
           <!-- Hidden picker for .decisions import -->
@@ -645,7 +645,7 @@ onUnmounted(() => {
             <span class="dj-field-label">Варианты</span>
             <div v-for="(opt, i) in draft.options" :key="i" class="dj-option-row">
               <input v-model="draft.options[i]" class="dj-text" :placeholder="`Вариант ${i + 1}`" />
-              <button class="dj-option-del" title="Убрать вариант" @click="removeOption(i)">✕</button>
+              <button class="dj-option-del" title="Убрать вариант" aria-label="Убрать вариант" @click="removeOption(i)">✕</button>
             </div>
             <button class="dj-add-option" @click="addOption">+ Вариант</button>
           </div>

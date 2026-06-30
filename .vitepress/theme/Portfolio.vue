@@ -396,7 +396,8 @@ onBeforeUnmount(() => {
 
 .exp-list li {
   font-size: 0.88rem;
-  color: rgba(200, 180, 255, 0.65);
+  /* 0.8 alpha over --ds-surface ≈ 7:1 contrast — WCAG AA (4.5:1) for body text */
+  color: rgba(200, 180, 255, 0.8);
   line-height: 1.5;
   padding-left: 1rem;
   position: relative;
@@ -417,7 +418,8 @@ onBeforeUnmount(() => {
   padding: 1.5rem;
   text-align: center;
   font-size: 0.8rem;
-  color: rgba(200, 180, 255, 0.3);
+  /* 0.7 alpha over --ds-surface ≈ 5.6:1 contrast — WCAG AA (4.5:1) for body text */
+  color: rgba(200, 180, 255, 0.7);
   letter-spacing: 0.08em;
   display: flex;
   align-items: center;
@@ -426,13 +428,14 @@ onBeforeUnmount(() => {
 }
 
 .site-footer a {
-  color: rgba(200, 180, 255, 0.4);
+  /* 0.78 alpha ≈ 6.8:1 — stays above the plain footer text for link affordance */
+  color: rgba(200, 180, 255, 0.78);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .site-footer a:hover {
-  color: rgba(200, 180, 255, 0.8);
+  color: rgba(200, 180, 255, 0.95);
 }
 
 .footer-sep {

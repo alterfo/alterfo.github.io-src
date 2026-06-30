@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { SITE_URL, EXTRA_URLS, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority } from './seo.js'
+import { SITE_URL, EXTRA_URLS, SITE_HEAD, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority, shouldPreloadLink } from './seo.js'
 import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
 
 function redirectHtml(target: string): string {
@@ -28,6 +28,10 @@ export default defineConfig({
   // Сайт тёмный по дизайн-системе «Spiral», светлой темы нет и не планируется —
   // прибиваем тёмную и убираем переключатель sun/moon из шапки блога.
   appearance: 'force-dark',
+  head: SITE_HEAD,
+  // Demotes the lazy app-root/WebGPU chunks from modulepreload to prefetch on every
+  // page except the one that actually renders them — see shouldPreloadLink in seo.js.
+  shouldPreload: shouldPreloadLink,
   markdown: {
     config(md) {
       // Русская типографика: в текстовых токенах пробел перед «—» → U+00A0,

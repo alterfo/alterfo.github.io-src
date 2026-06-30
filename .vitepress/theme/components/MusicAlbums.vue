@@ -36,6 +36,8 @@ function togglePlayer(id) {
               type="button"
               class="btn-listen"
               :class="{ active: expandedId === album.id }"
+              :aria-expanded="expandedId === album.id"
+              :aria-controls="`player-${album.id}`"
               @click="togglePlayer(album.id)"
             >{{ expandedId === album.id ? '✕ Закрыть плеер' : '▶ Слушать здесь' }}</button>
             <a
@@ -47,7 +49,7 @@ function togglePlayer(id) {
           </div>
         </div>
       </div>
-      <div v-if="expandedId === album.id" class="player-wrap">
+      <div v-if="expandedId === album.id" :id="`player-${album.id}`" class="player-wrap">
         <iframe
           :src="embedUrl(album.id)"
           :title="`Плеер: ${album.title}`"

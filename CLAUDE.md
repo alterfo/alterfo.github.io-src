@@ -22,16 +22,18 @@ Plus two **external apps served as subpaths** (not in-tree client apps, copied i
 | `.vitepress/config.mts` | VitePress config, SEO hooks, sitemap |
 | `.vitepress/theme/index.mts` | Theme entry: global component registration |
 | `.vitepress/theme/components/crypto.js` | Shared WebCrypto substrate (PBKDF2 → AES-GCM); reused by journal, planner, decisions |
-| `.vitepress/theme/components/IDEF0Editor.vue` | IDEF0 root (`<ClientOnly>`); modules in `IDEF0Editor/` |
-| `.vitepress/theme/components/Journal.vue` | Journal root (`<ClientOnly>`); modules in `Journal/` |
+| `.vitepress/theme/components/IDEF0Editor.vue` | IDEF0 root (`<ClientOnly>`, `defineAsyncComponent`); modules in `IDEF0Editor/` |
+| `.vitepress/theme/components/Journal.vue` | Journal root (`<ClientOnly>`, `defineAsyncComponent`); modules in `Journal/` |
 | `.vitepress/theme/components/Piano.vue` | Piano root (`defineAsyncComponent`); modules in `Piano/` |
-| `.vitepress/theme/components/OpenPoseEditor.vue` | OpenPose root (static); modules in `OpenPose/` |
-| `.vitepress/theme/components/PlannerEditor.vue` | Planner root (static); modules in `Planner/` |
-| `.vitepress/theme/components/DecisionJournal.vue` | Decisions root (static); modules in `Decisions/` |
+| `.vitepress/theme/components/OpenPoseEditor.vue` | OpenPose root (`defineAsyncComponent`); modules in `OpenPose/` |
+| `.vitepress/theme/components/PlannerEditor.vue` | Planner root (`defineAsyncComponent`); modules in `Planner/` |
+| `.vitepress/theme/components/DecisionJournal.vue` | Decisions root (`defineAsyncComponent`); modules in `Decisions/` |
 | `.vitepress/theme/components/MusicAlbums.vue` | Music page component |
 | `.vitepress/theme/components/spectrum.js` | Design system JS mirror (palette, CANVAS_PALETTE, PROJECT_COLORS) |
 | `posts.data.ts` | VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts excerpt |
 | `blog.md` | Blog listing page at `/blog` — uses `<BlogList :posts="posts" />` |
+
+All six app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
 
 For detailed docs on each app, see `CLAUDE.md` in the relevant module subfolder.
 For design system, SEO, typography, and VitePress gotchas, see `.vitepress/CLAUDE.md`.
@@ -54,7 +56,7 @@ node --test .vitepress/theme/components/OpenPose/*.test.mjs
 node --test .vitepress/theme/components/Planner/store.test.mjs
 node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs
 node --test .vitepress/theme/components/music.test.mjs
-node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs
+node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs
 node --test .vitepress/seo.test.mjs
 node --test .vitepress/theme/components/onboarding.test.mjs
 ```
