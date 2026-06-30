@@ -9,6 +9,24 @@ import { ALBUMS, ARTIST } from './theme/components/music.js'
 export const SITE_URL = 'https://alterfo.github.io'
 export const AUTHOR = 'Oleg Sidorkin'
 
+// Mirrors --ds-void in theme/styles/vars.css (page background; site is dark-only,
+// see appearance: 'force-dark' in config.mts) — used for the mobile chrome theme-color.
+export const THEME_COLOR = '#0a0020'
+
+// Site-wide <head> tags (favicon family + theme-color), static across all pages so
+// they live here as plain data rather than in transformPageData (which is per-page).
+// Icon source is public/home-wheel.svg — the actual «колесо жизни» brand mark (already
+// the nav logo), not public/og-source.svg (that's the 1200×630 OG social card, wrong
+// shape for an icon). apple-touch-icon.png / favicon.png are PNG rasters of the same
+// SVG (iOS/old browsers don't do SVG favicons) generated via headless Chrome, same
+// vendoring approach the OG image already uses — see .vitepress/CLAUDE.md.
+export const SITE_HEAD = [
+  ['link', { rel: 'icon', type: 'image/svg+xml', href: '/home-wheel.svg' }],
+  ['link', { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon.png' }],
+  ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
+  ['meta', { name: 'theme-color', content: THEME_COLOR }],
+]
+
 // Static sub-apps served from dist/<subpath>/ that VitePress doesn't know about
 // (not in siteConfig.pages) — appended to the sitemap in buildEnd at priority 0.8.
 // `/vacuum-rogues/` is intentionally NOT listed: it isn't deployed yet (no placeholder),
