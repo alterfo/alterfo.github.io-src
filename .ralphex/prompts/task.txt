@@ -1,0 +1,66 @@
+# task execution prompt — alterfo.github.io-src (project-local override)
+# this prompt is used for each task iteration in phase 1
+#
+# available variables:
+#   {{PLAN_FILE}} - path to the plan file being executed
+#   {{PROGRESS_FILE}} - path to the progress log file
+#   {{GOAL}} - human-readable goal description
+#   {{DEFAULT_BRANCH}} - default branch name (main, master, trunk, etc.)
+#
+# NOTE: this file FULLY REPLACES the global/embedded task prompt. Keep every
+# {{...}} variable and every <<<RALPHEX:...>>> signal intact.
+
+Read the plan file at {{PLAN_FILE}}. Find the FIRST Task section (### Task N: or ### Iteration N:) that has uncompleted checkboxes ([ ]).
+
+If NO Task section has [ ] but ## Success criteria, ## Overview, or ## Context still has [ ]: either satisfy those items and mark them [x] if actionable, or output <<<RALPHEX:ALL_TASKS_DONE>>> if they are verification-only (manual testing, deployment, etc.) — do not loop indefinitely when remaining items are not actionable by you.
+
+If a Task section has [ ] checkboxes you cannot complete (manual testing, deployment verification, external checks): mark them [x] with a note like "[x] manual test (skipped - not automatable)" and proceed. Do not loop indefinitely on non-automatable items inside Task sections.
+
+NOTE: Progress is logged to {{PROGRESS_FILE}} - this file contains detailed execution steps and can be reviewed for debugging.
+
+CRITICAL CONSTRAINT: Complete ONE Task section per iteration.
+A Task section is a "### Task N:" or "### Iteration N:" header with all its checkboxes underneath.
+Complete ALL checkboxes in that section, then STOP.
+Do NOT continue to the next section - the external loop will call you again for it.
+
+PROJECT CONTEXT (alterfo.github.io-src):
+VitePress static site with fully client-side apps (idef0, journal, piano, openpose, planner, decision-journal, music) plus two external apps served as subpaths (/ar, /vacuum-rogues). Read the repo-root CLAUDE.md AND the CLAUDE.md inside the module subfolder you are touching before implementing. This repo is GitNexus-indexed: prefer mcp__gitnexus__* over grep. Before editing a symbol run impact({target, direction:"upstream"}); explore with query/context; rename symbols with the rename tool, not find-replace.
+
+PROJECT RULES — hard invariants, never violate them:
+- Package manager is npm, NOT yarn (yarn is broken in this repo). Use `npm run dev` / `npm run build`. Never re-add yarn.lock, .yarnrc.yml, or a packageManager field.
+- No CDN at runtime. Vendor third-party libraries locally or use a native browser API. Never load a library or asset from a CDN URL at runtime.
+- No plaintext projection of E2EE data. journal, planner, and decision-journal are end-to-end encrypted (WebCrypto AES-GCM via .vitepress/theme/components/crypto.js). Never add a filesystem bridge, cache, log, or export that writes decrypted user data to disk — even for agent/debug convenience. Privacy over feature.
+- UI must derive from the "Spiral" design system (.vitepress/theme/components/spectrum.js palette; see .vitepress/CLAUDE.md). Do NOT introduce generic "Claude Code"-style chrome (e.g. a "← Главная" pill).
+- Russian-language typography: a non-breaking space (U+00A0) goes before an em dash «—». In markdown this is handled by a rule in .vitepress/config.mts; in hand-written UI strings do it by hand. NBSP is fragile in editors/shell — verify with charCodeAt when unsure.
+- Articles/blog: tool docs use no first person and no personal stories — facts only. Do NOT author or modify blog post content unless the plan explicitly says so; blog content needs the author's review.
+
+STEP 0 - ANNOUNCE:
+Before starting work, output a brief overview (up to 200 words) explaining:
+- Which task number you picked and its title
+- What the task will accomplish
+- Key files or components involved
+
+STEP 1 - IMPLEMENT:
+- Read the plan's Overview and Context sections plus the relevant module CLAUDE.md
+- Implement ALL items in the current Task section (all [ ] checkboxes under it)
+- Write tests for the implementation (node --test, *.test.mjs alongside the module)
+- Apps render client-side: keep app roots inside <ClientOnly> / defineAsyncComponent and never touch window/document/navigator at module top level — that code runs during the VitePress SSR build.
+
+STEP 2 - VALIDATE:
+- This project has NO linter and NO single `npm test` script. Validate with:
+  - the relevant `node --test .vitepress/theme/components/<Module>/*.test.mjs` suites for the code you touched (full list under "Development" in the root CLAUDE.md), AND
+  - `npm run build` — the VitePress build is the integration/SSR gate and MUST pass.
+- Fix any failures, repeat until the touched test suites pass and the build succeeds.
+
+STEP 3 - COMPLETE (after validation passes):
+- Update progress: edit {{PLAN_FILE}} and change [ ] to [x] for each checkbox you implemented in the current Task section. If Task sections are complete but ## Success criteria, ## Overview, or ## Context has [ ] items that the implementation satisfies, mark them [x] in this same edit to avoid extra loop iterations. If any such items are NOT satisfied, do NOT mark them and do NOT output ALL_TASKS_DONE — continue to the next iteration to address them.
+- Commit all changes (code + updated plan) with a conventional-commit message: feat: <brief task description> (or fix:/test:/i18n: as appropriate). Do NOT push and do NOT open a PR — only master lives on origin; merging to master happens separately after the run.
+- Check if any [ ] checkboxes remain in Task sections (### Task N: or ### Iteration N:)
+- If NO more [ ] checkboxes in the entire plan, output exactly: <<<RALPHEX:ALL_TASKS_DONE>>>
+- If more Task sections have [ ] checkboxes, STOP HERE - do not continue
+
+If any phase fails after reasonable fix attempts, output exactly: <<<RALPHEX:TASK_FAILED>>>
+
+REMINDER: ONE section (Task/Iteration) per loop cycle. After commit, STOP and let the loop handle the next section.
+
+OUTPUT FORMAT: No markdown formatting (no **bold**, `code`, # headers). Plain text and - lists are fine. Do not echo phase names or step numbers - just do the work.

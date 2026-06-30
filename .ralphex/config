@@ -1,0 +1,12 @@
+# Project-local ralphex config — alterfo.github.io-src
+#
+# Only project-specific overrides are uncommented here. Every other field falls
+# back to the global config (~/.config/ralphex/) and then to embedded defaults.
+# Local values override global per-field; this file does NOT replace the global
+# config wholesale.
+
+# codex is not installed in this environment and this project never uses it.
+# Disabling it explicitly skips the external review phase (phase 3) by intent and
+# suppresses the "codex not found" warning on every run. The review prompts in
+# .ralphex/prompts/ are written for the claude executor only, matching this.
+codex_enabled = false
