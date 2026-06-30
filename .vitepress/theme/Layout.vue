@@ -34,6 +34,7 @@ import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import CountDown from './components/CountDown.vue'
 import { createField } from './components/ConnectingParticles.js'
+import { shouldStartInit, headerAction, shouldResetForNewCanvas } from './components/headerLifecycle.js'
 import Portfolio from './Portfolio.vue'
 
 // Cheap capability check, kept inline so it never pulls in WebGPUParticles.js
@@ -92,7 +93,7 @@ let webgpuInit: Promise<boolean> | null = null
 
 function initWebGPU(): Promise<boolean> {
   if (!canvasEl.value || !gpuAvailable()) return Promise.resolve(false)
-  if (!webgpuInit) {
+  if (shouldStartInit(webgpuInit)) {
     boundEl = canvasEl.value
     webgpuInit = import('./components/WebGPUParticles.js').then(({ WebGPUParticles }) => {
       if (!canvasEl.value) return false
@@ -121,7 +122,8 @@ function initHeader() {
   canvasEl.value.width = width
   canvasEl.value.height = height
 
-  if (!useWebGPU && gpuAvailable()) {
+  const action = headerAction({ useWebGPU, gpuAvailable: gpuAvailable(), hasParticles: !!particles })
+  if (action === 'init') {
     initWebGPU().then(success => {
       if (success) {
         particles.render()
@@ -129,15 +131,16 @@ function initHeader() {
         ensureField2D()
       }
     })
-  } else if (!useWebGPU) {
+  } else if (action === 'field-2d') {
     ensureField2D()
-  } else if (particles) {
+  } else if (action === 'reseed-render') {
     particles.resize(width, height)
     // Пересев на каждую страницу — по задумке узор частиц везде разный
     // (раньше это давала полная перезагрузка, теперь буфер живёт между SPA-переходами)
     particles.reseed()
     particles.render()
   }
+  // action === 'noop': WebGPU flagged active but init() is still in flight
 }
 
 function disableWhenScrolledHalf() {
@@ -166,7 +169,7 @@ onBeforeUnmount(() => {
 // повторном входе в блог шапка оставалась пустой. Новый элемент = полный сброс.
 watch(canvasEl, (el) => {
   if (!el) return
-  if (boundEl && el !== boundEl) {
+  if (shouldResetForNewCanvas(boundEl, el)) {
     if (particles && particles.destroy) particles.destroy()
     particles = null
     useWebGPU = false
