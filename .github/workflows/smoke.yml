@@ -33,6 +33,7 @@ jobs:
         run: node scripts/smoke.mjs
         env:
           SMOKE_BASE_URL: https://alterfo.github.io
+          SMOKE_INITIAL_DELAY_MS: 120000
 
       - name: Upload screenshots
         if: always()
