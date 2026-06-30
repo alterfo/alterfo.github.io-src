@@ -625,6 +625,7 @@ onUnmounted(() => {
               <button
                 class="planner-project-del"
                 title="Удалить проект"
+                aria-label="Удалить проект"
                 @click.stop="deleteProject(p.id, p.name)"
               >✕</button>
             </template>
@@ -638,7 +639,7 @@ onUnmounted(() => {
           <div class="planner-footer-actions">
             <button class="planner-btn-sm" @click="onExport">Экспорт</button>
             <button class="planner-btn-sm" @click="onImport">Импорт</button>
-            <button class="planner-btn-sm planner-help-btn" title="Справка" @click="showHelp = true">?</button>
+            <button class="planner-btn-sm planner-help-btn" title="Справка" aria-label="Справка" @click="showHelp = true">?</button>
           </div>
 
           <!-- Hidden picker for .planner import -->
@@ -881,7 +882,7 @@ onUnmounted(() => {
             placeholder="Без названия"
             @input="editField('title', $event.target.value)"
           />
-          <button class="planner-detail-close" title="Закрыть" @click="closeDetail">✕</button>
+          <button class="planner-detail-close" title="Закрыть" aria-label="Закрыть" @click="closeDetail">✕</button>
         </header>
 
         <div class="planner-detail-body">
@@ -920,7 +921,7 @@ onUnmounted(() => {
           <div v-if="selectedTask.tags.length" class="planner-detail-chips">
             <span v-for="tag in selectedTask.tags" :key="tag" class="planner-detail-chip">
               #{{ tag }}
-              <button class="planner-detail-chip-x" title="Убрать тег" @click="removeTag(tag)">✕</button>
+              <button class="planner-detail-chip-x" title="Убрать тег" aria-label="Убрать тег" @click="removeTag(tag)">✕</button>
             </span>
           </div>
 

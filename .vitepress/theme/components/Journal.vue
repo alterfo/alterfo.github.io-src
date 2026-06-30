@@ -857,9 +857,9 @@ onUnmounted(() => {
 
       <!-- Horizontal calendar strip (full width, top) -->
       <div class="journal-cal-strip">
-        <button class="cal-nav-btn" @click="calOffset--" title="Предыдущий месяц">‹</button>
+        <button class="cal-nav-btn" @click="calOffset--" title="Предыдущий месяц" aria-label="Предыдущий месяц">‹</button>
         <div class="cal-strip-label">{{ calMonthLabel }}</div>
-        <button class="cal-nav-btn" @click="calOffset++" :disabled="calOffset >= 0" title="Следующий месяц">›</button>
+        <button class="cal-nav-btn" @click="calOffset++" :disabled="calOffset >= 0" title="Следующий месяц" aria-label="Следующий месяц">›</button>
         <div class="cal-strip-scroll">
           <div
             v-for="day in calDays"

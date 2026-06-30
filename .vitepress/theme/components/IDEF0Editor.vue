@@ -1071,7 +1071,7 @@ onUnmounted(() => {
       <button class="tb-btn" @click="importJSON">Load</button>
       <button class="tb-btn" @click="exportJSON">Export JSON</button>
       <button class="tb-btn tb-btn-doc" @click="exportDocument">Export Document</button>
-      <button class="tb-btn" @click="showHelp = true" title="Справка">?</button>
+      <button class="tb-btn" @click="showHelp = true" title="Справка" aria-label="Справка">?</button>
     </div>
 
     <!-- ═══ THREE PANELS ═══ -->
@@ -1210,9 +1210,9 @@ onUnmounted(() => {
 
         <!-- Zoom controls -->
         <div class="zoom-bar">
-          <button class="zoom-btn" @click="zoomBy(1.2)" title="Zoom in">+</button>
-          <button class="zoom-btn" @click="zoomBy(0.83)" title="Zoom out">−</button>
-          <button class="zoom-btn" @click="fitToView" title="Fit to view">⊡</button>
+          <button class="zoom-btn" @click="zoomBy(1.2)" title="Zoom in" aria-label="Zoom in">+</button>
+          <button class="zoom-btn" @click="zoomBy(0.83)" title="Zoom out" aria-label="Zoom out">−</button>
+          <button class="zoom-btn" @click="fitToView" title="Fit to view" aria-label="Fit to view">⊡</button>
           <span class="zoom-pct">{{ Math.round(scale * 100) }}%</span>
         </div>
 
@@ -1243,7 +1243,7 @@ onUnmounted(() => {
           <div v-for="(meta, type) in ARROW_META" :key="type" class="arrow-sec">
             <div class="arrow-sec-hdr">
               <span>{{ meta.label }}</span>
-              <button class="arrow-add" @click="addArrow(type)">＋</button>
+              <button class="arrow-add" @click="addArrow(type)" :aria-label="`Add ${meta.label}`">＋</button>
             </div>
             <div
               v-for="arrow in arrowsForBox(selectedBox.id, type)"
@@ -1256,7 +1256,7 @@ onUnmounted(() => {
               <span v-if="arrow.targetBoxId && type === 'output'" class="arrow-connected" :title="`Connected to ${arrow.targetBoxId} (${arrow.targetSide})`">
                 →{{ arrow.targetBoxId }}
               </span>
-              <button class="arrow-del" @click="removeArrow(arrow.id)">×</button>
+              <button class="arrow-del" @click="removeArrow(arrow.id)" :aria-label="`Remove ${arrow.label || 'arrow'}`">×</button>
             </div>
           </div>
 

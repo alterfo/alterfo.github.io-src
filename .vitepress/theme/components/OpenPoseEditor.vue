@@ -386,7 +386,7 @@ onUnmounted(() => {
         <span class="op-toolbar-name">Нет выбранного изображения</span>
         <span class="op-toolbar-spacer" />
       </template>
-      <button class="op-btn op-btn-sm" @click="showHelp = true" title="Справка">?</button>
+      <button class="op-btn op-btn-sm" @click="showHelp = true" title="Справка" aria-label="Справка">?</button>
     </div>
 
     <!-- Full-page drag overlay -->
