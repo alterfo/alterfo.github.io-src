@@ -10,7 +10,6 @@
         <h1 class="hero-name">Oleg Sidorkin</h1>
         <p class="hero-roles">Engineer&nbsp;·&nbsp;Musician&nbsp;·&nbsp;Builder</p>
       </div>
-      <CountDown class="hero-countdown" :countdownDays="1000" />
     </header>
 
     <!-- ── PROJECTS — колесо жизни ───────────────────────────── -->
@@ -35,6 +34,13 @@
         <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
       </svg>
     </div>
+
+    <!-- ── 1000 дней роста — счётчик над music/code ──────────── -->
+    <section class="growth" aria-label="Счётчик 1000 дней роста">
+      <div class="section-inner growth-inner">
+        <CountDown :countdownDays="1000" />
+      </div>
+    </section>
 
     <!-- ── EXPERTISE ─────────────────────────────────────────── -->
     <section class="expertise">
@@ -163,7 +169,7 @@ onBeforeUnmount(() => {
 }
 
 /* Sections sit above the canvas with a dark transparent backdrop */
-.life-circle-section, .expertise, .bio, .staff-divider, .site-footer {
+.life-circle-section, .growth, .expertise, .bio, .staff-divider, .site-footer {
   position: relative;
   z-index: 1;
   background: var(--ds-surface);
@@ -200,28 +206,19 @@ onBeforeUnmount(() => {
   padding: 0 1.5rem;
 }
 
-/* Countdown «1000 дней роста» — scaled compactly into the hero.
-   transform (not r/cx/cy override) keeps the ring-fill math correct;
-   the negative margin reclaims the empty space the scale leaves below. */
-.hero-countdown {
-  position: relative;
-  z-index: 2;
-  transform: scale(0.62);
-  transform-origin: top center;
-  margin-bottom: -7rem;
-}
-
-@media (max-width: 768px) {
-  .hero-countdown {
-    transform: scale(0.85);
-    margin-bottom: -2.5rem;
-  }
+/* Countdown «1000 дней роста» — its own band above the Music/Code block.
+   Self-sizing via --cd-value-size; no transform/negative-margin hacks. */
+.growth-inner {
+  display: flex;
+  justify-content: center;
+  padding-top: 2.25rem;
+  padding-bottom: 2.25rem;
+  --cd-value-size: clamp(1.7rem, 5vw, 2.6rem);
 }
 
 @media (max-width: 576px) {
-  .hero-countdown {
-    transform: none;
-    margin-bottom: 0;
+  .growth-inner {
+    --cd-value-size: 1.7rem;
   }
 }
 

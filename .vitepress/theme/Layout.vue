@@ -254,8 +254,8 @@ watch(animateHeader, val => {
 }
 
 .site-header .main-title {
-  font-size: 5vw;
-  letter-spacing: -1px;
+  /* size knob for CountDown.vue — header centerpiece is larger than the hero */
+  --cd-value-size: clamp(2rem, 6vw, 3.4rem);
   line-height: 1.15;
   position: absolute;
   margin: 0;
