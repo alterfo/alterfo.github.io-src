@@ -64,7 +64,12 @@ node --test .vitepress/theme/components/onboarding.test.mjs
 - **`vitepress preview` 404s new hashed assets after rebuild** — restart preview after every build.
 - **CDP debugging**: `chrome --headless=new --remote-debugging-port=N --user-data-dir=/tmp/x about:blank`; create tab via `/json/new?url=about:blank` then `Page.navigate`; subscribe to `Runtime.exceptionThrown`; WebGPU canvases only via `Page.captureScreenshot`.
 - Plan files: `docs/plans/` (git-ignored, local only).
-- **Known deferred advisory**: GHSA-67mh-4wv8-2f99 (esbuild ≤0.24.2 dev-server CORS) surfaces as 3 `npm audit` findings via `esbuild → vite → vitepress 1.6.4`. Dev-server only — the deployed static site is unaffected. No fix in vitepress 1.x; re-evaluate when vitepress 2.0 stable ships.
+- **Known deferred advisories** (4 total, GitHub-flagged: 1 high, 3 moderate; `vitepress`/`vite`/`esbuild` are `devDependencies` only — none of this ships in the built static site, all four are dev-server/dev-tooling only):
+  - GHSA-67mh-4wv8-2f99 — esbuild ≤0.24.2 dev-server CORS (moderate)
+  - GHSA-fx2h-pf6j-xcff — vite ≤6.4.2 `server.fs.deny` bypass on Windows alternate paths (**high**)
+  - GHSA-4w7w-66w2-5vf9 — vite path traversal in optimized-deps `.map` handling (moderate)
+  - GHSA-v6wh-96g9-6wx3 — `launch-editor` (vite's click-to-open-in-editor) NTLMv2 hash disclosure via UNC path on Windows (moderate)
+  - No fix available for any of them (`npm audit fix` confirms) — all are transitively pinned by `vitepress@1.6.4`'s `vite@5.4.21`/`esbuild@0.21.5`. `vitepress@2.0.0` is still alpha (`alpha.18` as of 2026-07-12), not stable — re-evaluate once it ships stable and bumps the vite major.
 
 ## Code intelligence — GitNexus
 
