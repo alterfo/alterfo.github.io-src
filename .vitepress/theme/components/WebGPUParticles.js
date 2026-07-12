@@ -1,16 +1,19 @@
 // WebGPU Particles System
 // Shaders loaded from external .wgsl files
 
-// Beautiful color palette
+// Cool-graphite + jewel-tone palette — normalized-RGB mirror of the SPECTRUM
+// hexes in spectrum.js (independent array, not test-guarded — keep in sync
+// by hand; this was missed during the 2026-07-12 warm-ink → cool-graphite
+// palette swap, still had the old warm values until now).
 const COLORS = [
-  [0.1, 0.8, 1.0],   // Cyan
-  [1.0, 0.2, 0.5],   // Pink
-  [0.5, 1.0, 0.3],   // Green
-  [1.0, 0.6, 0.1],   // Orange
-  [0.7, 0.3, 1.0],   // Purple
-  [0.2, 1.0, 0.8],   // Teal
-  [1.0, 0.9, 0.2],   // Gold
-  [1.0, 0.3, 0.3],   // Red
+  [0.478, 0.200, 0.282],   // Бордо (AR)
+  [0.659, 0.529, 0.290],   // Бронза (blog)
+  [0.247, 0.349, 0.275],   // Хвоя (idef0)
+  [0.541, 0.333, 0.408],   // Мальва (journal)
+  [0.290, 0.380, 0.471],   // Сталь (piano)
+  [0.420, 0.353, 0.282],   // Каштан (github)
+  [0.176, 0.337, 0.329],   // Антрацит-тил (decisions)
+  [0.565, 0.596, 0.659],   // Графит (music)
 ];
 
 // Shader sources loaded at init
@@ -20,13 +23,13 @@ let pointShaderCode = '';
 
 async function loadShaders() {
   if (computeShaderCode) return; // Already loaded
-  
+
   const [compute, render, point] = await Promise.all([
     fetch('/particles/compute.wgsl').then(r => r.text()),
     fetch('/particles/render.wgsl').then(r => r.text()),
     fetch('/particles/point.wgsl').then(r => r.text()),
   ]);
-  
+
   computeShaderCode = compute;
   renderShaderCode = render;
   pointShaderCode = point;
@@ -264,11 +267,21 @@ export class WebGPUParticles {
     computePass.end();
 
     const textureView = this.context.getCurrentTexture().createView();
-    
+
+    // Hard clear every frame — no cross-frame persistence, so the canvas
+    // can never accumulate residue (a translucent "fade toward void" pass
+    // was tried and rejected: any nonzero decay rate mathematically settles
+    // at a nonzero steady state in a continuously-busy area, so it can get
+    // close to true black but never exactly there — see ConnectingParticles.js
+    // for the deterministic history-based trail used on the 2D canvas path
+    // instead. Porting that same approach to WebGPU would need a per-particle
+    // position history in a GPU storage buffer — not done here; this header
+    // canvas keeps the simpler, provably-safe hard-clear-every-frame behavior
+    // instead of a trail effect).
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [{
         view: textureView,
-        clearValue: { r: 0.008, g: 0.008, b: 0.015, a: 1.0 },
+        clearValue: { r: 0.078, g: 0.086, b: 0.102, a: 1.0 }, // --ds-void #14161a
         loadOp: 'clear',
         storeOp: 'store',
       }],

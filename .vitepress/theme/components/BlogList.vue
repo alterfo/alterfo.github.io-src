@@ -57,9 +57,9 @@ const groupedPosts = computed(() => {
 }
 
 .year-header {
-  font-family: Georgia, serif;
+  font-family: var(--ds-font-body);
   font-size: 0.75rem;
-  font-weight: 400;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--ds-text-dim);

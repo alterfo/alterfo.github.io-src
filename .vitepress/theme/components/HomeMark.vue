@@ -12,14 +12,14 @@ const props = defineProps({
 
 // Порядок/цвета/готовность зеркалят SEGMENTS в LifeCircle.vue — менять синхронно.
 const SPHERES = [
-  { id: 'journal',   color: '#ff6688', readiness: 9 },
-  { id: 'idef0',     color: '#33ff4d', readiness: 8 },
-  { id: 'ar',        color: '#b34dff', readiness: 5 },
-  { id: 'piano',     color: '#ffaa22', readiness: 4 },
-  { id: 'openpose',  color: '#1accff', readiness: 4 },
-  { id: 'planner',   color: '#ff9933', readiness: 4 },
-  { id: 'decisions', color: '#33ffcc', readiness: 4 },
-  { id: 'music',     color: '#ffe633', readiness: 3 },
+  { id: 'journal',   color: '#8a5568', readiness: 9 },
+  { id: 'idef0',     color: '#3f5946', readiness: 8 },
+  { id: 'ar',        color: '#7a3348', readiness: 5 },
+  { id: 'piano',     color: '#4a6178', readiness: 4 },
+  { id: 'openpose',  color: '#a8874a', readiness: 4 },
+  { id: 'planner',   color: '#6b5a48', readiness: 4 },
+  { id: 'decisions', color: '#2d5654', readiness: 4 },
+  { id: 'music',     color: '#9098a8', readiness: 3 },
 ]
 
 const GEOM = { cx: 16, cy: 16, innerR: 5, maxOuterR: 15 }

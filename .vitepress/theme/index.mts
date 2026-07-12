@@ -4,6 +4,7 @@ import type { Theme } from 'vitepress'
 import Layout from './Layout.vue'
 import MusicAlbums from './components/MusicAlbums.vue'
 import HomeMark from './components/HomeMark.vue'
+import AppHeader from './components/AppHeader.vue'
 import './styles/index.css'
 
 const IDEF0Editor = defineAsyncComponent(() => import('./components/IDEF0Editor.vue'))
@@ -25,5 +26,6 @@ export default {
     app.component('DecisionJournal', DecisionJournal)
     app.component('MusicAlbums', MusicAlbums)
     app.component('HomeMark', HomeMark)
+    app.component('AppHeader', AppHeader)
   },
 } satisfies Theme

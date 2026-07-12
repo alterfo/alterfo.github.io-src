@@ -48,6 +48,15 @@ export default defineConfig({
     },
   },
   vite: {
+    // Vite's default dependency-scanner globs every *.html in the project root to seed
+    // its esbuild pre-bundle crawl. vacuum-rogues/src/index.html and ar-engine/web/index.html
+    // are vendored static sub-apps built entirely separately (own deps, own CI step) — their
+    // own node_modules never exists at this repo's root, so the default scan crashes `npm run
+    // dev` trying to resolve their imports (zod, pixi.js, @/* aliases). Excluding them here
+    // mirrors srcExclude below (which only controls VitePress page routing, not Vite's scan).
+    optimizeDeps: {
+      entries: ['**/*.html', '!vacuum-rogues/**', '!ar-engine/**'],
+    },
     // Dev-only: proxy /vacuum-rogues/ to the locally-running game (default :4137) so the
     // home-page center mark's `HEAD /vacuum-rogues/` probe sees it and the ship shows in
     // `npm run dev`. Override the target with VACUUM_ROGUES_DEV_URL. No effect on build/prod.

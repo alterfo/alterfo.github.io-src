@@ -275,13 +275,13 @@ function _frame(timestamp) {
     const swapTex  = _context.getCurrentTexture();
     const swapView = swapTex.createView();
 
-    // Always clear the swap texture to the background colour (#0a0020).
+    // Always clear the swap texture to the background colour (#14161a).
     // Passes added by Tasks 6–8 layer on top with loadOp:'load'.
     const clearPass = encoder.beginRenderPass({
         label: 'clear-bg',
         colorAttachments: [{
             view: swapView,
-            clearValue: { r: 0.039, g: 0, b: 0.125, a: 1 }, // #0a0020
+            clearValue: { r: 0.078, g: 0.086, b: 0.102, a: 1 }, // #14161a
             loadOp:  'clear',
             storeOp: 'store',
         }],

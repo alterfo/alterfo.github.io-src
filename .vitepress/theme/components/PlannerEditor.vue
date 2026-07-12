@@ -142,7 +142,7 @@ const viewMode = ref('kanban') // 'kanban' | 'list'
 const activeTag = ref(null)
 
 // Colors cycled through for newly created projects.
-const PROJECT_PALETTE = ['#1accff', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
+const PROJECT_PALETTE = ['#a8874a', '#3ecf8e', '#f59e0b', '#ef4444', '#a78bfa', '#ec4899', '#22d3ee', '#84cc16']
 
 // Non-tombstoned projects — the only ones shown in the sidebar / filters. Deleted projects are
 // kept in `state.projects` as tombstones (so the deletion propagates through the merges) but
@@ -844,7 +844,7 @@ onUnmounted(() => {
                     <span class="planner-proj-tag">
                       <span
                         class="planner-project-dot"
-                        :style="{ background: projectColorById[task.projectId] || '#94a3b8' }"
+                        :style="{ background: projectColorById[task.projectId] || '#7a7d82' }"
                       ></span>
                       {{ projectNameById[task.projectId] || '—' }}
                     </span>

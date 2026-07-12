@@ -74,14 +74,14 @@ function togglePlayer(id) {
 
 .album-card {
   background: var(--ds-surface-solid);
-  border: 1px solid rgba(255, 230, 51, 0.15);
+  border: 1px solid rgba(144, 152, 168, 0.15);
   border-radius: var(--ds-radius);
   overflow: hidden;
   transition: border-color 0.2s;
 }
 
 .album-card:hover {
-  border-color: rgba(255, 230, 51, 0.4);
+  border-color: rgba(144, 152, 168, 0.4);
 }
 
 .album-header {
@@ -173,9 +173,9 @@ function togglePlayer(id) {
   gap: 0.3rem;
   padding: 0.45rem 1rem;
   border-radius: var(--ds-radius);
-  border: 1px solid #ffe633;
+  border: 1px solid #9098a8;
   background: transparent;
-  color: #ffe633;
+  color: #9098a8;
   font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;
@@ -184,7 +184,7 @@ function togglePlayer(id) {
 
 .btn-listen:hover,
 .btn-listen.active {
-  background: rgba(255, 230, 51, 0.12);
+  background: rgba(144, 152, 168, 0.12);
 }
 
 .btn-yandex {
@@ -201,12 +201,12 @@ function togglePlayer(id) {
 }
 
 .btn-yandex:hover {
-  border-color: rgba(255, 230, 51, 0.4);
+  border-color: rgba(144, 152, 168, 0.4);
   color: var(--ds-text);
 }
 
 .player-wrap {
-  border-top: 1px solid rgba(255, 230, 51, 0.15);
+  border-top: 1px solid rgba(144, 152, 168, 0.15);
 }
 
 .player-frame {

@@ -164,7 +164,7 @@ export function mergeProjectsFromFile(localProjects, fileProjects) {
       const project = {
         id: f.id,
         name: f.name ?? '',
-        color: f.color ?? '#94a3b8',
+        color: f.color ?? '#7a7d82',
         deleted: f.deleted === true,
         createdAt: f.createdAt ?? Date.now(),
       }

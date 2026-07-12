@@ -82,7 +82,7 @@ function ensureField2D() {
     field = createField(canvasEl.value, {
       count: () => Math.floor(height / 2.5),
       connectDistance: 120,
-      fade: 'rgba(2,2,4,0.15)',
+      bg: 'rgb(20,22,26)',
       autoStart: false,
       getSize: () => ({ w: width, h: height }),
     })

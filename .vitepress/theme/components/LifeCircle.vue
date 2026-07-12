@@ -77,17 +77,17 @@ const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 
 // 8 spheres = 8 spectrum colors. Hardcoded — they only change with a release.
 const SEGMENTS = [
-  { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#ff6688', readiness: 9 },
-  { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#33ff4d', readiness: 8 },
+  { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#8a5568', readiness: 9 },
+  { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#3f5946', readiness: 8 },
   // external: /ar/ — статическое приложение вне VitePress-роутера. Любой атрибут
   // target (даже _self) заставляет роутер отдать клик браузеру (hasAttribute('target')
   // в router.js) — иначе SPA-навигация ведёт на клиентский 404.
-  { id: 'ar',        title: 'Аудио-реактив', href: '/ar/',              color: '#b34dff', readiness: 5, external: true },
-  { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#ffaa22', readiness: 4 },
-  { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#1accff', readiness: 4 },
-  { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#ff9933', readiness: 4 },
-  { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#33ffcc', readiness: 4 },
-  { id: 'music',     title: 'Музыка',       href: '/music',            color: '#ffe633', readiness: 3 },
+  { id: 'ar',        title: 'Аудио-реактив', href: '/ar/',              color: '#7a3348', readiness: 5, external: true },
+  { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#4a6178', readiness: 4 },
+  { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#a8874a', readiness: 4 },
+  { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#6b5a48', readiness: 4 },
+  { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#2d5654', readiness: 4 },
+  { id: 'music',     title: 'Музыка',       href: '/music',            color: '#9098a8', readiness: 3 },
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))

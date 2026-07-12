@@ -1,12 +1,18 @@
 /* ── Layout ──────────────────────────────────────────────────── */
 .piano-app {
+  /* accent = «сталь» (piano sphere), см. spectrum.js PROJECT_COLORS.piano.
+     Раньше свой бренд-индиго жил отдельно от цвета сферы — теперь унифицировано. */
+  --ds-accent: #4a6178;
+  --ds-accent-light: #8998a7;
+  --ds-accent-hover: #3d5062;
+  --ds-accent-bg: rgba(74, 97, 120, 0.18);
   display: flex;
   flex-direction: column;
   position: relative;
   height: 100%;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--ds-void);
+  color: var(--ds-text);
+  font-family: var(--ds-font-body);
   font-size: 13px;
   overflow: hidden;
 }
@@ -17,16 +23,16 @@
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: var(--ds-surface-solid);
+  border-bottom: 1px solid var(--ds-border);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .piano-select {
-  background: #334155;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 5px;
   padding: 4px 8px;
   font-size: 13px;
@@ -42,9 +48,9 @@
 
 .level-btn,
 .tempo-btn {
-  background: #334155;
-  color: #94a3b8;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  color: var(--ds-text-muted);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 4px;
   padding: 3px 9px;
   font-size: 11px;
@@ -53,9 +59,9 @@
 }
 .level-btn.active,
 .tempo-btn.active {
-  background: #4040aa;
-  color: #fff;
-  border-color: #6060cc;
+  background: var(--ds-accent);
+  color: var(--ds-text-strong);
+  border-color: var(--ds-accent-light);
 }
 
 /* Metronome */
@@ -63,20 +69,20 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #334155;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 4px;
   padding: 4px 8px;
   cursor: pointer;
   transition: background .15s;
 }
-.metro-btn.active { background: #1a2a3a; border-color: #4488aa; }
+.metro-btn.active { background: var(--ds-accent-bg); border-color: var(--ds-accent-light); }
 
 .metro-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #475569;
+  background: var(--ds-border-strong);
   transition: background .1s, transform .1s;
   display: block;
 }
@@ -86,9 +92,9 @@
 }
 
 .tb-btn {
-  background: #334155;
-  color: #cbd5e1;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 4px;
   padding: 3px 9px;
   font-size: 11px;
@@ -96,10 +102,10 @@
   transition: background .15s, color .15s;
   white-space: nowrap;
 }
-.tb-btn:hover:not(:disabled) { background: #475569; color: #fff; }
+.tb-btn:hover:not(:disabled) { background: var(--ds-border-strong); color: var(--ds-text-strong); }
 .tb-btn:disabled { opacity: 0.6; cursor: default; }
-.tb-btn.primary { background: #4040aa; color: #fff; border-color: #6060cc; }
-.tb-btn.primary:hover:not(:disabled) { background: #5555cc; }
+.tb-btn.primary { background: var(--ds-accent); color: var(--ds-text-strong); border-color: var(--ds-accent-light); }
+.tb-btn.primary:hover:not(:disabled) { background: var(--ds-accent-light); }
 
 /* ── Import error banner ─────────────────────────────────────── */
 .piano-import-error {
@@ -107,8 +113,8 @@
   align-items: center;
   gap: 10px;
   padding: 6px 14px;
-  background: #3a1a1a;
-  color: #ff8888;
+  background: var(--ds-danger-bg);
+  color: var(--ds-danger);
   border-bottom: 1px solid #663333;
   font-size: 12px;
   flex-shrink: 0;
@@ -117,7 +123,7 @@
   margin-left: auto;
   background: none;
   border: none;
-  color: #ff8888;
+  color: var(--ds-danger);
   cursor: pointer;
   font-size: 12px;
 }
@@ -134,20 +140,20 @@
 }
 .abc-modal,
 .timesig-dialog {
-  background: #1e293b;
-  border: 1px solid #475569;
+  background: var(--ds-surface-solid);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 8px;
   padding: 20px;
   width: min(520px, 90vw);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
-.abc-modal h3 { margin: 0 0 12px; color: #fff; font-size: 15px; }
+.abc-modal h3 { margin: 0 0 12px; color: var(--ds-text-strong); font-size: 15px; }
 .abc-textarea {
   width: 100%;
   min-height: 180px;
-  background: #0f172a;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+  background: var(--ds-void);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 5px;
   padding: 8px;
   font-family: monospace;
@@ -166,10 +172,10 @@
 }
 .abc-error {
   margin-top: 10px;
-  color: #ff8888;
+  color: var(--ds-danger);
   font-size: 12px;
 }
-.timesig-dialog p { margin: 0 0 14px; color: #e2e8f0; font-size: 13px; }
+.timesig-dialog p { margin: 0 0 14px; color: var(--ds-text); font-size: 13px; }
 .timesig-options {
   display: flex;
   gap: 8px;
@@ -177,16 +183,16 @@
 }
 .ts-btn {
   flex: 1;
-  background: #334155;
-  color: #cbd5e1;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 5px;
   padding: 10px 0;
   font-size: 15px;
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.ts-btn.active { background: #4040aa; color: #fff; border-color: #6060cc; }
+.ts-btn.active { background: var(--ds-accent); color: var(--ds-text-strong); border-color: var(--ds-accent-light); }
 .modal-actions {
   display: flex;
   gap: 8px;
@@ -197,7 +203,7 @@
 .piano-midi-status {
   margin-left: auto;
   font-size: 11px;
-  color: #64748b;
+  color: var(--ds-text-dim);
   white-space: nowrap;
 }
 .piano-midi-status.connected { color: #4caf50; }
@@ -212,7 +218,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 16px 12px 8px;
-  background: #0f172a;
+  background: var(--ds-void);
 }
 
 .piano-stave-container {
@@ -236,11 +242,11 @@
   padding: 48px 24px;
 }
 .complete-icon { font-size: 48px; }
-.complete-text { font-size: 22px; font-weight: 600; color: #fff; }
-.complete-stats { font-size: 14px; color: #94a3b8; }
+.complete-text { font-size: 22px; font-weight: 600; color: var(--ds-text-strong); font-family: var(--ds-font-display); }
+.complete-stats { font-size: 14px; color: var(--ds-text-muted); }
 .restart-btn {
-  background: #4040aa;
-  color: #fff;
+  background: var(--ds-accent);
+  color: var(--ds-text-strong);
   border: none;
   border-radius: 6px;
   padding: 8px 24px;
@@ -248,7 +254,7 @@
   cursor: pointer;
   margin-top: 8px;
 }
-.restart-btn:hover { background: #5555cc; }
+.restart-btn:hover { background: var(--ds-accent-light); }
 
 /* ── Status bar ──────────────────────────────────────────────── */
 .piano-statusbar {
@@ -256,15 +262,15 @@
   align-items: center;
   gap: 14px;
   padding: 5px 14px;
-  background: #1e293b;
-  border-top: 1px solid #334155;
-  border-bottom: 1px solid #334155;
+  background: var(--ds-surface-solid);
+  border-top: 1px solid var(--ds-border);
+  border-bottom: 1px solid var(--ds-border);
   flex-shrink: 0;
   font-size: 11px;
   flex-wrap: wrap;
 }
 
-.pos-label { color: #94a3b8; }
+.pos-label { color: var(--ds-text-muted); }
 
 .key-badge {
   background: #1e2e1e;
@@ -286,8 +292,8 @@
   font-weight: 600;
 }
 
-.stat-item { color: #64748b; }
-.stat-val { color: #cbd5e1; font-weight: 600; }
+.stat-item { color: var(--ds-text-dim); }
+.stat-val { color: var(--ds-text); font-weight: 600; }
 
 .status-notes {
   font-family: monospace;
@@ -298,21 +304,21 @@
 
 .repeat-btn {
   margin-left: auto;
-  background: #334155;
-  color: #cbd5e1;
-  border: 1px solid #475569;
+  background: var(--ds-border);
+  color: var(--ds-text);
+  border: 1px solid var(--ds-border-strong);
   border-radius: 4px;
   padding: 3px 10px;
   font-size: 11px;
   cursor: pointer;
 }
-.repeat-btn:hover { background: #475569; color: #fff; }
+.repeat-btn:hover { background: var(--ds-border-strong); color: var(--ds-text-strong); }
 
 /* ── Keyboard ────────────────────────────────────────────────── */
 .piano-keyboard-wrap {
   flex-shrink: 0;
-  background: #0b1120;
-  border-top: 1px solid #334155;
+  background: var(--ds-void);
+  border-top: 1px solid var(--ds-border);
   padding: 8px 0 0;
   overflow: hidden;
 }
@@ -325,7 +331,7 @@
 
 .piano-scale-hint {
   font-size: 10px;
-  color: #64748b;
+  color: var(--ds-text-dim);
   padding: 3px 10px 6px;
   letter-spacing: 0.03em;
 }
@@ -337,13 +343,13 @@
 
 /* ── Audio unlock banner ─────────────────────────────────────── */
 .piano-audio-banner {
-  background: #1e1b4b;
-  border-bottom: 1px solid #312e81;
-  color: #8888cc;
+  background: var(--ds-accent-bg);
+  border-bottom: 1px solid var(--ds-accent-bg);
+  color: var(--ds-accent-light);
   font-size: 12px;
   text-align: center;
   padding: 6px;
   cursor: pointer;
   flex-shrink: 0;
 }
-.piano-audio-banner:hover { color: #aaaaff; background: #312e81; }
+.piano-audio-banner:hover { color: var(--ds-accent-light); background: var(--ds-accent-bg); }

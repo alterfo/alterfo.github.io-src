@@ -78,18 +78,24 @@ fn vsLine(
 
   let p2 = particles[connectedParticleIdx];
   let pos = select(p1.position, p2.position, vertexIndex == 1u);
+  // Per-vertex color (not a blended average) — WGSL linearly interpolates
+  // this varying across the line's fragments, so the line reads as a true
+  // gradient from p1's color to p2's color instead of one flat blended hue.
+  let vertColor = select(p1.color, p2.color, vertexIndex == 1u);
 
   let clipX = (pos.x / params.width) * 2.0 - 1.0;
   let clipY = 1.0 - (pos.y / params.height) * 2.0;
 
   let distAlpha = 1.0 - (minDist / params.connectDistance);
+  // Safe to use a generous peak: the canvas is hard-cleared every frame (see
+  // point.wgsl comment), so there's no cross-frame accumulation risk.
   let alpha = distAlpha * distAlpha * 0.8;
-  
+
   var output: VertexOutput;
   output.position = vec4f(clipX, clipY, 0.0, 1.0);
-  output.color = vec4f(p1.color.rgb * 0.5 + p2.color.rgb * 0.5, alpha);
+  output.color = vec4f(vertColor.rgb, alpha);
   output.dist = minDist;
-  
+
   return output;
 }
 

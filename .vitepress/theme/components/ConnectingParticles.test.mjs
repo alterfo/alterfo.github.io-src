@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepParticle, connectionAlpha, createParticles, prefersReducedMotion, createField } from './ConnectingParticles.js'
+import { stepParticle, gravityAccel, applyGravity, connectionAlpha, createParticles, prefersReducedMotion, createField } from './ConnectingParticles.js'
 
 test('stepParticle wraps left edge to right', () => {
   assert.equal(stepParticle({ x: -1, y: 5, vx: 0, vy: 0 }, 100, 100).x, 100)
@@ -16,10 +16,69 @@ test('stepParticle applies velocity then wraps vertically', () => {
   assert.equal(p.y, 100)
 })
 
+test('gravityAccel pulls p toward a distant q, scaled by q.r (mass)', () => {
+  const p = { x: 0, y: 0, r: 1 }
+  const lightPull = gravityAccel(p, { x: 100, y: 0, r: 1 })
+  const heavyPull = gravityAccel(p, { x: 100, y: 0, r: 3 })
+  assert.ok(lightPull.ax > 0, 'accelerates toward q (positive x direction)')
+  assert.equal(lightPull.ay, 0, 'no y-pull when q is directly on the x axis')
+  assert.ok(heavyPull.ax > lightPull.ax, 'a heavier (bigger-radius) q pulls harder')
+})
+
+test('gravityAccel strengthens as distance shrinks (accelerates on approach)', () => {
+  const p = { x: 0, y: 0, r: 1 }
+  const far = gravityAccel(p, { x: 100, y: 0, r: 1 })
+  const near = gravityAccel(p, { x: 30, y: 0, r: 1 })
+  const veryNear = gravityAccel(p, { x: 5, y: 0, r: 1 })
+  assert.ok(near.ax > far.ax, 'closer pulls harder')
+  assert.ok(veryNear.ax > near.ax, 'still pulls harder at very close range — attraction only, no repulsion')
+})
+
+test('gravityAccel stays finite (softened, not an infinite spike) as distance approaches 0', () => {
+  const p = { x: 0, y: 0, r: 1 }
+  const a = gravityAccel(p, { x: 0.001, y: 0, r: 3 })
+  assert.ok(Number.isFinite(a.ax) && Number.isFinite(a.ay), 'softening keeps force finite at near-zero distance')
+})
+
+test('gravityAccel handles coincident points without NaN', () => {
+  const p = { x: 10, y: 10, r: 1 }
+  const q = { x: 10, y: 10, r: 1 }
+  const a = gravityAccel(p, q)
+  assert.ok(Number.isFinite(a.ax) && Number.isFinite(a.ay), 'no NaN/Infinity at zero distance')
+})
+
+test('gravityAccel is zero beyond the range cutoff (local interactions only)', () => {
+  // A global full-field version was tried first: every particle pulling on
+  // every other particle nets a constant drift toward the crowd's center of
+  // mass, and a ~100-particle field visibly collapsed into one clump after
+  // ~20-40s (verified via CDP time-lapse). Capping the range is what keeps
+  // interactions local instead of summing into one global attractor.
+  const p = { x: 0, y: 0, r: 1 }
+  const farAway = gravityAccel(p, { x: 500, y: 0, r: 3 }, { range: 130 })
+  assert.deepEqual(farAway, { ax: 0, ay: 0 })
+})
+
+test('applyGravity caps resulting speed at maxSpeed', () => {
+  // Cluster of heavy, close particles maximizes pull on p — exercises the
+  // speed cap that keeps close encounters bounded even though attraction
+  // alone has no ceiling of its own.
+  const particles = [
+    { x: 0, y: 0, vx: 0, vy: 0, r: 3 },
+    { x: 40, y: 0, vx: 0, vy: 0, r: 3 },
+    { x: -40, y: 0, vx: 0, vy: 0, r: 3 },
+    { x: 0, y: 40, vx: 0, vy: 0, r: 3 },
+  ]
+  applyGravity(particles, { maxSpeed: 0.5 })
+  for (const p of particles) {
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
+    assert.ok(speed <= 0.5 + 1e-9, `speed ${speed} exceeds maxSpeed`)
+  }
+})
+
 test('connectionAlpha by distance', () => {
-  assert.equal(connectionAlpha(0, 100), 0.4)
+  assert.equal(connectionAlpha(0, 100), 0.35)
   assert.equal(connectionAlpha(100, 100), 0)
-  assert.equal(connectionAlpha(50, 100), 0.2)
+  assert.equal(connectionAlpha(50, 100), 0.175)
 })
 
 test('connectionAlpha beyond maxDist is 0', () => {
@@ -66,8 +125,9 @@ test('prefersReducedMotion defaults to false without a matcher', () => {
 // offsetHeight/width/height, never the real DOM.
 function fakeCanvas(w = 100, h = 100) {
   const ctx = {
-    fillStyle: '', strokeStyle: '', lineWidth: 0,
+    fillStyle: '', strokeStyle: '', lineWidth: 0, globalCompositeOperation: 'source-over',
     fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, arc() {}, fill() {},
+    createLinearGradient: () => ({ addColorStop() {} }),
   }
   return { offsetWidth: w, offsetHeight: h, width: 0, height: 0, getContext: () => ctx }
 }
@@ -135,4 +195,29 @@ test('createField with no reducedMotion option defaults to the live prefers-redu
       assert.equal(rafWasCalled(), true)
     })
   })
+})
+
+test('createField runs many frames without throwing (torus-wrap + connect/disconnect churn)', () => {
+  // Small canvas + tight connectDistance forces frequent torus-wraps and
+  // frequent connect/disconnect across many particles. Drive the rAF loop
+  // manually (instead of stubbing it to a no-op) so frame() actually runs
+  // repeatedly.
+  const origRaf = globalThis.requestAnimationFrame
+  const origCancel = globalThis.cancelAnimationFrame
+  let pending = null
+  globalThis.requestAnimationFrame = (cb) => { pending = cb; return 1 }
+  globalThis.cancelAnimationFrame = () => { pending = null }
+  try {
+    const field = createField(fakeCanvas(40, 40), { count: 20, connectDistance: 30, reducedMotion: false })
+    for (let i = 0; i < 150; i++) {
+      const cb = pending
+      pending = null
+      assert.ok(cb, 'loop must keep re-arming itself every frame')
+      cb()
+    }
+    field.destroy()
+  } finally {
+    globalThis.requestAnimationFrame = origRaf
+    globalThis.cancelAnimationFrame = origCancel
+  }
 })

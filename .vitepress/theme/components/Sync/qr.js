@@ -5,7 +5,7 @@ import QRCode from 'qrcode'
 const QR_OPTS = {
   width: 260,
   margin: 1,
-  color: { dark: '#e2e8f0', light: '#1e293b' }, // Spiral dark palette
+  color: { dark: '#e6e4e0', light: '#1e2126' }, // Spiral dark palette (cool graphite)
   errorCorrectionLevel: 'M',
 }
 

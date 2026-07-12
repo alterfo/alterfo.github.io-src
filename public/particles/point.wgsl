@@ -35,7 +35,11 @@ fn vsPoint(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
 
   var output: VertexOutput;
   output.position = vec4f(clipX, clipY, 0.0, 1.0);
-  output.color = vec4f(p.color.rgb * 1.5 + 0.2, p.color.a * 0.9);
+  // No brightness boost — keep the particle's true color (a 1.5x+0.2 boost
+  // here previously washed dots toward white). Safe to use a generous alpha:
+  // WebGPUParticles.js hard-clears the canvas every frame (loadOp:'clear'),
+  // so there is no cross-frame accumulation risk.
+  output.color = vec4f(p.color.rgb, p.color.a * 0.9);
   output.size = 3.0 + p.speed * 2.0;
   
   return output;

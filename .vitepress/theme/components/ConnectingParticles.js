@@ -13,10 +13,75 @@ export function stepParticle(p, w, h) {
   return p
 }
 
-// Pure: line-connection alpha by distance (0.4 at d=0, 0 at d>=maxDist).
+// Gravity tuning. Force grows as 1/distance² (true inverse-square — motion
+// visibly accelerates the closer two particles get), scaled by the puller's
+// own radius (`r`, doubling as mass — bigger dot pulls harder), softened so
+// the force stays finite (never an infinite spike) as distance shrinks to 0
+// instead of being capped by a hard cutoff. Attraction only, no repulsion —
+// a short-range repel-below-threshold branch was tried first and read as
+// magnets snapping/bouncing off each other, not gravity. Real orbital motion
+// doesn't push back; a close pair curves and slingshots past on its own
+// momentum because softening keeps the pull finite, not because anything
+// repels it. GRAVITY_RANGE caps how far gravity reaches at all: a first
+// version let EVERY particle pull on every other particle regardless of
+// distance, and a ~100-particle field always nets a pull toward the crowd's
+// overall center of mass — after ~20-40s the whole field visibly collapsed
+// into one dense clump (verified via CDP time-lapse). Capping the range
+// makes each particle only feel its near neighbors, so interactions stay
+// local swirls/close passes instead of summing into one global attractor.
+const GRAVITY_STRENGTH = 0.6
+const GRAVITY_SOFTENING = 24
+const GRAVITY_RANGE = 130
+const GRAVITY_MAX_SPEED = 1.1
+
+// Pure: acceleration imparted on p by q's gravity (zero beyond GRAVITY_RANGE).
+// Returns { ax, ay }.
+export function gravityAccel(p, q, opts = {}) {
+  const {
+    strength = GRAVITY_STRENGTH,
+    softening = GRAVITY_SOFTENING,
+    range = GRAVITY_RANGE,
+  } = opts
+  const dx = q.x - p.x, dy = q.y - p.y
+  const distSq = dx * dx + dy * dy
+  if (distSq >= range * range) return { ax: 0, ay: 0 }
+  const dist = Math.sqrt(distSq) || 0.0001
+  const force = (strength * q.r) / (distSq + softening * softening)
+  return { ax: (dx / dist) * force, ay: (dy / dist) * force }
+}
+
+// Mutates every particle's vx/vy in place from the net pull of every other
+// particle (O(n²), computed from a single position snapshot so the result
+// doesn't depend on iteration order), then caps speed so close encounters
+// accelerate sharply without ever running away unbounded.
+export function applyGravity(particles, opts = {}) {
+  const maxSpeed = opts.maxSpeed ?? GRAVITY_MAX_SPEED
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i]
+    let ax = 0, ay = 0
+    for (let j = 0; j < particles.length; j++) {
+      if (i === j) continue
+      const a = gravityAccel(p, particles[j], opts)
+      ax += a.ax; ay += a.ay
+    }
+    p.vx += ax
+    p.vy += ay
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
+    if (speed > maxSpeed) {
+      p.vx = (p.vx / speed) * maxSpeed
+      p.vy = (p.vy / speed) * maxSpeed
+    }
+  }
+}
+
+// Pure: line-connection alpha by distance (0.35 at d=0, 0 at d>=maxDist).
+// Safe to be this generous: the canvas is hard-cleared every frame (see
+// createField's frame()), so there is no cross-frame accumulation risk —
+// alpha here only controls how bright a connection looks THIS frame, not
+// how much residue it leaves behind (there is none, by construction).
 export function connectionAlpha(distance, maxDist) {
   if (distance >= maxDist) return 0
-  return (1 - distance / maxDist) * 0.4
+  return (1 - distance / maxDist) * 0.35
 }
 
 // Pure: build an array of particles seeded inside w×h.
@@ -50,7 +115,8 @@ function osReducedMotion() {
 //   density        — pixels-of-width per particle (count = floor(w / density)); ignored if `count` set
 //   count          — explicit particle count, number or () => number (overrides density)
 //   connectDistance — max px to draw a connecting line
-//   fade           — per-frame fill that creates the trailing effect
+//   bg             — solid clear color, hard-repainted every frame (no
+//                    persistence — every frame is drawn from scratch)
 //   palette        — rgba( prefixes (see spectrum.js CANVAS_PALETTE)
 //   lineWidth      — connection line width
 //   autoStart      — begin the rAF loop immediately (default true)
@@ -63,7 +129,7 @@ export function createField(canvas, opts = {}) {
     density = 12,
     count = null,
     connectDistance = 100,
-    fade = 'rgba(10,0,32,0.15)',
+    bg = 'rgb(20,22,26)',
     palette = CANVAS_PALETTE,
     lineWidth = 0.8,
     autoStart = true,
@@ -100,25 +166,38 @@ export function createField(canvas, opts = {}) {
 
   function frame() {
     if (!ctx) return
-    ctx.fillStyle = fade
+
+    applyGravity(particles)
+
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.fillStyle = bg
     ctx.fillRect(0, 0, w, h)
+    ctx.globalCompositeOperation = 'lighter'
+
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i]
       stepParticle(p, w, h)
+
       for (let j = i + 1; j < particles.length; j++) {
         const q = particles[j]
         const dx = q.x - p.x, dy = q.y - p.y
         const d = Math.sqrt(dx * dx + dy * dy)
         const a = connectionAlpha(d, connectDistance)
         if (a > 0) {
+          // Gradient between the two particles' own colors, not just p's —
+          // the line should read as "connecting these two specific dots".
+          const grad = ctx.createLinearGradient(p.x, p.y, q.x, q.y)
+          grad.addColorStop(0, p.rgba + a + ')')
+          grad.addColorStop(1, q.rgba + a + ')')
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y)
-          ctx.strokeStyle = p.rgba + a + ')'
+          ctx.strokeStyle = grad
           ctx.lineWidth = lineWidth; ctx.stroke()
         }
       }
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
       ctx.fillStyle = p.rgba + '0.8)'; ctx.fill()
     }
+    ctx.globalCompositeOperation = 'source-over'
   }
 
   function loop() {

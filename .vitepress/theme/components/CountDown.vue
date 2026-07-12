@@ -134,7 +134,7 @@ export default {
 }
 
 .cd-caption {
-  font-family: var(--ds-font-display);
+  font-family: var(--ds-font-body);
   font-size: calc(var(--cd-value-size) * 0.5);
   color: var(--ds-text-muted);
   white-space: nowrap;

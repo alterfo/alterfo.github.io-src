@@ -31,7 +31,7 @@
            рендерился «тофу»-квадратом, а preserveAspectRatio="none" ещё и
            расплющивал его по горизонтали. -->
       <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
-        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(200,180,255,0.12)" stroke-width="1"/>
+        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(230,228,224,0.12)" stroke-width="1"/>
       </svg>
     </div>
 
@@ -168,11 +168,11 @@ onBeforeUnmount(() => {
   padding: 0 1.5rem;
 }
 
-/* Sections sit above the canvas with a dark transparent backdrop */
+/* Sections sit directly over the particle canvas — no backdrop tint, the
+   particles show through (removed 2026-07-12: read as a generic dark overlay). */
 .life-circle-section, .growth, .expertise, .bio, .staff-divider, .site-footer {
   position: relative;
   z-index: 1;
-  background: var(--ds-surface);
 }
 
 /* ── Full-page canvas background ─────────────────────────────── */
@@ -228,7 +228,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: var(--ds-text-strong);
   margin: 0;
-  text-shadow: var(--ds-glow-violet);
   white-space: nowrap;
 }
 
@@ -261,13 +260,13 @@ onBeforeUnmount(() => {
   margin: 0 0 1rem;
   font-size: 1rem;
   line-height: 1.75;
-  color: rgba(220, 210, 255, 0.75);
+  color: rgba(230, 228, 224, 0.75);
 }
 
 .bio-text p:last-child { margin: 0; }
 
 .bio-accent {
-  color: rgba(200, 180, 255, 0.9) !important;
+  color: rgba(230, 228, 224, 0.9) !important;
   font-style: italic;
   border-left: 2px solid color-mix(in srgb, var(--ds-violet) 60%, transparent);
   padding-left: 1rem;
@@ -309,12 +308,13 @@ onBeforeUnmount(() => {
 .case-study-links a {
   color: color-mix(in srgb, var(--ds-violet) 85%, white 15%);
   text-decoration: none;
-  transition: color 0.2s, text-shadow 0.2s;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
 }
 
 .case-study-links a:hover {
   color: var(--ds-text-strong);
-  text-shadow: var(--ds-glow-violet);
+  border-bottom-color: currentColor;
 }
 
 .section-title {
@@ -396,8 +396,9 @@ onBeforeUnmount(() => {
 
 .exp-list li {
   font-size: 0.88rem;
-  /* 0.8 alpha over --ds-surface ≈ 7:1 contrast — WCAG AA (4.5:1) for body text */
-  color: rgba(200, 180, 255, 0.8);
+  /* 0.8 alpha of warm cream over the void-toned canvas — comfortably above
+     WCAG AA (4.5:1) for body text; brighter base than the old lavender tint. */
+  color: rgba(230, 228, 224, 0.8);
   line-height: 1.5;
   padding-left: 1rem;
   position: relative;
@@ -418,8 +419,8 @@ onBeforeUnmount(() => {
   padding: 1.5rem;
   text-align: center;
   font-size: 0.8rem;
-  /* 0.7 alpha over --ds-surface ≈ 5.6:1 contrast — WCAG AA (4.5:1) for body text */
-  color: rgba(200, 180, 255, 0.7);
+  /* 0.7 alpha of warm cream over the void-toned canvas — WCAG AA (4.5:1) for body text */
+  color: rgba(230, 228, 224, 0.7);
   letter-spacing: 0.08em;
   display: flex;
   align-items: center;
@@ -428,14 +429,14 @@ onBeforeUnmount(() => {
 }
 
 .site-footer a {
-  /* 0.78 alpha ≈ 6.8:1 — stays above the plain footer text for link affordance */
-  color: rgba(200, 180, 255, 0.78);
+  /* higher alpha than the plain footer text — stays above it for link affordance */
+  color: rgba(230, 228, 224, 0.78);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .site-footer a:hover {
-  color: rgba(200, 180, 255, 0.95);
+  color: rgba(230, 228, 224, 0.95);
 }
 
 .footer-sep {

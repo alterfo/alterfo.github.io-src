@@ -11,7 +11,7 @@ export const AUTHOR = 'Oleg Sidorkin'
 
 // Mirrors --ds-void in theme/styles/vars.css (page background; site is dark-only,
 // see appearance: 'force-dark' in config.mts) — used for the mobile chrome theme-color.
-export const THEME_COLOR = '#0a0020'
+export const THEME_COLOR = '#14161a'
 
 // Site-wide <head> tags (favicon family + theme-color), static across all pages so
 // they live here as plain data rather than in transformPageData (which is per-page).
