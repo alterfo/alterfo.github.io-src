@@ -112,6 +112,7 @@ export default defineConfig({
               { text: 'OpenPose Editor', link: '/openpose' },
               { text: 'Планировщик', link: '/planner' },
               { text: 'Журнал решений', link: '/decision-journal' },
+              { text: 'Финансы', link: '/finance' },
             ],
           },
           {

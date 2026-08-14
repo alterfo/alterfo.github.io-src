@@ -65,6 +65,7 @@ export const TOOL_CATEGORY = {
   'piano.md': 'MultimediaApplication',
   'openpose.md': 'DesignApplication',
   'decision-journal.md': 'BusinessApplication',
+  'finance.md': 'FinanceApplication',
 }
 
 // Build the per-page JSON-LD object (or null if the page type has none).
