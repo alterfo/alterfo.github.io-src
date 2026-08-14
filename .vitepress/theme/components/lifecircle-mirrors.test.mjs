@@ -47,8 +47,8 @@ const spheres = parseIdColorList(homeMarkSource, 'SPHERES')
 const wheelSvgColors = parseSvgFillColors(wheelSvgSource)
 const arIndexColors = parseSvgFillColors(arIndexSource)
 
-test('LifeCircle.vue SEGMENTS has 8 spheres', () => {
-  assert.equal(segments.length, 8)
+test('LifeCircle.vue SEGMENTS has 9 spheres', () => {
+  assert.equal(segments.length, 9)
 })
 
 test('HomeMark.vue SPHERES mirrors LifeCircle.vue SEGMENTS (id + color + order)', () => {

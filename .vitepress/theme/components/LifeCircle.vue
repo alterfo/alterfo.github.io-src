@@ -75,7 +75,7 @@ import { buildSegments, centerMark } from './lifecircle.js'
 // Wheel geometry (mirrors the unit-tested helper inputs).
 const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 
-// 8 spheres = 8 spectrum colors. Hardcoded — they only change with a release.
+// 9 spheres = 9 spectrum colors. Hardcoded — they only change with a release.
 const SEGMENTS = [
   { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#8a5568', readiness: 9 },
   { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#3f5946', readiness: 8 },
@@ -88,6 +88,7 @@ const SEGMENTS = [
   { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#6b5a48', readiness: 4 },
   { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#2d5654', readiness: 4 },
   { id: 'music',     title: 'Музыка',       href: '/music',            color: '#9098a8', readiness: 3 },
+  { id: 'finance',   title: 'Финансы',      href: '/finance',          color: '#4a3868', readiness: 2 },
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))

@@ -23,8 +23,8 @@
   --ds-danger-strong: #ef4444;
   --ds-danger-bg: #3a1a1a;
 
-  /* Spectrum — «сферы круга жизни» / цвета проектов (8 семантических, благородные
-     тона — бордо/бронза/хвоя/мальва/сталь/каштан/антрацит-тил/графит) */
+  /* Spectrum — «сферы круга жизни» / цвета проектов (9 семантических, благородные
+     тона — бордо/бронза/хвоя/мальва/сталь/каштан/антрацит-тил/графит/индиго) */
   --ds-violet: #7a3348;   /* AR / подпись / «я» — бордо */
   --ds-cyan:   #a8874a;   /* blog — бронза */
   --ds-green:  #3f5946;   /* idef0 — хвоя */
@@ -33,6 +33,7 @@
   --ds-orange: #6b5a48;   /* github — каштан */
   --ds-teal:   #2d5654;   /* decisions / журнал решений — антрацит-тил */
   --ds-yellow: #9098a8;   /* music — графит */
+  --ds-indigo: #4a3868;   /* finance — индиго */
 
   /* Typography — self-hosted variable fonts (theme/styles/fonts.css). Cormorant
      is display-only (headings ≥18px) — high-contrast hairlines read as elite,
