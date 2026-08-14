@@ -2,13 +2,14 @@
 
 ## Project overview
 
-VitePress-based personal site with six fully client-side apps and one content page:
+VitePress-based personal site with seven fully client-side apps and one content page:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 - `/openpose` — OpenPose pose editor (MediaPipe BlazePose WASM, drag-edit skeletons, ControlNet PNG + JSON export)
 - `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, encrypted `.planner` export/import)
 - `/decision-journal` — encrypted decision journal with calibration (Brier score + confidence-bucket table)
+- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, on-demand MOEX ISS price refresh, encrypted `.finance` export/import)
 - `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
 
 Plus two **external apps served as subpaths** (not in-tree client apps, copied into `dist/<subpath>/` at deploy, mirroring each other):
@@ -28,12 +29,13 @@ Plus two **external apps served as subpaths** (not in-tree client apps, copied i
 | `.vitepress/theme/components/OpenPoseEditor.vue` | OpenPose root (`defineAsyncComponent`); modules in `OpenPose/` |
 | `.vitepress/theme/components/PlannerEditor.vue` | Planner root (`defineAsyncComponent`); modules in `Planner/` |
 | `.vitepress/theme/components/DecisionJournal.vue` | Decisions root (`defineAsyncComponent`); modules in `Decisions/` |
+| `.vitepress/theme/components/FinanceApp.vue` | Finance root (`defineAsyncComponent`); modules in `Finance/` |
 | `.vitepress/theme/components/MusicAlbums.vue` | Music page component |
 | `.vitepress/theme/components/spectrum.js` | Design system JS mirror (palette, CANVAS_PALETTE, PROJECT_COLORS) |
 | `posts.data.ts` | VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts excerpt |
 | `blog.md` | Blog listing page at `/blog` — uses `<BlogList :posts="posts" />` |
 
-All six app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
+All seven app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`, `FinanceApp`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
 
 For detailed docs on each app, see `CLAUDE.md` in the relevant module subfolder.
 For design system, SEO, typography, and VitePress gotchas, see `.vitepress/CLAUDE.md`.
@@ -55,6 +57,7 @@ node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/compon
 node --test .vitepress/theme/components/OpenPose/*.test.mjs
 node --test .vitepress/theme/components/Planner/store.test.mjs
 node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs
+node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs
 node --test .vitepress/theme/components/music.test.mjs
 node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs
 node --test .vitepress/seo.test.mjs
@@ -64,6 +67,7 @@ node --test .vitepress/theme/components/onboarding.test.mjs
 - **`vitepress preview` 404s new hashed assets after rebuild** — restart preview after every build.
 - **CDP debugging**: `chrome --headless=new --remote-debugging-port=N --user-data-dir=/tmp/x about:blank`; create tab via `/json/new?url=about:blank` then `Page.navigate`; subscribe to `Runtime.exceptionThrown`; WebGPU canvases only via `Page.captureScreenshot`.
 - Plan files: `docs/plans/` (git-ignored, local only).
+- **MOEX ISS runtime-fetch exception**: every app in this repo makes zero runtime calls to external hosts, *except* `/finance`'s `Finance/prices.js`, which calls `iss.moex.com` (official Moscow Exchange ISS API) to fetch current prices for held RU-market tickers. This is a deliberate, narrow, user-approved exception — one endpoint, one host, no API key, user-initiated only (a "refresh prices" button, never automatic/polling), only the public ticker symbol sent. See `Finance/CLAUDE.md` for detail. Not an accidental CDN/runtime-fetch violation.
 - **Known deferred advisories** (4 total, GitHub-flagged: 1 high, 3 moderate; `vitepress`/`vite`/`esbuild` are `devDependencies` only — none of this ships in the built static site, all four are dev-server/dev-tooling only):
   - GHSA-67mh-4wv8-2f99 — esbuild ≤0.24.2 dev-server CORS (moderate)
   - GHSA-fx2h-pf6j-xcff — vite ≤6.4.2 `server.fs.deny` bypass on Windows alternate paths (**high**)
