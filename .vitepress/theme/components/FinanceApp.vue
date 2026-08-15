@@ -19,11 +19,11 @@ import {
   emptyVault, upsertTransaction, upsertAccount, upsertHolding,
   removeTransaction, removeAccount, removeHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
-  migrateVaultV1toV2,
+  migrateVaultV1toV2, upsertDeposit, openDeposits, closeDeposit,
 } from './Finance/vault.js'
 import {
   totalBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
-  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange,
+  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
@@ -178,6 +178,13 @@ function lockVault() {
   naName.value = ''
   naBalance.value = ''
   accountError.value = ''
+  ndName.value = ''
+  ndPrincipal.value = ''
+  ndRate.value = ''
+  ndOpenDate.value = todayISO()
+  ndMaturityDate.value = todayISO()
+  ndCapitalization.value = false
+  depositError.value = ''
   nhTicker.value = ''
   nhQty.value = ''
   nhPurchaseDate.value = todayISO()
@@ -247,6 +254,16 @@ const naName = ref('')
 const naBalance = ref('')
 const accountError = ref('')
 
+// ---- Deposits ----
+const depositsList = computed(() => openDeposits(vault.value))
+const ndName = ref('')
+const ndPrincipal = ref('')
+const ndRate = ref('')
+const ndOpenDate = ref(todayISO())
+const ndMaturityDate = ref(todayISO())
+const ndCapitalization = ref(false)
+const depositError = ref('')
+
 function addAccount() {
   accountError.value = ''
   if (!naName.value.trim()) {
@@ -278,6 +295,46 @@ function onAccountBalanceChange(id, e) {
 function deleteAccount(id) {
   if (!confirm('Удалить этот счёт?')) return
   removeAccount(vault.value, id)
+}
+
+function addDeposit() {
+  depositError.value = ''
+  if (!ndName.value.trim()) {
+    depositError.value = 'Введите название вклада.'
+    return
+  }
+  const principal = Number(ndPrincipal.value)
+  const rate = Number(ndRate.value)
+  if (!Number.isFinite(principal) || principal <= 0) {
+    depositError.value = 'Введите сумму вклада.'
+    return
+  }
+  if (!Number.isFinite(rate) || rate < 0) {
+    depositError.value = 'Введите процентную ставку.'
+    return
+  }
+  upsertDeposit(vault.value, {
+    name: ndName.value.trim(),
+    principal,
+    rate: rate / 100,
+    openDate: ndOpenDate.value || todayISO(),
+    maturityDate: ndMaturityDate.value || todayISO(),
+    capitalization: ndCapitalization.value,
+  })
+  ndName.value = ''
+  ndPrincipal.value = ''
+  ndRate.value = ''
+  ndOpenDate.value = todayISO()
+  ndMaturityDate.value = todayISO()
+  ndCapitalization.value = false
+}
+
+function closeDepositAction(id) {
+  const deposit = vault.value.deposits[id]
+  if (!deposit) return
+  if (!confirm(`Закрыть вклад "${deposit.name}"?`)) return
+  const payoutAmount = depositValue(deposit, new Date().toISOString())
+  closeDeposit(vault.value, { depositId: id, payoutAmount, date: todayISO() })
 }
 
 // ---- Investments ----
@@ -689,6 +746,37 @@ onUnmounted(() => {
             <button class="fin-btn fin-btn-primary" @click="addAccount">+ Счёт</button>
           </div>
           <p v-if="accountError" class="fin-form-error">{{ accountError }}</p>
+
+          <h2 class="fin-panel-title">Вклады</h2>
+          <table v-if="depositsList.length" class="fin-table">
+            <thead><tr><th>Название</th><th>Сумма</th><th>Процент</th><th>Срок</th><th>Начислено</th><th>Текущая стоимость</th><th></th></tr></thead>
+            <tbody>
+              <tr v-for="d in depositsList" :key="d.id">
+                <td>{{ d.name }}</td>
+                <td class="fin-table-num">{{ fmtRub(d.principal) }}</td>
+                <td class="fin-table-num">{{ (d.rate * 100).toFixed(2) }}%</td>
+                <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
+                <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
+                <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
+                <td><button class="fin-row-del" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">✕</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="fin-empty-hint">Пока нет активных вкладов.</p>
+
+          <div class="fin-add-row">
+            <input v-model="ndName" class="fin-text" placeholder="Название вклада" @keydown.enter="addDeposit" />
+            <input v-model="ndPrincipal" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Сумма" @keydown.enter="addDeposit" />
+            <input v-model="ndRate" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Процент %" @keydown.enter="addDeposit" />
+            <input v-model="ndOpenDate" type="date" class="fin-text" @keydown.enter="addDeposit" />
+            <input v-model="ndMaturityDate" type="date" class="fin-text" @keydown.enter="addDeposit" />
+            <label class="fin-checkbox">
+              <input v-model="ndCapitalization" type="checkbox" />
+              Капитализация
+            </label>
+            <button class="fin-btn fin-btn-primary" @click="addDeposit">+ Вклад</button>
+          </div>
+          <p v-if="depositError" class="fin-form-error">{{ depositError }}</p>
         </div>
 
         <!-- Investments -->

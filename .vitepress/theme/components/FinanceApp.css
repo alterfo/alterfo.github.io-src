@@ -321,6 +321,21 @@
 .fin-text:focus { border-color: var(--ds-accent-light); }
 .fin-text-num { width: 110px; }
 
+.fin-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ds-text);
+  cursor: pointer;
+}
+.fin-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--ds-accent);
+}
+
 @media (max-width: 720px) {
   .fin-topbar { flex-direction: column; align-items: stretch; }
   .fin-import-dialog { right: auto; left: 16px; }
