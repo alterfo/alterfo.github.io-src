@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   totalBalance,
   spendByCategory,
+  expenseByCategory,
+  incomeByCategory,
   holdingValue,
   portfolioValue,
   holdingGainLoss,
@@ -10,14 +12,21 @@ import {
   netWorth,
   depositAccruedInterest,
   depositValue,
+  netForRange,
+  periodRange,
+  monthlyTrend,
 } from './stats.js'
 
 function account({ balance = 0, deleted = false } = {}) {
   return { balance, deleted }
 }
 
+function transaction({ amount = 0, direction = 'expense', category = 'other', date = '2026-08-01', deleted = false } = {}) {
+  return { amount, direction, category, date, deleted }
+}
+
 function expense({ amount = 0, category = 'other', date = '2026-08-01', deleted = false } = {}) {
-  return { amount, category, date, deleted }
+  return transaction({ amount, direction: 'expense', category, date, deleted })
 }
 
 function holding({ qty = 0, purchasePrice = 0, purchaseCommission = 0, lastPrice = null, deleted = false } = {}) {
@@ -49,34 +58,86 @@ describe('totalBalance', () => {
   })
 })
 
-describe('spendByCategory', () => {
-  it('is an empty object for an empty/undefined expense list', () => {
-    assert.deepEqual(spendByCategory([], '2026-08-01', '2026-08-31'), {})
-    assert.deepEqual(spendByCategory(undefined, '2026-08-01', '2026-08-31'), {})
+describe('expenseByCategory', () => {
+  it('is an empty object for an empty/undefined transaction list', () => {
+    assert.deepEqual(expenseByCategory([], '2026-08-01', '2026-08-31'), {})
+    assert.deepEqual(expenseByCategory(undefined, '2026-08-01', '2026-08-31'), {})
   })
 
   it('buckets a single expense under its category', () => {
-    const expenses = [expense({ amount: 300, category: 'food', date: '2026-08-05' })]
-    assert.deepEqual(spendByCategory(expenses, '2026-08-01', '2026-08-31'), { food: 300 })
+    const transactions = [transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' })]
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
   })
 
   it('aggregates multiple expenses across categories and dates, excluding out-of-range and deleted', () => {
-    const expenses = [
-      expense({ amount: 300, category: 'food', date: '2026-08-05' }),
-      expense({ amount: 200, category: 'food', date: '2026-08-10' }),
-      expense({ amount: 100, category: 'transport', date: '2026-08-15' }),
-      expense({ amount: 999, category: 'food', date: '2026-07-31' }), // out of range
-      expense({ amount: 999, category: 'food', date: '2026-08-20', deleted: true }), // deleted
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 200, direction: 'expense', category: 'food', date: '2026-08-10' }),
+      transaction({ amount: 100, direction: 'expense', category: 'transport', date: '2026-08-15' }),
+      transaction({ amount: 999, direction: 'expense', category: 'food', date: '2026-07-31' }), // out of range
+      transaction({ amount: 999, direction: 'expense', category: 'food', date: '2026-08-20', deleted: true }), // deleted
     ]
-    assert.deepEqual(spendByCategory(expenses, '2026-08-01', '2026-08-31'), {
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), {
       food: 500,
       transport: 100,
     })
   })
 
+  it('ignores income transactions', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-10' }),
+    ]
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
+  })
+
   it('treats a non-finite amount as 0, never NaN', () => {
-    const result = spendByCategory([expense({ amount: NaN, category: 'food', date: '2026-08-01' })], '2026-08-01', '2026-08-31')
+    const result = expenseByCategory([transaction({ amount: NaN, direction: 'expense', category: 'food', date: '2026-08-01' })], '2026-08-01', '2026-08-31')
     assert.equal(result.food, 0)
+  })
+})
+
+describe('incomeByCategory', () => {
+  it('is an empty object for an empty/undefined transaction list', () => {
+    assert.deepEqual(incomeByCategory([], '2026-08-01', '2026-08-31'), {})
+    assert.deepEqual(incomeByCategory(undefined, '2026-08-01', '2026-08-31'), {})
+  })
+
+  it('buckets a single income under its category', () => {
+    const transactions = [transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-08-05' })]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 500 })
+  })
+
+  it('aggregates multiple incomes across categories and dates, excluding out-of-range and deleted', () => {
+    const transactions = [
+      transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      transaction({ amount: 200, direction: 'income', category: 'dividends', date: '2026-08-10' }),
+      transaction({ amount: 100, direction: 'income', category: 'salary', date: '2026-08-15' }),
+      transaction({ amount: 999, direction: 'income', category: 'salary', date: '2026-07-31' }), // out of range
+      transaction({ amount: 999, direction: 'income', category: 'salary', date: '2026-08-20', deleted: true }), // deleted
+    ]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), {
+      salary: 600,
+      dividends: 200,
+    })
+  })
+
+  it('ignores expense transactions', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-10' }),
+    ]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
+  })
+})
+
+describe('spendByCategory', () => {
+  it('is a legacy alias for expenseByCategory', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 100, direction: 'expense', category: 'transport', date: '2026-08-15' }),
+    ]
+    assert.deepEqual(spendByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300, transport: 100 })
   })
 })
 
@@ -279,5 +340,135 @@ describe('depositValue', () => {
     const value = depositValue(d, '2026-08-15T10:00:00Z')
     const interest = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
     assert.equal(value, 10000 + interest)
+  })
+})
+
+describe('netForRange', () => {
+  it('returns zero totals for an empty/undefined transaction list', () => {
+    assert.deepEqual(netForRange([], '2026-08-01', '2026-08-31'), { income: 0, expense: 0, net: 0 })
+    assert.deepEqual(netForRange(undefined, '2026-08-01', '2026-08-31'), { income: 0, expense: 0, net: 0 })
+  })
+
+  it('computes income, expense, and net for a single transaction', () => {
+    const transactions = [transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-08-05' })]
+    assert.deepEqual(netForRange(transactions, '2026-08-01', '2026-08-31'), { income: 500, expense: 0, net: 500 })
+  })
+
+  it('aggregates mixed income and expense transactions', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-10' }),
+      transaction({ amount: 200, direction: 'income', category: 'dividends', date: '2026-08-15' }),
+      transaction({ amount: 100, direction: 'expense', category: 'transport', date: '2026-08-20' }),
+    ]
+    assert.deepEqual(netForRange(transactions, '2026-08-01', '2026-08-31'), { income: 1200, expense: 400, net: 800 })
+  })
+
+  it('excludes out-of-range and deleted transactions', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-07-31' }), // out of range
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-10', deleted: true }), // deleted
+    ]
+    assert.deepEqual(netForRange(transactions, '2026-08-01', '2026-08-31'), { income: 1000, expense: 0, net: 1000 })
+  })
+})
+
+describe('periodRange', () => {
+  it('returns the current month range for kind="month"', () => {
+    const result = periodRange('month', '2026-08-15T10:00:00Z')
+    assert.equal(result.fromISO, '2026-08-01')
+    assert.equal(result.toISO, '2026-08-31')
+  })
+
+  it('returns the month range for January', () => {
+    const result = periodRange('month', '2026-01-15T10:00:00Z')
+    assert.equal(result.fromISO, '2026-01-01')
+    assert.equal(result.toISO, '2026-01-31')
+  })
+
+  it('returns the month range for February in a leap year', () => {
+    const result = periodRange('month', '2024-02-15T10:00:00Z')
+    assert.equal(result.fromISO, '2024-02-01')
+    assert.equal(result.toISO, '2024-02-29')
+  })
+
+  it('returns the month range for February in a non-leap year', () => {
+    const result = periodRange('month', '2026-02-15T10:00:00Z')
+    assert.equal(result.fromISO, '2026-02-01')
+    assert.equal(result.toISO, '2026-02-28')
+  })
+
+  it('returns the current year range for kind="year"', () => {
+    const result = periodRange('year', '2026-08-15T10:00:00Z')
+    assert.equal(result.fromISO, '2026-01-01')
+    assert.equal(result.toISO, '2026-12-31')
+  })
+
+  it('returns a wide range for kind="all-time"', () => {
+    const result = periodRange('all-time', '2026-08-15T10:00:00Z')
+    assert.equal(result.fromISO, '1970-01-01')
+    assert.equal(result.toISO, '2999-12-31')
+  })
+
+  it('returns all-time range for an unknown kind', () => {
+    const result = periodRange('unknown', '2026-08-15T10:00:00Z')
+    assert.equal(result.fromISO, '1970-01-01')
+    assert.equal(result.toISO, '2999-12-31')
+  })
+})
+
+describe('monthlyTrend', () => {
+  it('returns the requested number of empty months for an empty transaction list', () => {
+    const result = monthlyTrend([], 3, '2026-08-15T10:00:00Z')
+    assert.equal(result.length, 3)
+    assert.deepEqual(result[0], { month: '2026-06', income: 0, expense: 0, net: 0 })
+    assert.deepEqual(result[1], { month: '2026-07', income: 0, expense: 0, net: 0 })
+    assert.deepEqual(result[2], { month: '2026-08', income: 0, expense: 0, net: 0 })
+  })
+
+  it('aggregates transactions by month', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-06-15' }),
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-06-20' }),
+      transaction({ amount: 2000, direction: 'income', category: 'salary', date: '2026-07-15' }),
+      transaction({ amount: 400, direction: 'expense', category: 'food', date: '2026-07-20' }),
+      transaction({ amount: 1500, direction: 'income', category: 'salary', date: '2026-08-15' }),
+      transaction({ amount: 200, direction: 'expense', category: 'food', date: '2026-08-20' }),
+    ]
+    const result = monthlyTrend(transactions, 3, '2026-08-15T10:00:00Z')
+    assert.equal(result.length, 3)
+    assert.deepEqual(result[0], { month: '2026-06', income: 1000, expense: 300, net: 700 })
+    assert.deepEqual(result[1], { month: '2026-07', income: 2000, expense: 400, net: 1600 })
+    assert.deepEqual(result[2], { month: '2026-08', income: 1500, expense: 200, net: 1300 })
+  })
+
+  it('returns months in chronological order (oldest first)', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-15' }),
+    ]
+    const result = monthlyTrend(transactions, 5, '2026-08-15T10:00:00Z')
+    assert.equal(result[0].month, '2026-04')
+    assert.equal(result[4].month, '2026-08')
+  })
+
+  it('handles transactions only in some months', () => {
+    const transactions = [
+      transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-06-15' }),
+      transaction({ amount: 300, direction: 'income', category: 'salary', date: '2026-08-15' }),
+    ]
+    const result = monthlyTrend(transactions, 3, '2026-08-15T10:00:00Z')
+    assert.deepEqual(result[0], { month: '2026-06', income: 500, expense: 0, net: 500 })
+    assert.deepEqual(result[1], { month: '2026-07', income: 0, expense: 0, net: 0 })
+    assert.deepEqual(result[2], { month: '2026-08', income: 300, expense: 0, net: 300 })
+  })
+
+  it('excludes deleted transactions', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-15' }),
+      transaction({ amount: 500, direction: 'income', category: 'salary', date: '2026-08-20', deleted: true }),
+    ]
+    const result = monthlyTrend(transactions, 1, '2026-08-15T10:00:00Z')
+    assert.deepEqual(result[0], { month: '2026-08', income: 1000, expense: 0, net: 1000 })
   })
 })
