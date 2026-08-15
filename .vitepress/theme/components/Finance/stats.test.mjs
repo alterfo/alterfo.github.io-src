@@ -260,6 +260,19 @@ describe('netWorth', () => {
     const worth = netWorth(accounts, holdings, deposits)
     assert.ok(worth > 11000)
   })
+
+  it('excludes closed and deleted deposits', () => {
+    const accounts = [account({ balance: 1000 })]
+    const holdings = []
+    const deposits = {
+      open: { principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: false, deleted: false },
+      closed: { principal: 20000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: true, deleted: false },
+      deleted: { principal: 30000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: false, deleted: true },
+    }
+    const worth = netWorth(accounts, holdings, deposits)
+    const withOnlyOpen = netWorth(accounts, holdings, { open: deposits.open })
+    assert.equal(worth, withOnlyOpen)
+  })
 })
 
 function deposit({ principal = 0, rate = 0, openDate = '2026-08-01', maturityDate = '2026-12-31', capitalization = false, closed = false, deleted = false } = {}) {

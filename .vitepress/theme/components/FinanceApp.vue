@@ -177,7 +177,7 @@ const monthExpenseTotal = computed(() => Object.values(monthExpense.value).reduc
 const totalBalanceVal = computed(() => totalBalance(accountsList.value))
 const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
-const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value))
+const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value))
 
 function categoryLabel(id) {
   const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)

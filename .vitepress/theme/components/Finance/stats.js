@@ -90,7 +90,7 @@ export function netWorth(accounts, holdings, deposits) {
   let worth = totalBalance(accounts) + portfolioValue(holdings)
   if (deposits) {
     worth += Object.values(deposits)
-      .filter(isLive)
+      .filter((d) => isLive(d) && !d.closed)
       .reduce((sum, d) => sum + depositValue(d, new Date().toISOString()), 0)
   }
   return worth
