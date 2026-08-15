@@ -29,7 +29,8 @@ export function holdingGainLoss(holding) {
   if (!holding) return 0
   const qty = Number.isFinite(holding.qty) ? holding.qty : 0
   const purchasePrice = Number.isFinite(holding.purchasePrice) ? holding.purchasePrice : 0
-  return holdingValue(holding) - qty * purchasePrice
+  const purchaseCommission = Number.isFinite(holding.purchaseCommission) ? holding.purchaseCommission : 0
+  return holdingValue(holding) - qty * purchasePrice - purchaseCommission
 }
 
 export function portfolioGainLoss(holdings) {

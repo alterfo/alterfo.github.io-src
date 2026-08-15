@@ -13,6 +13,7 @@ import {
   removeDeposit,
   openDeposits,
   closeDeposit,
+  sellHolding,
   transactionsInRange,
   openAccounts,
   openHoldings,
@@ -155,6 +156,22 @@ describe('upsertHolding', () => {
 
     const preserved = upsertHolding(v, { id: created.id, qty: 12 }, '2026-08-04T00:00:00.000Z')
     assert.equal(preserved.qty, 12)
+  })
+
+  it('sets and persists purchaseCommission through CRUD', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const created = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, purchaseCommission: 50 }, t1)
+    assert.equal(created.purchaseCommission, 50)
+    const edited = upsertHolding(v, { id: created.id, qty: 12 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(edited.purchaseCommission, 50)
+    assert.equal(edited.qty, 12)
+  })
+
+  it('defaults purchaseCommission to 0 when omitted', () => {
+    const v = emptyVault()
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(h.purchaseCommission, 0)
   })
 })
 
@@ -584,5 +601,87 @@ describe('closeDeposit', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'deposit_closure')
     assert.equal(txs.length, 2)
+  })
+})
+
+describe('sellHolding', () => {
+  it('full sell removes the holding and creates an income transaction', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, purchaseCommission: 50 }, t1).id
+    upsertSettings(v, { defaultAccountId: 'acc1' }, t1)
+
+    const t2 = '2026-08-15T10:00:00.000Z'
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 300, commission: 30, date: '2026-08-15' }, t2)
+
+    const holding = v.holdings[holdingId]
+    assert.equal(holding.deleted, true)
+    assert.equal(holding.updatedAt, t2)
+
+    const txs = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(txs.length, 1)
+    assert.equal(txs[0].amount, 2970)
+    assert.equal(txs[0].direction, 'income')
+    assert.equal(txs[0].accountId, 'acc1')
+    assert.equal(txs[0].note, 'SBER')
+  })
+
+  it('partial sell reduces qty and creates an income transaction', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 20, purchasePrice: 250, purchaseCommission: 100 }, t1).id
+    upsertSettings(v, { defaultAccountId: 'acc1' }, t1)
+
+    const t2 = '2026-08-15T10:00:00.000Z'
+    sellHolding(v, { holdingId, qty: 8, sellPrice: 300, commission: 20, date: '2026-08-15' }, t2)
+
+    const holding = v.holdings[holdingId]
+    assert.equal(holding.deleted, false)
+    assert.equal(holding.qty, 12)
+    assert.equal(holding.updatedAt, t2)
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
+    assert.equal(txs.length, 1)
+    assert.equal(txs[0].amount, 2380)
+  })
+
+  it('oversell is rejected (returns undefined)', () => {
+    const v = emptyVault()
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, '2026-08-01T10:00:00.000Z').id
+    const result = sellHolding(v, { holdingId, qty: 15, sellPrice: 300, commission: 0, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    assert.equal(result, undefined)
+
+    const holding = v.holdings[holdingId]
+    assert.equal(holding.qty, 10)
+    assert.equal(holding.deleted, false)
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
+    assert.equal(txs.length, 0)
+  })
+
+  it('commission reduces net proceeds', () => {
+    const v = emptyVault()
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 5, purchasePrice: 100 }, '2026-08-01T10:00:00.000Z').id
+
+    sellHolding(v, { holdingId, qty: 5, sellPrice: 200, commission: 150, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
+    assert.equal(txs[0].amount, 850)
+  })
+
+  it('is a no-op for an unknown holdingId', () => {
+    const v = emptyVault()
+    const result = sellHolding(v, { holdingId: 'nope', qty: 10, sellPrice: 300, commission: 0, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    assert.equal(result, undefined)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('uses null accountId when settings.defaultAccountId is not set', () => {
+    const v = emptyVault()
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 5 }, '2026-08-01T10:00:00.000Z').id
+    sellHolding(v, { holdingId, qty: 5, sellPrice: 300, commission: 10, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
+    assert.equal(txs[0].accountId, null)
   })
 })

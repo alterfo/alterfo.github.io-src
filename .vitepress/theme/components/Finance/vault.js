@@ -123,6 +123,7 @@ export function upsertHolding(vault, holding, now = new Date().toISOString()) {
     qty: holding.qty ?? existing?.qty ?? 0,
     purchaseDate: holding.purchaseDate ?? existing?.purchaseDate ?? todayISO(),
     purchasePrice: holding.purchasePrice ?? existing?.purchasePrice ?? 0,
+    purchaseCommission: holding.purchaseCommission ?? existing?.purchaseCommission ?? 0,
     lastPrice: holding.lastPrice !== undefined ? holding.lastPrice : (existing?.lastPrice ?? null),
     priceAsOf: holding.priceAsOf !== undefined ? holding.priceAsOf : (existing?.priceAsOf ?? null),
     deleted: holding.deleted ?? existing?.deleted ?? false,
@@ -178,6 +179,32 @@ export function removeHolding(vault, id, now = new Date().toISOString()) {
   h.deleted = true
   h.updatedAt = now
   return h
+}
+
+export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date }, now = new Date().toISOString()) {
+  const holding = vault.holdings[holdingId]
+  if (!holding) return
+  const holdingQty = Number.isFinite(holding.qty) ? holding.qty : 0
+  if (qty > holdingQty) return
+
+  const netProceeds = qty * sellPrice - commission
+
+  if (qty === holdingQty) {
+    removeHolding(vault, holdingId, now)
+  } else {
+    upsertHolding(vault, { id: holdingId, qty: holdingQty - qty }, now)
+  }
+
+  upsertTransaction(vault, {
+    amount: netProceeds,
+    direction: 'income',
+    category: 'stock_sale',
+    accountId: vault.settings?.defaultAccountId ?? null,
+    note: holding.ticker,
+    date,
+  }, now)
+
+  return holding
 }
 
 export function upsertDeposit(vault, deposit, now = new Date().toISOString()) {

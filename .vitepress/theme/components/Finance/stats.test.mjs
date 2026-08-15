@@ -20,8 +20,8 @@ function expense({ amount = 0, category = 'other', date = '2026-08-01', deleted 
   return { amount, category, date, deleted }
 }
 
-function holding({ qty = 0, purchasePrice = 0, lastPrice = null, deleted = false } = {}) {
-  return { qty, purchasePrice, lastPrice, deleted }
+function holding({ qty = 0, purchasePrice = 0, purchaseCommission = 0, lastPrice = null, deleted = false } = {}) {
+  return { qty, purchasePrice, purchaseCommission, lastPrice, deleted }
 }
 
 describe('totalBalance', () => {
@@ -136,6 +136,22 @@ describe('holdingGainLoss', () => {
     const h = holding({ qty: 10, purchasePrice: 250, lastPrice: 200 })
     assert.equal(holdingGainLoss(h), -500)
   })
+
+  it('subtracts purchaseCommission from gain/loss', () => {
+    const h = holding({ qty: 10, purchasePrice: 250, purchaseCommission: 100, lastPrice: 300 })
+    assert.equal(holdingGainLoss(h), 400)
+  })
+
+  it('reduces a positive gain when commission is present', () => {
+    const h = holding({ qty: 5, purchasePrice: 100, purchaseCommission: 50, lastPrice: 150 })
+    const noCommission = holding({ qty: 5, purchasePrice: 100, purchaseCommission: 0, lastPrice: 150 })
+    assert.equal(holdingGainLoss(h), holdingGainLoss(noCommission) - 50)
+  })
+
+  it('makes a gain negative when commission exceeds the raw gain', () => {
+    const h = holding({ qty: 10, purchasePrice: 250, purchaseCommission: 600, lastPrice: 300 })
+    assert.equal(holdingGainLoss(h), -100)
+  })
 })
 
 describe('portfolioGainLoss', () => {
@@ -151,6 +167,14 @@ describe('portfolioGainLoss', () => {
       holding({ qty: 100, purchasePrice: 1, lastPrice: 1000, deleted: true }),
     ]
     assert.equal(portfolioGainLoss(holdings), 400)
+  })
+
+  it('subtracts purchaseCommissions from aggregated gain/loss', () => {
+    const holdings = [
+      holding({ qty: 10, purchasePrice: 250, purchaseCommission: 100, lastPrice: 300 }), // +500 - 100 = +400
+      holding({ qty: 5, purchasePrice: 100, purchaseCommission: 50, lastPrice: 80 }), // -100 - 50 = -150
+    ]
+    assert.equal(portfolioGainLoss(holdings), 250)
   })
 })
 
