@@ -9,6 +9,10 @@ import {
   removeTransaction,
   removeAccount,
   removeHolding,
+  upsertDeposit,
+  removeDeposit,
+  openDeposits,
+  closeDeposit,
   transactionsInRange,
   openAccounts,
   openHoldings,
@@ -452,5 +456,133 @@ describe('mergeVaults', () => {
     assert.equal(merged.version, 2)
     assert.ok(merged.transactions['e1'])
     assert.equal(merged.transactions['e1'].direction, 'expense')
+  })
+
+  it('merges deposits by LWW on updatedAt', () => {
+    const a = emptyVault()
+    upsertDeposit(a, { id: 'd1', name: 'Вклад 1', principal: 10000 }, '2026-08-01T00:00:00.000Z')
+    const b = emptyVault()
+    upsertDeposit(b, { id: 'd1', name: 'Вклад 1 (Updated)', principal: 15000 }, '2026-08-05T00:00:00.000Z')
+    const m = mergeVaults(a, b)
+    assert.equal(m.deposits['d1'].principal, 15000)
+  })
+})
+
+describe('upsertDeposit', () => {
+  it('creates a new deposit with generated id and defaults', () => {
+    const v = emptyVault()
+    const now = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000, rate: 0.12 }, now)
+    assert.equal(typeof d.id, 'string')
+    assert.equal(d.name, 'Вклад')
+    assert.equal(d.principal, 50000)
+    assert.equal(d.rate, 0.12)
+    assert.equal(d.capitalization, false)
+    assert.equal(d.closed, false)
+    assert.equal(d.deleted, false)
+    assert.equal(typeof d.openDate, 'string')
+    assert.equal(typeof d.maturityDate, 'string')
+    assert.equal(d.createdAt, now)
+    assert.equal(d.updatedAt, now)
+    assert.equal(v.deposits[d.id], d)
+  })
+
+  it('partial edit preserves unspecified fields', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    const created = upsertDeposit(v, { name: 'Вклад', principal: 50000, rate: 0.12, capitalization: true }, t1)
+    const edited = upsertDeposit(v, { id: created.id, principal: 60000 }, t2)
+    assert.equal(edited.name, 'Вклад')
+    assert.equal(edited.principal, 60000)
+    assert.equal(edited.rate, 0.12)
+    assert.equal(edited.capitalization, true)
+  })
+
+  it('sets and preserves open/maturity dates', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', openDate: '2026-08-01', maturityDate: '2027-08-01' }, '2026-08-01T00:00:00.000Z')
+    assert.equal(d.openDate, '2026-08-01')
+    assert.equal(d.maturityDate, '2027-08-01')
+  })
+})
+
+describe('removeDeposit', () => {
+  it('tombstones (deleted:true) and bumps updatedAt', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад' }, t1)
+    removeDeposit(v, d.id, t2)
+    assert.equal(v.deposits[d.id].deleted, true)
+    assert.equal(v.deposits[d.id].updatedAt, t2)
+  })
+
+  it('is a no-op for an unknown id', () => {
+    const v = emptyVault()
+    assert.equal(removeDeposit(v, 'nope'), undefined)
+  })
+})
+
+describe('openDeposits', () => {
+  it('excludes deleted and closed deposits, sorts by name', () => {
+    const v = emptyVault()
+    upsertDeposit(v, { id: 'b', name: 'Б' }, '2026-08-01T00:00:00.000Z')
+    upsertDeposit(v, { id: 'a', name: 'А' }, '2026-08-01T00:00:00.000Z')
+    upsertDeposit(v, { id: 'd', name: 'Д' }, '2026-08-01T00:00:00.000Z')
+    removeDeposit(v, 'd', '2026-08-02T00:00:00.000Z')
+    upsertDeposit(v, { id: 'c', name: 'В', closed: true }, '2026-08-01T00:00:00.000Z')
+    const open = openDeposits(v).map(d => d.id)
+    assert.deepEqual(open, ['a', 'b'])
+  })
+
+  it('returns an empty array for a vault with no open deposits', () => {
+    const v = emptyVault()
+    assert.deepEqual(openDeposits(v), [])
+  })
+})
+
+describe('closeDeposit', () => {
+  it('marks deposit closed:true and creates an income transaction for the payout', () => {
+    const v = emptyVault()
+    const depositId = upsertDeposit(v, { name: 'Мой вклад', principal: 10000 }, '2026-08-01T10:00:00.000Z').id
+    upsertSettings(v, { defaultAccountId: 'acc1' }, '2026-08-01T10:00:00.000Z')
+    const now = '2026-08-15T10:00:00.000Z'
+    const payout = 10500
+    closeDeposit(v, { depositId, payoutAmount: payout, date: '2026-08-15' }, now)
+
+    const deposit = v.deposits[depositId]
+    assert.equal(deposit.closed, true)
+    assert.equal(deposit.updatedAt, now)
+
+    const txs = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'deposit_closure')
+    assert.equal(txs.length, 1)
+    assert.equal(txs[0].amount, payout)
+    assert.equal(txs[0].direction, 'income')
+    assert.equal(txs[0].accountId, 'acc1')
+    assert.ok(txs[0].note.includes('Мой вклад'))
+  })
+
+  it('uses null accountId when settings.defaultAccountId is not set', () => {
+    const v = emptyVault()
+    const depositId = upsertDeposit(v, { name: 'Вклад' }, '2026-08-01T10:00:00.000Z').id
+    closeDeposit(v, { depositId, payoutAmount: 1000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    const txs = Object.values(v.transactions).filter(t => t.category === 'deposit_closure')
+    assert.equal(txs[0].accountId, null)
+  })
+
+  it('is a no-op for an unknown depositId', () => {
+    const v = emptyVault()
+    assert.equal(closeDeposit(v, { depositId: 'nope', payoutAmount: 1000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z'), undefined)
+  })
+
+  it('does not double-close a deposit', () => {
+    const v = emptyVault()
+    const depositId = upsertDeposit(v, { name: 'Вклад' }, '2026-08-01T10:00:00.000Z').id
+    closeDeposit(v, { depositId, payoutAmount: 1000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    closeDeposit(v, { depositId, payoutAmount: 1100, date: '2026-08-16' }, '2026-08-16T10:00:00.000Z')
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'deposit_closure')
+    assert.equal(txs.length, 2)
   })
 })

@@ -36,6 +36,47 @@ export function portfolioGainLoss(holdings) {
   return (holdings || []).filter(isLive).reduce((sum, h) => sum + holdingGainLoss(h), 0)
 }
 
-export function netWorth(accounts, holdings) {
-  return totalBalance(accounts) + portfolioValue(holdings)
+export function depositAccruedInterest(deposit, asOfISO) {
+  if (!deposit || deposit.closed) return 0
+  const principal = Number.isFinite(deposit.principal) ? deposit.principal : 0
+  const rate = Number.isFinite(deposit.rate) ? deposit.rate : 0
+  const openDate = new Date(deposit.openDate + 'T00:00:00Z')
+  const maturityDate = new Date(deposit.maturityDate + 'T00:00:00Z')
+  const asOfDate = new Date(asOfISO)
+
+  if (asOfDate < openDate) return 0
+
+  const depositTermDays = Math.floor((maturityDate.getTime() - openDate.getTime()) / (1000 * 60 * 60 * 24))
+  const elapsedDays = Math.floor((asOfDate.getTime() - openDate.getTime()) / (1000 * 60 * 60 * 24))
+  const accrualDays = Math.min(elapsedDays, depositTermDays)
+
+  if (accrualDays <= 0) return 0
+
+  if (!deposit.capitalization) {
+    return principal * rate * (accrualDays / 365)
+  }
+
+  const dailyRate = rate / 365
+  let balance = principal
+  for (let i = 0; i < accrualDays; i++) {
+    balance *= 1 + dailyRate
+  }
+  return balance - principal
+}
+
+export function depositValue(deposit, asOfISO) {
+  if (!deposit) return 0
+  const principal = Number.isFinite(deposit.principal) ? deposit.principal : 0
+  const interest = depositAccruedInterest(deposit, asOfISO)
+  return principal + interest
+}
+
+export function netWorth(accounts, holdings, deposits) {
+  let worth = totalBalance(accounts) + portfolioValue(holdings)
+  if (deposits) {
+    worth += Object.values(deposits)
+      .filter(isLive)
+      .reduce((sum, d) => sum + depositValue(d, new Date().toISOString()), 0)
+  }
+  return worth
 }

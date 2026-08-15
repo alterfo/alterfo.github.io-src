@@ -180,6 +180,61 @@ export function removeHolding(vault, id, now = new Date().toISOString()) {
   return h
 }
 
+export function upsertDeposit(vault, deposit, now = new Date().toISOString()) {
+  const id = deposit.id || makeId()
+  const existing = vault.deposits[id]
+
+  const stored = {
+    id,
+    name: deposit.name ?? existing?.name ?? '',
+    principal: deposit.principal ?? existing?.principal ?? 0,
+    rate: deposit.rate ?? existing?.rate ?? 0,
+    openDate: deposit.openDate ?? existing?.openDate ?? todayISO(),
+    maturityDate: deposit.maturityDate ?? existing?.maturityDate ?? todayISO(),
+    capitalization: deposit.capitalization ?? existing?.capitalization ?? false,
+    closed: deposit.closed ?? existing?.closed ?? false,
+    deleted: deposit.deleted ?? existing?.deleted ?? false,
+    createdAt: existing ? existing.createdAt : (deposit.createdAt ?? now),
+    updatedAt: now,
+  }
+
+  vault.deposits[id] = stored
+  return stored
+}
+
+export function removeDeposit(vault, id, now = new Date().toISOString()) {
+  const d = vault.deposits[id]
+  if (!d) return
+  d.deleted = true
+  d.updatedAt = now
+  return d
+}
+
+export function openDeposits(vault) {
+  return Object.values(vault.deposits)
+    .filter(d => !d.deleted && !d.closed)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function closeDeposit(vault, { depositId, payoutAmount, date }, now = new Date().toISOString()) {
+  const deposit = vault.deposits[depositId]
+  if (!deposit) return
+
+  deposit.closed = true
+  deposit.updatedAt = now
+
+  upsertTransaction(vault, {
+    amount: payoutAmount,
+    direction: 'income',
+    category: 'deposit_closure',
+    accountId: vault.settings?.defaultAccountId ?? null,
+    note: `Вклад: ${deposit.name}`,
+    date,
+  }, now)
+
+  return deposit
+}
+
 // Non-deleted transactions with date in [fromISO, toISO] (inclusive), sorted ascending.
 // Optional direction filter: 'expense' | 'income' | undefined (both).
 export function transactionsInRange(vault, fromISO, toISO, direction) {

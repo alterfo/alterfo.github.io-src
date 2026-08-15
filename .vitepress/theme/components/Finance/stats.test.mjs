@@ -8,6 +8,8 @@ import {
   holdingGainLoss,
   portfolioGainLoss,
   netWorth,
+  depositAccruedInterest,
+  depositValue,
 } from './stats.js'
 
 function account({ balance = 0, deleted = false } = {}) {
@@ -162,5 +164,96 @@ describe('netWorth', () => {
     const accounts = [account({ balance: 1000 }), account({ balance: 500 })]
     const holdings = [holding({ qty: 10, purchasePrice: 250, lastPrice: 300 })]
     assert.equal(netWorth(accounts, holdings), 1000 + 500 + 3000)
+  })
+
+  it('includes deposit values when deposits are provided', () => {
+    const accounts = [account({ balance: 1000 })]
+    const holdings = []
+    const deposits = {
+      d1: { principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: false, deleted: false },
+    }
+    const worth = netWorth(accounts, holdings, deposits)
+    assert.ok(worth > 11000)
+  })
+})
+
+function deposit({ principal = 0, rate = 0, openDate = '2026-08-01', maturityDate = '2026-12-31', capitalization = false, closed = false, deleted = false } = {}) {
+  return { principal, rate, openDate, maturityDate, capitalization, closed, deleted }
+}
+
+describe('depositAccruedInterest', () => {
+  it('is 0 for a missing deposit', () => {
+    assert.equal(depositAccruedInterest(undefined, '2026-08-15T10:00:00Z'), 0)
+  })
+
+  it('is 0 for a closed deposit', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31', closed: true })
+    assert.equal(depositAccruedInterest(d, '2026-08-15T10:00:00Z'), 0)
+  })
+
+  it('is 0 when asOfDate is before openDate', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31' })
+    assert.equal(depositAccruedInterest(d, '2026-07-31T10:00:00Z'), 0)
+  })
+
+  it('computes simple interest for a non-capitalized deposit after a few days', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31', capitalization: false })
+    const interest = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
+    const expected = 10000 * 0.12 * (14 / 365)
+    assert.ok(Math.abs(interest - expected) < 1)
+  })
+
+  it('computes daily compound interest for a capitalized deposit', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31', capitalization: true })
+    const interest = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
+    const dailyRate = 0.12 / 365
+    let balance = 10000
+    for (let i = 0; i < 14; i++) {
+      balance *= 1 + dailyRate
+    }
+    const expected = balance - 10000
+    assert.ok(Math.abs(interest - expected) < 1)
+  })
+
+  it('caps interest accrual at maturity date for simple interest', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-08-15', capitalization: false })
+    const interest1 = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
+    const interest2 = depositAccruedInterest(d, '2026-09-01T10:00:00Z')
+    assert.equal(interest1, interest2)
+  })
+
+  it('caps interest accrual at maturity date for compounded interest', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-08-15', capitalization: true })
+    const interest1 = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
+    const interest2 = depositAccruedInterest(d, '2026-09-01T10:00:00Z')
+    assert.equal(interest1, interest2)
+  })
+
+  it('returns 0 when elapsed days is 0', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31', capitalization: false })
+    assert.equal(depositAccruedInterest(d, '2026-08-01T10:00:00Z'), 0)
+  })
+
+  it('treats non-finite principal and rate as 0', () => {
+    const d = deposit({ principal: NaN, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31' })
+    assert.equal(depositAccruedInterest(d, '2026-08-15T10:00:00Z'), 0)
+  })
+})
+
+describe('depositValue', () => {
+  it('is 0 for a missing deposit', () => {
+    assert.equal(depositValue(undefined, '2026-08-15T10:00:00Z'), 0)
+  })
+
+  it('returns principal when no interest has accrued', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31' })
+    assert.equal(depositValue(d, '2026-08-01T10:00:00Z'), 10000)
+  })
+
+  it('returns principal + accrued interest', () => {
+    const d = deposit({ principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2026-12-31', capitalization: false })
+    const value = depositValue(d, '2026-08-15T10:00:00Z')
+    const interest = depositAccruedInterest(d, '2026-08-15T10:00:00Z')
+    assert.equal(value, 10000 + interest)
   })
 })
