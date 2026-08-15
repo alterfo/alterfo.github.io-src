@@ -5,6 +5,7 @@ import {
   upsertTransaction,
   upsertAccount,
   upsertHolding,
+  upsertSettings,
   removeTransaction,
   removeAccount,
   removeHolding,
@@ -150,6 +151,33 @@ describe('upsertHolding', () => {
 
     const preserved = upsertHolding(v, { id: created.id, qty: 12 }, '2026-08-04T00:00:00.000Z')
     assert.equal(preserved.qty, 12)
+  })
+})
+
+describe('upsertSettings', () => {
+  it('sets defaultAccountId and bumps updatedAt', () => {
+    const v = emptyVault()
+    const now = '2026-08-01T10:00:00.000Z'
+    const s = upsertSettings(v, { defaultAccountId: 'acc123' }, now)
+    assert.equal(s.defaultAccountId, 'acc123')
+    assert.equal(s.updatedAt, now)
+    assert.equal(v.settings.defaultAccountId, 'acc123')
+  })
+
+  it('clears defaultAccountId by setting to null', () => {
+    const v = emptyVault()
+    upsertSettings(v, { defaultAccountId: 'acc1' }, '2026-08-01T10:00:00.000Z')
+    const cleared = upsertSettings(v, { defaultAccountId: null }, '2026-08-02T10:00:00.000Z')
+    assert.equal(cleared.defaultAccountId, null)
+    assert.equal(cleared.updatedAt, '2026-08-02T10:00:00.000Z')
+  })
+
+  it('preserves defaultAccountId when omitted from partial edit', () => {
+    const v = emptyVault()
+    upsertSettings(v, { defaultAccountId: 'acc1' }, '2026-08-01T10:00:00.000Z')
+    const edited = upsertSettings(v, {}, '2026-08-02T10:00:00.000Z')
+    assert.equal(edited.defaultAccountId, 'acc1')
+    assert.equal(edited.updatedAt, '2026-08-02T10:00:00.000Z')
   })
 })
 
@@ -340,6 +368,19 @@ describe('mergeVaults', () => {
     b.settings.updatedAt = '2026-08-05T00:00:00.000Z'
     const m1 = mergeVaults(a, b)
     assert.equal(m1.settings.defaultAccountId, 'acc2')
+    const m2 = mergeVaults(b, a)
+    assert.equal(m2.settings.defaultAccountId, 'acc2')
+  })
+
+  it('merges settings: a wins on tie (equal updatedAt)', () => {
+    const a = emptyVault()
+    a.settings.defaultAccountId = 'acc1'
+    a.settings.updatedAt = '2026-08-01T00:00:00.000Z'
+    const b = emptyVault()
+    b.settings.defaultAccountId = 'acc2'
+    b.settings.updatedAt = '2026-08-01T00:00:00.000Z'
+    const m1 = mergeVaults(a, b)
+    assert.equal(m1.settings.defaultAccountId, 'acc1')
     const m2 = mergeVaults(b, a)
     assert.equal(m2.settings.defaultAccountId, 'acc2')
   })

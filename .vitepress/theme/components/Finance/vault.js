@@ -134,6 +134,20 @@ export function upsertHolding(vault, holding, now = new Date().toISOString()) {
   return stored
 }
 
+// Update vault settings (defaultAccountId). Partial-edit semantics:
+// fields present on `settings` override the stored value, missing fields
+// fall back to the existing value. updatedAt is always bumped to `now`.
+export function upsertSettings(vault, settings, now = new Date().toISOString()) {
+  const existing = vault.settings || { defaultAccountId: null, updatedAt: '1970-01-01T00:00:00Z' }
+
+  vault.settings = {
+    defaultAccountId: settings.defaultAccountId !== undefined ? settings.defaultAccountId : existing.defaultAccountId,
+    updatedAt: now,
+  }
+
+  return vault.settings
+}
+
 // Tombstone (deleted:true + bump updatedAt) rather than hard-delete — required so the
 // LWW merge propagates the deletion to other devices/tabs instead of them resurrecting
 // the id as "unknown" (absence ≠ deletion). Returns the entity, or undefined if unknown.
