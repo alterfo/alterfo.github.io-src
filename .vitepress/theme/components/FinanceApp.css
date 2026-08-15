@@ -288,6 +288,18 @@
 .fin-cell-input:hover, .fin-cell-input:focus { border-color: var(--ds-border-strong); background: var(--ds-void); }
 .fin-cell-num { text-align: right; }
 
+.fin-row-btn {
+  background: var(--ds-raised);
+  border: 1px solid var(--ds-border);
+  border-radius: 6px;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 9px;
+  margin-right: 4px;
+}
+.fin-row-btn:hover { color: var(--ds-accent-light); border-color: var(--ds-accent-light); }
+
 .fin-row-del {
   background: var(--ds-raised);
   border: 1px solid var(--ds-border);
@@ -298,6 +310,23 @@
   padding: 4px 9px;
 }
 .fin-row-del:hover { color: var(--ds-danger); }
+
+.fin-sell-form-row td { padding: 12px 10px; background: var(--ds-raised); }
+.fin-sell-form { display: flex; flex-direction: column; gap: 10px; }
+.fin-sell-fields { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fin-sell-fields input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 7px;
+  background: var(--ds-surface-solid);
+  color: var(--ds-text);
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.fin-sell-fields input:focus { border-color: var(--ds-accent-light); }
+.fin-sell-fields input[type="number"] { width: 110px; }
 
 /* Add-new rows */
 .fin-add-row {

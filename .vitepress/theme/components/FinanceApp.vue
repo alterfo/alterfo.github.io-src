@@ -19,7 +19,7 @@ import {
   emptyVault, upsertTransaction, upsertAccount, upsertHolding,
   removeTransaction, removeAccount, removeHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
-  migrateVaultV1toV2, upsertDeposit, openDeposits, closeDeposit,
+  migrateVaultV1toV2, upsertDeposit, openDeposits, closeDeposit, sellHolding,
 } from './Finance/vault.js'
 import {
   totalBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
@@ -189,7 +189,14 @@ function lockVault() {
   nhQty.value = ''
   nhPurchaseDate.value = todayISO()
   nhPurchasePrice.value = ''
+  nhPurchaseCommission.value = ''
   holdingError.value = ''
+  sellHoldingId.value = null
+  shQty.value = ''
+  shSellPrice.value = ''
+  shCommission.value = ''
+  shDate.value = todayISO()
+  shError.value = ''
   priceStatus.value = {}
   cancelImport() // drop any in-progress import (pending envelope + typed passphrase) from memory
   phase.value = 'locked'
@@ -342,13 +349,23 @@ const nhTicker = ref('')
 const nhQty = ref('')
 const nhPurchaseDate = ref(todayISO())
 const nhPurchasePrice = ref('')
+const nhPurchaseCommission = ref('')
 const holdingError = ref('')
+
+// Sell holding state
+const sellHoldingId = ref(null)
+const shQty = ref('')
+const shSellPrice = ref('')
+const shCommission = ref('')
+const shDate = ref(todayISO())
+const shError = ref('')
 
 function addHolding() {
   holdingError.value = ''
   const ticker = nhTicker.value.trim().toUpperCase()
   const qty = Number(nhQty.value)
   const purchasePrice = Number(nhPurchasePrice.value)
+  const purchaseCommission = Number(nhPurchaseCommission.value) || 0
   if (!ticker) {
     holdingError.value = 'Введите тикер.'
     return
@@ -361,10 +378,11 @@ function addHolding() {
     holdingError.value = 'Введите цену покупки.'
     return
   }
-  upsertHolding(vault.value, { ticker, qty, purchaseDate: nhPurchaseDate.value || todayISO(), purchasePrice })
+  upsertHolding(vault.value, { ticker, qty, purchaseDate: nhPurchaseDate.value || todayISO(), purchasePrice, purchaseCommission })
   nhTicker.value = ''
   nhQty.value = ''
   nhPurchasePrice.value = ''
+  nhPurchaseCommission.value = ''
   nhPurchaseDate.value = todayISO()
 }
 
@@ -384,6 +402,47 @@ function onHoldingPurchaseDateChange(id, e) {
 function deleteHolding(id) {
   if (!confirm('Удалить эту позицию?')) return
   removeHolding(vault.value, id)
+}
+
+function openSellForm(id) {
+  sellHoldingId.value = sellHoldingId.value === id ? null : id
+  shQty.value = ''
+  shSellPrice.value = ''
+  shCommission.value = ''
+  shDate.value = todayISO()
+  shError.value = ''
+}
+
+function submitSell() {
+  shError.value = ''
+  const holding = vault.value.holdings[sellHoldingId.value]
+  if (!holding) return
+  const qty = Number(shQty.value)
+  const sellPrice = Number(shSellPrice.value)
+  const commission = Number(shCommission.value) || 0
+  if (!Number.isFinite(qty) || qty <= 0) {
+    shError.value = 'Введите количество.'
+    return
+  }
+  if (!Number.isFinite(sellPrice) || sellPrice < 0) {
+    shError.value = 'Введите цену продажи.'
+    return
+  }
+  if (qty > holding.qty) {
+    shError.value = `Количество не может превышать ${holding.qty}.`
+    return
+  }
+  const netProceeds = qty * sellPrice - commission
+  if (!confirm(`Продать ${qty} шт. ${holding.ticker} по ${sellPrice} ₽/шт. = ${fmtRub(netProceeds)}`)) {
+    return
+  }
+  sellHolding(vault.value, { holdingId: sellHoldingId.value, qty, sellPrice, commission, date: shDate.value })
+  sellHoldingId.value = null
+  shQty.value = ''
+  shSellPrice.value = ''
+  shCommission.value = ''
+  shDate.value = todayISO()
+  shError.value = ''
 }
 
 // Per-ticker refresh state: id -> { status: 'loading'|'ok'|'error', message? }. Never
@@ -792,21 +851,41 @@ onUnmounted(() => {
               <tr><th>Тикер</th><th>Кол-во</th><th>Дата покупки</th><th>Цена покупки</th><th>Тек. цена</th><th>П/У</th><th></th></tr>
             </thead>
             <tbody>
-              <tr v-for="h in holdingsList" :key="h.id">
-                <td>{{ h.ticker }}</td>
-                <td><input class="fin-cell-input fin-cell-num" type="number" step="1" :value="h.qty" @change="onHoldingQtyChange(h.id, $event)" /></td>
-                <td><input class="fin-cell-input" type="date" :value="h.purchaseDate" @change="onHoldingPurchaseDateChange(h.id, $event)" /></td>
-                <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="h.purchasePrice" @change="onHoldingPurchasePriceChange(h.id, $event)" /></td>
-                <td class="fin-price-cell">
-                  <span>{{ h.lastPrice != null ? fmtRub(h.lastPrice) : fmtRub(h.purchasePrice) + ' (покупка)' }}</span>
-                  <span v-if="h.priceAsOf" class="fin-price-asof">на {{ fmtDate(h.priceAsOf) }}</span>
-                  <span v-if="priceStatus[h.id]?.status === 'loading'" class="fin-price-status">…</span>
-                  <span v-else-if="priceStatus[h.id]?.status === 'error'" class="fin-price-status bad" :title="priceStatus[h.id].message">⚠</span>
-                  <span v-else-if="priceStatus[h.id]?.status === 'ok'" class="fin-price-status ok">✓</span>
-                </td>
-                <td :class="holdingGainLoss(h) >= 0 ? 'ok' : 'bad'">{{ fmtRub(holdingGainLoss(h)) }}</td>
-                <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteHolding(h.id)">✕</button></td>
-              </tr>
+              <template v-for="h in holdingsList" :key="h.id">
+                <tr>
+                  <td>{{ h.ticker }}</td>
+                  <td><input class="fin-cell-input fin-cell-num" type="number" step="1" :value="h.qty" @change="onHoldingQtyChange(h.id, $event)" /></td>
+                  <td><input class="fin-cell-input" type="date" :value="h.purchaseDate" @change="onHoldingPurchaseDateChange(h.id, $event)" /></td>
+                  <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="h.purchasePrice" @change="onHoldingPurchasePriceChange(h.id, $event)" /></td>
+                  <td class="fin-price-cell">
+                    <span>{{ h.lastPrice != null ? fmtRub(h.lastPrice) : fmtRub(h.purchasePrice) + ' (покупка)' }}</span>
+                    <span v-if="h.priceAsOf" class="fin-price-asof">на {{ fmtDate(h.priceAsOf) }}</span>
+                    <span v-if="priceStatus[h.id]?.status === 'loading'" class="fin-price-status">…</span>
+                    <span v-else-if="priceStatus[h.id]?.status === 'error'" class="fin-price-status bad" :title="priceStatus[h.id].message">⚠</span>
+                    <span v-else-if="priceStatus[h.id]?.status === 'ok'" class="fin-price-status ok">✓</span>
+                  </td>
+                  <td :class="holdingGainLoss(h) >= 0 ? 'ok' : 'bad'">{{ fmtRub(holdingGainLoss(h)) }}</td>
+                  <td>
+                    <button class="fin-row-btn" title="Продать" aria-label="Продать" @click="openSellForm(h.id)">$ Продать</button>
+                    <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteHolding(h.id)">✕</button>
+                  </td>
+                </tr>
+                <tr v-if="sellHoldingId === h.id" class="fin-sell-form-row">
+                  <td colspan="7">
+                    <div class="fin-sell-form">
+                      <div class="fin-sell-fields">
+                        <input v-model="shQty" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Кол-во" @keydown.enter="submitSell" />
+                        <input v-model="shSellPrice" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Цена продажи" @keydown.enter="submitSell" />
+                        <input v-model="shCommission" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Комиссия" @keydown.enter="submitSell" />
+                        <input v-model="shDate" type="date" class="fin-text" @keydown.enter="submitSell" />
+                        <button class="fin-btn fin-btn-primary" @click="submitSell">Продать</button>
+                        <button class="fin-btn" @click="openSellForm(h.id)">Отмена</button>
+                      </div>
+                      <p v-if="shError" class="fin-form-error">{{ shError }}</p>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет позиций в портфеле.</p>
@@ -816,6 +895,7 @@ onUnmounted(() => {
             <input v-model="nhQty" type="number" step="1" class="fin-text fin-text-num" placeholder="Кол-во" @keydown.enter="addHolding" />
             <input v-model="nhPurchaseDate" type="date" class="fin-text" @keydown.enter="addHolding" />
             <input v-model="nhPurchasePrice" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Цена покупки" @keydown.enter="addHolding" />
+            <input v-model="nhPurchaseCommission" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Комиссия" @keydown.enter="addHolding" />
             <button class="fin-btn fin-btn-primary" @click="addHolding">+ Позиция</button>
           </div>
           <p v-if="holdingError" class="fin-form-error">{{ holdingError }}</p>
