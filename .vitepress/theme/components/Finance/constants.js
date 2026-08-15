@@ -14,7 +14,7 @@ export function todayISO(date = new Date()) {
   return `${y}-${m}-${d}`
 }
 
-// Small, fixed set — no free-form category management UI in v1 (keeps entry fast).
+// Small, fixed set — no free-form category management UI (keeps entry fast).
 export const EXPENSE_CATEGORIES = [
   { id: 'food', label: 'Еда' },
   { id: 'transport', label: 'Транспорт' },
@@ -22,6 +22,15 @@ export const EXPENSE_CATEGORIES = [
   { id: 'health', label: 'Здоровье' },
   { id: 'entertainment', label: 'Развлечения' },
   { id: 'shopping', label: 'Покупки' },
+  { id: 'other', label: 'Другое' },
+]
+
+export const INCOME_CATEGORIES = [
+  { id: 'dividends', label: 'Дивиденды' },
+  { id: 'stock_sale', label: 'Продажа акций' },
+  { id: 'deposit_interest', label: 'Проценты на вклад' },
+  { id: 'deposit_closure', label: 'Закрытие вклада' },
+  { id: 'salary', label: 'Зарплата' },
   { id: 'other', label: 'Другое' },
 ]
 

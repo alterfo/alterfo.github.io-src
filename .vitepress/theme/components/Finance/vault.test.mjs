@@ -2,70 +2,90 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   emptyVault,
-  upsertExpense,
+  upsertTransaction,
   upsertAccount,
   upsertHolding,
-  removeExpense,
+  removeTransaction,
   removeAccount,
   removeHolding,
-  expensesInRange,
+  transactionsInRange,
   openAccounts,
   openHoldings,
   mergeVaults,
+  migrateVaultV1toV2,
 } from './vault.js'
 
 describe('emptyVault', () => {
-  it('has version 1, empty maps, an ISO createdAt', () => {
+  it('has version 2, empty maps, settings with null defaultAccountId, an ISO createdAt', () => {
     const v = emptyVault()
-    assert.equal(v.version, 1)
-    assert.deepEqual(v.expenses, {})
+    assert.equal(v.version, 2)
+    assert.deepEqual(v.transactions, {})
     assert.deepEqual(v.accounts, {})
     assert.deepEqual(v.holdings, {})
+    assert.deepEqual(v.deposits, {})
+    assert.equal(v.settings.defaultAccountId, null)
     assert.ok(!Number.isNaN(Date.parse(v.createdAt)))
+    assert.ok(!Number.isNaN(Date.parse(v.settings.updatedAt)))
   })
 })
 
-describe('upsertExpense', () => {
-  it('creates a new expense with a generated id and defaults', () => {
+describe('upsertTransaction', () => {
+  it('creates a new expense transaction with a generated id and defaults', () => {
     const v = emptyVault()
     const now = '2026-08-01T10:00:00.000Z'
-    const e = upsertExpense(v, { amount: 500, category: 'food' }, now)
-    assert.equal(typeof e.id, 'string')
-    assert.equal(e.amount, 500)
-    assert.equal(e.category, 'food')
-    assert.equal(e.note, '')
-    assert.equal(typeof e.date, 'string')
-    assert.equal(e.deleted, false)
-    assert.equal(e.createdAt, now)
-    assert.equal(e.updatedAt, now)
-    assert.equal(v.expenses[e.id], e)
+    const t = upsertTransaction(v, { amount: 500, direction: 'expense', category: 'food' }, now)
+    assert.equal(typeof t.id, 'string')
+    assert.equal(t.amount, 500)
+    assert.equal(t.direction, 'expense')
+    assert.equal(t.category, 'food')
+    assert.equal(t.accountId, null)
+    assert.equal(t.note, '')
+    assert.equal(typeof t.date, 'string')
+    assert.equal(t.deleted, false)
+    assert.equal(t.createdAt, now)
+    assert.equal(t.updatedAt, now)
+    assert.equal(v.transactions[t.id], t)
   })
 
-  it('falls back to the default category when omitted', () => {
+  it('creates a new income transaction with the correct default category', () => {
     const v = emptyVault()
-    const e = upsertExpense(v, { amount: 100 }, '2026-08-01T10:00:00.000Z')
-    assert.equal(e.category, 'other')
+    const now = '2026-08-01T10:00:00.000Z'
+    const t = upsertTransaction(v, { amount: 1000, direction: 'income' }, now)
+    assert.equal(t.direction, 'income')
+    assert.equal(t.category, 'other')
   })
 
-  it('edits an existing expense: preserves createdAt, bumps updatedAt', () => {
+  it('defaults to expense direction when omitted', () => {
+    const v = emptyVault()
+    const t = upsertTransaction(v, { amount: 100 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(t.direction, 'expense')
+  })
+
+  it('preserves direction and category across partial edits', () => {
     const v = emptyVault()
     const t1 = '2026-08-01T10:00:00.000Z'
     const t2 = '2026-08-02T10:00:00.000Z'
-    const created = upsertExpense(v, { amount: 100, category: 'food' }, t1)
-    const edited = upsertExpense(v, { id: created.id, amount: 200 }, t2)
-    assert.equal(edited.id, created.id)
+    const created = upsertTransaction(v, { amount: 100, direction: 'income', category: 'dividends' }, t1)
+    const edited = upsertTransaction(v, { id: created.id, amount: 200 }, t2)
+    assert.equal(edited.direction, 'income')
+    assert.equal(edited.category, 'dividends')
     assert.equal(edited.amount, 200)
-    assert.equal(edited.category, 'food')
-    assert.equal(edited.createdAt, t1)
-    assert.equal(edited.updatedAt, t2)
-    assert.equal(Object.keys(v.expenses).length, 1)
   })
 
-  it('editing an unknown id creates it fresh rather than throwing', () => {
+  it('sets and preserves accountId', () => {
     const v = emptyVault()
-    const e = upsertExpense(v, { id: 'unknown', amount: 50 }, '2026-08-01T10:00:00.000Z')
-    assert.equal(e.id, 'unknown')
-    assert.equal(e.amount, 50)
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const created = upsertTransaction(v, { amount: 100, accountId: 'acc123' }, t1)
+    assert.equal(created.accountId, 'acc123')
+    const edited = upsertTransaction(v, { id: created.id, amount: 200 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(edited.accountId, 'acc123')
+  })
+
+  it('edits an unknown id creates it fresh', () => {
+    const v = emptyVault()
+    const t = upsertTransaction(v, { id: 'unknown', amount: 50 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(t.id, 'unknown')
+    assert.equal(t.amount, 50)
   })
 })
 
@@ -133,16 +153,16 @@ describe('upsertHolding', () => {
   })
 })
 
-describe('removeExpense / removeAccount / removeHolding', () => {
+describe('removeTransaction / removeAccount / removeHolding', () => {
   it('tombstones (deleted:true) and bumps updatedAt, never hard-deletes', () => {
     const v = emptyVault()
     const t1 = '2026-08-01T10:00:00.000Z'
     const t2 = '2026-08-02T10:00:00.000Z'
-    const e = upsertExpense(v, { amount: 100 }, t1)
-    removeExpense(v, e.id, t2)
-    assert.equal(v.expenses[e.id].deleted, true)
-    assert.equal(v.expenses[e.id].updatedAt, t2)
-    assert.equal(Object.keys(v.expenses).length, 1)
+    const tx = upsertTransaction(v, { amount: 100 }, t1)
+    removeTransaction(v, tx.id, t2)
+    assert.equal(v.transactions[tx.id].deleted, true)
+    assert.equal(v.transactions[tx.id].updatedAt, t2)
+    assert.equal(Object.keys(v.transactions).length, 1)
 
     const a = upsertAccount(v, { name: 'x' }, t1)
     removeAccount(v, a.id, t2)
@@ -155,29 +175,45 @@ describe('removeExpense / removeAccount / removeHolding', () => {
 
   it('is a no-op for an unknown id', () => {
     const v = emptyVault()
-    assert.equal(removeExpense(v, 'nope'), undefined)
+    assert.equal(removeTransaction(v, 'nope'), undefined)
     assert.equal(removeAccount(v, 'nope'), undefined)
     assert.equal(removeHolding(v, 'nope'), undefined)
   })
 })
 
-describe('expensesInRange', () => {
+describe('transactionsInRange', () => {
   it('includes dates within range (inclusive), excludes outside and deleted', () => {
     const v = emptyVault()
-    upsertExpense(v, { id: 'a', amount: 1, date: '2026-07-31' }, '2026-05-01T00:00:00.000Z')
-    upsertExpense(v, { id: 'b', amount: 2, date: '2026-08-01' }, '2026-05-01T00:00:00.000Z')
-    upsertExpense(v, { id: 'c', amount: 3, date: '2026-08-15' }, '2026-05-01T00:00:00.000Z')
-    upsertExpense(v, { id: 'd', amount: 4, date: '2026-09-01' }, '2026-05-01T00:00:00.000Z')
-    upsertExpense(v, { id: 'e', amount: 5, date: '2026-08-10' }, '2026-05-01T00:00:00.000Z')
-    removeExpense(v, 'e', '2026-08-11T00:00:00.000Z')
+    upsertTransaction(v, { id: 'a', amount: 1, direction: 'expense', date: '2026-07-31' }, '2026-05-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'b', amount: 2, direction: 'expense', date: '2026-08-01' }, '2026-05-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'c', amount: 3, direction: 'expense', date: '2026-08-15' }, '2026-05-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'd', amount: 4, direction: 'expense', date: '2026-09-01' }, '2026-05-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'e', amount: 5, direction: 'expense', date: '2026-08-10' }, '2026-05-01T00:00:00.000Z')
+    removeTransaction(v, 'e', '2026-08-11T00:00:00.000Z')
 
-    const inRange = expensesInRange(v, '2026-08-01', '2026-08-31').map(x => x.id)
+    const inRange = transactionsInRange(v, '2026-08-01', '2026-08-31').map(x => x.id)
     assert.deepEqual(inRange, ['b', 'c'])
+  })
+
+  it('filters by direction when specified', () => {
+    const v = emptyVault()
+    upsertTransaction(v, { id: 'a', amount: 100, direction: 'expense', date: '2026-08-01' }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'b', amount: 1000, direction: 'income', date: '2026-08-01' }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(v, { id: 'c', amount: 50, direction: 'expense', date: '2026-08-02' }, '2026-08-02T00:00:00.000Z')
+
+    const expenses = transactionsInRange(v, '2026-08-01', '2026-08-31', 'expense').map(x => x.id)
+    assert.deepEqual(expenses, ['a', 'c'])
+
+    const income = transactionsInRange(v, '2026-08-01', '2026-08-31', 'income').map(x => x.id)
+    assert.deepEqual(income, ['b'])
+
+    const all = transactionsInRange(v, '2026-08-01', '2026-08-31').map(x => x.id)
+    assert.deepEqual(all, ['a', 'b', 'c'])
   })
 
   it('returns an empty array for an empty vault', () => {
     const v = emptyVault()
-    assert.deepEqual(expensesInRange(v, '2026-08-01', '2026-08-31'), [])
+    assert.deepEqual(transactionsInRange(v, '2026-08-01', '2026-08-31'), [])
   })
 })
 
@@ -201,35 +237,111 @@ describe('openAccounts / openHoldings', () => {
   })
 })
 
+describe('migrateVaultV1toV2', () => {
+  it('converts v1 expenses to v2 transactions with direction:expense and accountId:null', () => {
+    const v1 = {
+      version: 1,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      expenses: {
+        'e1': {
+          id: 'e1',
+          amount: 100,
+          category: 'food',
+          note: 'lunch',
+          date: '2026-08-01',
+          deleted: false,
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      accounts: {},
+      holdings: {},
+    }
+    const v2 = migrateVaultV1toV2(v1)
+    assert.equal(v2.version, 2)
+    assert.ok(v2.transactions['e1'])
+    assert.equal(v2.transactions['e1'].direction, 'expense')
+    assert.equal(v2.transactions['e1'].accountId, null)
+    assert.equal(v2.transactions['e1'].amount, 100)
+    assert.equal(v2.transactions['e1'].category, 'food')
+    assert.ok(v2.deposits)
+    assert.deepEqual(v2.settings.defaultAccountId, null)
+  })
+
+  it('is idempotent: running on an already-migrated vault is a no-op', () => {
+    const v2 = emptyVault()
+    upsertTransaction(v2, { id: 'tx1', amount: 50, direction: 'income' }, '2026-08-01T00:00:00.000Z')
+    const migrated = migrateVaultV1toV2(v2)
+    assert.deepEqual(migrated.transactions['tx1'], v2.transactions['tx1'])
+    assert.equal(migrated.version, 2)
+  })
+
+  it('preserves all fields from the original expense', () => {
+    const v1 = {
+      version: 1,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      expenses: {
+        'ex': {
+          id: 'ex',
+          amount: 999,
+          category: 'other',
+          note: 'test note',
+          date: '2026-08-15',
+          deleted: true,
+          createdAt: '2026-07-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      accounts: {},
+      holdings: {},
+    }
+    const v2 = migrateVaultV1toV2(v1)
+    const tx = v2.transactions['ex']
+    assert.equal(tx.amount, 999)
+    assert.equal(tx.category, 'other')
+    assert.equal(tx.note, 'test note')
+    assert.equal(tx.date, '2026-08-15')
+    assert.equal(tx.deleted, true)
+    assert.equal(tx.createdAt, '2026-07-01T00:00:00.000Z')
+    assert.equal(tx.updatedAt, '2026-08-01T00:00:00.000Z')
+  })
+})
+
 describe('mergeVaults', () => {
-  it('union by id across all three entity maps', () => {
+  it('union by id across all entity maps including deposits and settings', () => {
     const a = emptyVault()
-    upsertExpense(a, { id: 'e1', amount: 1 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(a, { id: 'tx1', amount: 1 }, '2026-08-01T00:00:00.000Z')
     const b = emptyVault()
     upsertAccount(b, { id: 'a1', name: 'x' }, '2026-08-01T00:00:00.000Z')
     upsertHolding(b, { id: 'h1', ticker: 'SBER' }, '2026-08-01T00:00:00.000Z')
     const m = mergeVaults(a, b)
-    assert.ok(m.expenses['e1'])
+    assert.ok(m.transactions['tx1'])
     assert.ok(m.accounts['a1'])
     assert.ok(m.holdings['h1'])
+    assert.ok(m.deposits)
+    assert.ok(m.settings)
   })
 
-  it('LWW: newer updatedAt wins on a shared id, regardless of merge order', () => {
+  it('LWW: newer updatedAt wins on a shared transaction id, regardless of merge order', () => {
     const a = emptyVault()
-    upsertExpense(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
     const b = emptyVault()
-    upsertExpense(b, { id: 'x', amount: 200 }, '2026-08-05T00:00:00.000Z')
-    assert.equal(mergeVaults(a, b).expenses['x'].amount, 200)
-    assert.equal(mergeVaults(b, a).expenses['x'].amount, 200)
+    upsertTransaction(b, { id: 'x', amount: 200 }, '2026-08-05T00:00:00.000Z')
+    assert.equal(mergeVaults(a, b).transactions['x'].amount, 200)
+    assert.equal(mergeVaults(b, a).transactions['x'].amount, 200)
   })
 
-  it('a tombstone with a newer updatedAt wins over a live older copy', () => {
+  it('merges settings by LWW on updatedAt', () => {
     const a = emptyVault()
-    upsertAccount(a, { id: 'x', name: 'live' }, '2026-08-01T00:00:00.000Z')
+    a.settings.defaultAccountId = 'acc1'
+    a.settings.updatedAt = '2026-08-01T00:00:00.000Z'
     const b = emptyVault()
-    upsertAccount(b, { id: 'x', name: 'live' }, '2026-08-01T00:00:00.000Z')
-    removeAccount(b, 'x', '2026-08-05T00:00:00.000Z')
-    assert.equal(mergeVaults(a, b).accounts['x'].deleted, true)
+    b.settings.defaultAccountId = 'acc2'
+    b.settings.updatedAt = '2026-08-05T00:00:00.000Z'
+    const m1 = mergeVaults(a, b)
+    assert.equal(m1.settings.defaultAccountId, 'acc2')
+    const m2 = mergeVaults(b, a)
+    assert.equal(m2.settings.defaultAccountId, 'acc2')
   })
 
   it('is commutative (same result regardless of argument order)', () => {
@@ -245,22 +357,22 @@ describe('mergeVaults', () => {
     assert.equal(ab.holdings['shared'].ticker, 'NEW')
   })
 
-  it('is idempotent: merging a vault with itself is equivalent', () => {
+  it('is idempotent: merging a vault with itself returns equivalent state', () => {
     const a = emptyVault()
-    upsertExpense(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
     const m = mergeVaults(a, a)
-    assert.equal(Object.keys(m.expenses).length, 1)
-    assert.equal(m.expenses['x'].amount, 100)
+    assert.equal(Object.keys(m.transactions).length, 1)
+    assert.equal(m.transactions['x'].amount, 100)
   })
 
   it('does not mutate inputs', () => {
     const a = emptyVault()
-    upsertExpense(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(a, { id: 'x', amount: 100 }, '2026-08-01T00:00:00.000Z')
     const b = emptyVault()
-    upsertExpense(b, { id: 'x', amount: 200 }, '2026-08-05T00:00:00.000Z')
+    upsertTransaction(b, { id: 'x', amount: 200 }, '2026-08-05T00:00:00.000Z')
     mergeVaults(a, b)
-    assert.equal(a.expenses['x'].amount, 100)
-    assert.equal(b.expenses['x'].amount, 200)
+    assert.equal(a.transactions['x'].amount, 100)
+    assert.equal(b.transactions['x'].amount, 200)
   })
 
   it('uses the earliest createdAt and the higher version', () => {
@@ -269,9 +381,35 @@ describe('mergeVaults', () => {
     a.version = 2
     const b = emptyVault()
     b.createdAt = '2026-08-05T00:00:00.000Z'
-    b.version = 1
+    b.version = 2
     const m = mergeVaults(a, b)
     assert.equal(m.createdAt, '2026-08-01T00:00:00.000Z')
     assert.equal(m.version, 2)
+  })
+
+  it('automatically migrates v1 vaults during merge', () => {
+    const v1 = {
+      version: 1,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      expenses: {
+        'e1': {
+          id: 'e1',
+          amount: 100,
+          category: 'food',
+          note: '',
+          date: '2026-08-01',
+          deleted: false,
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      accounts: {},
+      holdings: {},
+    }
+    const v2 = emptyVault()
+    const merged = mergeVaults(v1, v2)
+    assert.equal(merged.version, 2)
+    assert.ok(merged.transactions['e1'])
+    assert.equal(merged.transactions['e1'].direction, 'expense')
   })
 })

@@ -1,42 +1,95 @@
 // Pure vault logic for the Finance tracker: no DOM, no crypto, no IndexedDB —
 // fully unit-testable under Node 22. Mirrors Decisions/vault.js (id-keyed CRUD with
-// tombstone deletes, LWW merge), extended to three entity types (expenses, accounts,
-// holdings) instead of one. Shape:
-//   { version, createdAt, expenses: { [id]: Expense }, accounts: { [id]: Account },
-//     holdings: { [id]: Holding } }
+// tombstone deletes, LWW merge), extended to four entity types (transactions, accounts,
+// holdings, deposits) plus a settings block. Shape:
+//   { version, createdAt, transactions: { [id]: Transaction }, accounts: { [id]: Account },
+//     holdings: { [id]: Holding }, deposits: { [id]: Deposit },
+//     settings: { defaultAccountId, updatedAt } }
 
-import { makeId, todayISO, DEFAULT_CATEGORY } from './constants.js'
+import { makeId, todayISO, DEFAULT_CATEGORY, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from './constants.js'
 
 export function emptyVault() {
+  const now = new Date().toISOString()
   return {
-    version: 1,
-    createdAt: new Date().toISOString(),
-    expenses: {},
+    version: 2,
+    createdAt: now,
+    transactions: {},
     accounts: {},
     holdings: {},
+    deposits: {},
+    settings: {
+      defaultAccountId: null,
+      updatedAt: now,
+    },
   }
 }
 
-// Create or edit an expense. Fields present on `expense` override the stored copy;
-// missing fields fall back to the existing expense (partial edit) then to a default.
-// createdAt is preserved across edits; updatedAt is always bumped to `now`.
-export function upsertExpense(vault, expense, now = new Date().toISOString()) {
-  const id = expense.id || makeId()
-  const existing = vault.expenses[id]
+// Migrate a v1 vault (expenses-based) to v2 (transactions + deposits + settings).
+// Idempotent: running on an already-migrated vault is a no-op.
+export function migrateVaultV1toV2(vault) {
+  if (vault.version >= 2 && vault.transactions) return vault
+  const now = vault.createdAt || new Date().toISOString()
+  const transactions = {}
+  if (vault.expenses) {
+    for (const [id, expense] of Object.entries(vault.expenses)) {
+      transactions[id] = {
+        id: expense.id,
+        amount: expense.amount,
+        direction: 'expense',
+        category: expense.category,
+        accountId: null,
+        note: expense.note,
+        date: expense.date,
+        deleted: expense.deleted,
+        createdAt: expense.createdAt,
+        updatedAt: expense.updatedAt,
+      }
+    }
+  }
+  return {
+    version: 2,
+    createdAt: vault.createdAt || now,
+    transactions,
+    accounts: vault.accounts || {},
+    holdings: vault.holdings || {},
+    deposits: {},
+    settings: {
+      defaultAccountId: null,
+      updatedAt: now,
+    },
+  }
+}
+
+// Create or edit a transaction (expense or income). Fields present on `transaction`
+// override the stored copy; missing fields fall back to the existing transaction
+// (partial edit) then to a default. createdAt is preserved across edits;
+// updatedAt is always bumped to `now`.
+export function upsertTransaction(vault, transaction, now = new Date().toISOString()) {
+  const id = transaction.id || makeId()
+  const existing = vault.transactions[id]
+  const direction = transaction.direction ?? existing?.direction ?? 'expense'
+  const defaultCategory = direction === 'income' ? 'other' : DEFAULT_CATEGORY
 
   const stored = {
     id,
-    amount: expense.amount ?? existing?.amount ?? 0,
-    category: expense.category ?? existing?.category ?? DEFAULT_CATEGORY,
-    note: expense.note ?? existing?.note ?? '',
-    date: expense.date ?? existing?.date ?? todayISO(),
-    deleted: expense.deleted ?? existing?.deleted ?? false,
-    createdAt: existing ? existing.createdAt : (expense.createdAt ?? now),
+    amount: transaction.amount ?? existing?.amount ?? 0,
+    direction,
+    category: transaction.category ?? existing?.category ?? defaultCategory,
+    accountId: transaction.accountId ?? existing?.accountId ?? null,
+    note: transaction.note ?? existing?.note ?? '',
+    date: transaction.date ?? existing?.date ?? todayISO(),
+    deleted: transaction.deleted ?? existing?.deleted ?? false,
+    createdAt: existing ? existing.createdAt : (transaction.createdAt ?? now),
     updatedAt: now,
   }
 
-  vault.expenses[id] = stored
+  vault.transactions[id] = stored
   return stored
+}
+
+// Legacy: alias for backwards compatibility during migration phase (not used after tasks complete).
+export function upsertExpense(vault, expense, now = new Date().toISOString()) {
+  return upsertTransaction(vault, { ...expense, direction: 'expense' }, now)
 }
 
 // Create or edit an account. Same partial-edit semantics as upsertExpense.
@@ -84,12 +137,17 @@ export function upsertHolding(vault, holding, now = new Date().toISOString()) {
 // Tombstone (deleted:true + bump updatedAt) rather than hard-delete — required so the
 // LWW merge propagates the deletion to other devices/tabs instead of them resurrecting
 // the id as "unknown" (absence ≠ deletion). Returns the entity, or undefined if unknown.
+export function removeTransaction(vault, id, now = new Date().toISOString()) {
+  const t = vault.transactions[id]
+  if (!t) return
+  t.deleted = true
+  t.updatedAt = now
+  return t
+}
+
+// Legacy: alias for backwards compatibility during migration phase.
 export function removeExpense(vault, id, now = new Date().toISOString()) {
-  const e = vault.expenses[id]
-  if (!e) return
-  e.deleted = true
-  e.updatedAt = now
-  return e
+  return removeTransaction(vault, id, now)
 }
 
 export function removeAccount(vault, id, now = new Date().toISOString()) {
@@ -108,11 +166,17 @@ export function removeHolding(vault, id, now = new Date().toISOString()) {
   return h
 }
 
-// Non-deleted expenses with date in [fromISO, toISO] (inclusive), sorted ascending.
-export function expensesInRange(vault, fromISO, toISO) {
-  return Object.values(vault.expenses)
-    .filter(e => !e.deleted && e.date >= fromISO && e.date <= toISO)
+// Non-deleted transactions with date in [fromISO, toISO] (inclusive), sorted ascending.
+// Optional direction filter: 'expense' | 'income' | undefined (both).
+export function transactionsInRange(vault, fromISO, toISO, direction) {
+  return Object.values(vault.transactions)
+    .filter(t => !t.deleted && t.date >= fromISO && t.date <= toISO && (!direction || t.direction === direction))
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+}
+
+// Legacy: alias for backwards compatibility during migration phase.
+export function expensesInRange(vault, fromISO, toISO) {
+  return transactionsInRange(vault, fromISO, toISO, 'expense')
 }
 
 // Non-deleted accounts, sorted by name.
@@ -144,15 +208,30 @@ function mergeEntityMap(a, b) {
   return merged
 }
 
-// Union-by-id LWW merge across all three entity maps. Returns a NEW vault; does not
+// Merge settings by LWW on updatedAt (independent of transaction/account/holding LWW).
+// Returns a merged settings object.
+function mergeSettings(aSettings, bSettings) {
+  const a = aSettings || { defaultAccountId: null, updatedAt: '1970-01-01T00:00:00Z' }
+  const b = bSettings || { defaultAccountId: null, updatedAt: '1970-01-01T00:00:00Z' }
+  const aIsNewer = (a.updatedAt || '') >= (b.updatedAt || '')
+  return aIsNewer
+    ? { defaultAccountId: a.defaultAccountId ?? null, updatedAt: a.updatedAt }
+    : { defaultAccountId: b.defaultAccountId ?? null, updatedAt: b.updatedAt }
+}
+
+// Union-by-id LWW merge across all entity maps and settings. Returns a NEW vault; does not
 // mutate inputs. Deterministic, commutative, idempotent — safe for file sync / cross-tab
-// merge, no CRDT needed.
+// merge, no CRDT needed. Automatically migrates v1 vaults to v2 if needed.
 export function mergeVaults(a, b) {
+  const aMigrated = migrateVaultV1toV2(a)
+  const bMigrated = migrateVaultV1toV2(b)
   return {
-    version: Math.max(a.version || 1, b.version || 1),
-    createdAt: (a.createdAt || '￿') < (b.createdAt || '￿') ? a.createdAt : b.createdAt,
-    expenses: mergeEntityMap(a.expenses || {}, b.expenses || {}),
-    accounts: mergeEntityMap(a.accounts || {}, b.accounts || {}),
-    holdings: mergeEntityMap(a.holdings || {}, b.holdings || {}),
+    version: Math.max(aMigrated.version || 2, bMigrated.version || 2),
+    createdAt: (aMigrated.createdAt || '￿') < (bMigrated.createdAt || '￿') ? aMigrated.createdAt : bMigrated.createdAt,
+    transactions: mergeEntityMap(aMigrated.transactions || {}, bMigrated.transactions || {}),
+    accounts: mergeEntityMap(aMigrated.accounts || {}, bMigrated.accounts || {}),
+    holdings: mergeEntityMap(aMigrated.holdings || {}, bMigrated.holdings || {}),
+    deposits: mergeEntityMap(aMigrated.deposits || {}, bMigrated.deposits || {}),
+    settings: mergeSettings(aMigrated.settings, bMigrated.settings),
   }
 }

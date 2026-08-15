@@ -19,6 +19,7 @@ import {
   emptyVault, upsertExpense, upsertAccount, upsertHolding,
   removeExpense, removeAccount, removeHolding,
   expensesInRange, openAccounts, openHoldings, mergeVaults,
+  migrateVaultV1toV2,
 } from './Finance/vault.js'
 import {
   totalBalance, spendByCategory, portfolioValue, portfolioGainLoss,
@@ -135,7 +136,7 @@ async function unlock() {
     const data = await decryptJSON(key, { iv, ciphertext })
     cryptoKey.value = key
     _salt = salt
-    vault.value = data && data.expenses ? data : emptyVault()
+    vault.value = data && (data.expenses || data.transactions) ? migrateVaultV1toV2(data) : emptyVault()
     phase.value = 'unlocked'
     view.value = 'dashboard'
     qaCategory.value = mostRecentCategory()
