@@ -16,17 +16,17 @@ import { deriveKey, randomBytes, encryptJSON, decryptJSON, packEnvelope, unpackE
 import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeNow, initCrossTabSync } from './Finance/db.js'
 import { exportEnvelope, readEnvelopeFile } from './Finance/exporter.js'
 import {
-  emptyVault, upsertExpense, upsertAccount, upsertHolding,
-  removeExpense, removeAccount, removeHolding,
-  expensesInRange, openAccounts, openHoldings, mergeVaults,
+  emptyVault, upsertTransaction, upsertAccount, upsertHolding,
+  removeTransaction, removeAccount, removeHolding,
+  upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
   migrateVaultV1toV2,
 } from './Finance/vault.js'
 import {
-  totalBalance, spendByCategory, portfolioValue, portfolioGainLoss,
-  holdingGainLoss, netWorth,
+  totalBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
+  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
-import { EXPENSE_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
 
 const ITERATIONS = 600000
 
@@ -50,32 +50,41 @@ const view = ref('dashboard') // 'dashboard' | 'accounts' | 'investments'
 // ---- Selectors over the vault ----
 const accountsList = computed(() => openAccounts(vault.value))
 const holdingsList = computed(() => openHoldings(vault.value))
-const recentExpenses = computed(() => expensesInRange(vault.value, '0000-01-01', todayISO()).slice(-8).reverse())
+const recentTransactions = computed(() => transactionsInRange(vault.value, '0000-01-01', todayISO()).slice(-8).reverse())
 
 function monthRange() {
   const now = new Date()
   const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   return [start, todayISO()]
 }
-const monthSpend = computed(() => {
+const monthExpense = computed(() => {
   const [from, to] = monthRange()
-  return spendByCategory(Object.values(vault.value.expenses), from, to)
+  return expenseByCategory(Object.values(vault.value.transactions), from, to)
 })
-const monthSpendTotal = computed(() => Object.values(monthSpend.value).reduce((s, v) => s + v, 0))
+const monthExpenseTotal = computed(() => Object.values(monthExpense.value).reduce((s, v) => s + v, 0))
 const totalBalanceVal = computed(() => totalBalance(accountsList.value))
 const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
 const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value))
 
 function categoryLabel(id) {
-  return EXPENSE_CATEGORIES.find(c => c.id === id)?.label || id
+  const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)
+  if (expenseCat) return expenseCat.label
+  const incomeCat = INCOME_CATEGORIES.find(c => c.id === id)
+  if (incomeCat) return incomeCat.label
+  return id
 }
 
-function mostRecentCategory() {
-  const list = Object.values(vault.value.expenses)
-    .filter(e => !e.deleted)
+function getCategoriesForDirection(direction) {
+  return direction === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+}
+
+function mostRecentCategory(direction) {
+  const list = Object.values(vault.value.transactions)
+    .filter(t => !t.deleted && t.direction === direction)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-  return list[0]?.category || DEFAULT_CATEGORY
+  const defaultCat = direction === 'income' ? 'other' : 'other'
+  return list[0]?.category || defaultCat
 }
 
 // ---- Create a brand-new vault (first run) ----
@@ -106,7 +115,9 @@ async function createVault() {
     hasVault.value = true
     phase.value = 'unlocked'
     view.value = 'dashboard'
-    qaCategory.value = mostRecentCategory()
+    qaDirection.value = 'expense'
+    qaCategory.value = mostRecentCategory('expense')
+    qaAccount.value = vault.value.settings.defaultAccountId || null
     clearInputs()
   } catch (e) {
     error.value = 'Не удалось создать хранилище: ' + (e?.message || e)
@@ -139,7 +150,9 @@ async function unlock() {
     vault.value = data && (data.expenses || data.transactions) ? migrateVaultV1toV2(data) : emptyVault()
     phase.value = 'unlocked'
     view.value = 'dashboard'
-    qaCategory.value = mostRecentCategory()
+    qaDirection.value = 'expense'
+    qaCategory.value = mostRecentCategory('expense')
+    qaAccount.value = vault.value.settings.defaultAccountId || null
     clearInputs()
   } catch {
     error.value = 'Неверный пароль или повреждённые данные.'
@@ -157,8 +170,10 @@ function lockVault() {
   vault.value = emptyVault()
   view.value = 'dashboard'
   qaAmount.value = ''
+  qaDirection.value = 'expense'
   qaCategory.value = DEFAULT_CATEGORY
   qaNote.value = ''
+  qaAccount.value = null
   qaError.value = ''
   naName.value = ''
   naBalance.value = ''
@@ -185,10 +200,12 @@ function onPassphraseEnter() {
   hasVault.value ? unlock() : createVault()
 }
 
-// ---- Expense quick-add (primary above-the-fold control) ----
+// ---- Transaction quick-add (primary above-the-fold control) ----
 const qaAmount = ref('')
+const qaDirection = ref('expense')
 const qaCategory = ref(DEFAULT_CATEGORY)
 const qaNote = ref('')
+const qaAccount = ref(null)
 const qaError = ref('')
 const qaAmountEl = ref(null)
 
@@ -199,15 +216,30 @@ function submitQuickAdd() {
     qaError.value = 'Введите сумму.'
     return
   }
-  upsertExpense(vault.value, { amount, category: qaCategory.value, note: qaNote.value.trim(), date: todayISO() })
+  upsertTransaction(vault.value, {
+    amount,
+    direction: qaDirection.value,
+    category: qaCategory.value,
+    accountId: qaAccount.value,
+    note: qaNote.value.trim(),
+    date: todayISO(),
+  })
   qaAmount.value = ''
   qaNote.value = ''
   nextTick(() => qaAmountEl.value?.focus())
 }
 
-function deleteExpense(id) {
-  if (!confirm('Удалить эту запись о расходе?')) return
-  removeExpense(vault.value, id)
+function onDirectionChange() {
+  qaCategory.value = mostRecentCategory(qaDirection.value)
+}
+
+function onAccountChange() {
+  upsertSettings(vault.value, { defaultAccountId: qaAccount.value })
+}
+
+function deleteTransaction(id) {
+  if (!confirm('Удалить эту запись?')) return
+  removeTransaction(vault.value, id)
 }
 
 // ---- Accounts ----
@@ -550,8 +582,15 @@ onUnmounted(() => {
       </header>
 
       <main class="fin-main">
-        <!-- Expense quick-add: primary above-the-fold control, single line, Enter submits -->
+        <!-- Transaction quick-add: primary above-the-fold control, single line, Enter submits -->
         <section class="fin-quickadd">
+          <button
+            class="fin-btn fin-direction-toggle"
+            :class="{ income: qaDirection === 'income' }"
+            @click="qaDirection = qaDirection === 'expense' ? 'income' : 'expense'; onDirectionChange()"
+          >
+            {{ qaDirection === 'income' ? 'Доход' : 'Расход' }}
+          </button>
           <input
             ref="qaAmountEl"
             v-model="qaAmount"
@@ -563,7 +602,11 @@ onUnmounted(() => {
             @keydown.enter="submitQuickAdd"
           />
           <select v-model="qaCategory" class="fin-qa-category">
-            <option v-for="c in EXPENSE_CATEGORIES" :key="c.id" :value="c.id">{{ c.label }}</option>
+            <option v-for="c in getCategoriesForDirection(qaDirection)" :key="c.id" :value="c.id">{{ c.label }}</option>
+          </select>
+          <select v-model="qaAccount" class="fin-qa-account" @change="onAccountChange">
+            <option :value="null">Счёт (опционально)</option>
+            <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
           <input
             v-model="qaNote"
@@ -572,7 +615,7 @@ onUnmounted(() => {
             placeholder="Заметка (необязательно)"
             @keydown.enter="submitQuickAdd"
           />
-          <button class="fin-btn fin-btn-primary fin-qa-submit" @click="submitQuickAdd">+ Расход</button>
+          <button class="fin-btn fin-btn-primary fin-qa-submit" @click="submitQuickAdd">{{ qaDirection === 'income' ? '+ Доход' : '+ Расход' }}</button>
         </section>
         <p v-if="qaError" class="fin-form-error">{{ qaError }}</p>
 
@@ -597,10 +640,10 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <h2 class="fin-panel-title">Расходы за месяц: {{ fmtRub(monthSpendTotal) }}</h2>
-          <table v-if="Object.keys(monthSpend).length" class="fin-table">
+          <h2 class="fin-panel-title">Расходы за месяц: {{ fmtRub(monthExpenseTotal) }}</h2>
+          <table v-if="Object.keys(monthExpense).length" class="fin-table">
             <tbody>
-              <tr v-for="(sum, cat) in monthSpend" :key="cat">
+              <tr v-for="(sum, cat) in monthExpense" :key="cat">
                 <td>{{ categoryLabel(cat) }}</td>
                 <td class="fin-table-num">{{ fmtRub(sum) }}</td>
               </tr>
@@ -608,19 +651,21 @@ onUnmounted(() => {
           </table>
           <p v-else class="fin-empty-hint">В этом месяце расходов ещё нет.</p>
 
-          <h2 class="fin-panel-title">Последние расходы</h2>
-          <table v-if="recentExpenses.length" class="fin-table">
+          <h2 class="fin-panel-title">Последние записи</h2>
+          <table v-if="recentTransactions.length" class="fin-table">
             <tbody>
-              <tr v-for="e in recentExpenses" :key="e.id">
-                <td class="fin-table-date">{{ e.date }}</td>
-                <td>{{ categoryLabel(e.category) }}</td>
-                <td class="fin-table-note">{{ e.note }}</td>
-                <td class="fin-table-num">{{ fmtRub(e.amount) }}</td>
-                <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteExpense(e.id)">✕</button></td>
+              <tr v-for="t in recentTransactions" :key="t.id">
+                <td class="fin-table-date">{{ t.date }}</td>
+                <td>{{ categoryLabel(t.category) }}</td>
+                <td class="fin-table-note">{{ t.note }}</td>
+                <td class="fin-table-num" :class="{ income: t.direction === 'income' }">
+                  {{ t.direction === 'income' ? '+' : '−' }}{{ fmtRub(t.amount) }}
+                </td>
+                <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteTransaction(t.id)">✕</button></td>
               </tr>
             </tbody>
           </table>
-          <p v-else class="fin-empty-hint">Пока нет ни одной записи. Добавьте первый расход выше.</p>
+          <p v-else class="fin-empty-hint">Пока нет ни одной записи. Добавьте первую запись выше.</p>
         </div>
 
         <!-- Accounts -->
