@@ -19,12 +19,15 @@ import {
   openHoldings,
   mergeVaults,
   migrateVaultV1toV2,
+  migrateAccountBalances,
+  migrateVault,
 } from './vault.js'
+import { accountBalance } from './stats.js'
 
 describe('emptyVault', () => {
-  it('has version 2, empty maps, settings with null defaultAccountId, an ISO createdAt', () => {
+  it('has version 3, empty maps, settings with null defaultAccountId, an ISO createdAt', () => {
     const v = emptyVault()
-    assert.equal(v.version, 2)
+    assert.equal(v.version, 3)
     assert.deepEqual(v.transactions, {})
     assert.deepEqual(v.accounts, {})
     assert.deepEqual(v.holdings, {})
@@ -99,10 +102,11 @@ describe('upsertAccount', () => {
   it('creates a new account with a generated id and defaults', () => {
     const v = emptyVault()
     const now = '2026-08-01T10:00:00.000Z'
-    const a = upsertAccount(v, { name: 'Карта', balance: 1000 }, now)
+    const a = upsertAccount(v, { name: 'Карта', openingBalance: 1000 }, now)
     assert.equal(typeof a.id, 'string')
     assert.equal(a.name, 'Карта')
-    assert.equal(a.balance, 1000)
+    assert.equal(a.openingBalance, 1000)
+    assert.equal(a.openingBalanceAsOf, now)
     assert.equal(a.deleted, false)
     assert.equal(a.createdAt, now)
     assert.equal(a.updatedAt, now)
@@ -111,10 +115,74 @@ describe('upsertAccount', () => {
   it('partial edit keeps unspecified fields from the existing account', () => {
     const v = emptyVault()
     const t1 = '2026-08-01T10:00:00.000Z'
-    const created = upsertAccount(v, { name: 'Карта', balance: 1000 }, t1)
-    const edited = upsertAccount(v, { id: created.id, balance: 1500 }, '2026-08-02T10:00:00.000Z')
-    assert.equal(edited.name, 'Карта')
-    assert.equal(edited.balance, 1500)
+    const created = upsertAccount(v, { name: 'Карта', openingBalance: 1000 }, t1)
+    const edited = upsertAccount(v, { id: created.id, name: 'Карта Visa' }, '2026-08-02T10:00:00.000Z')
+    assert.equal(edited.name, 'Карта Visa')
+    assert.equal(edited.openingBalance, 1000)
+  })
+
+  it('writing openingBalance resets openingBalanceAsOf to now, even on a partial edit', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-05T10:00:00.000Z'
+    const created = upsertAccount(v, { name: 'Карта', openingBalance: 1000 }, t1)
+    assert.equal(created.openingBalanceAsOf, t1)
+    const reconciled = upsertAccount(v, { id: created.id, openingBalance: 1234.56 }, t2)
+    assert.equal(reconciled.openingBalance, 1234.56)
+    assert.equal(reconciled.openingBalanceAsOf, t2)
+  })
+
+  it('editing a field other than openingBalance does not reset openingBalanceAsOf', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-05T10:00:00.000Z'
+    const created = upsertAccount(v, { name: 'Карта', openingBalance: 1000 }, t1)
+    const renamed = upsertAccount(v, { id: created.id, name: 'Карта Visa' }, t2)
+    assert.equal(renamed.openingBalanceAsOf, t1)
+  })
+})
+
+describe('migrateAccountBalances / migrateVault', () => {
+  it('converts a v2 account balance to openingBalance as of its own updatedAt', () => {
+    const v = {
+      version: 2,
+      transactions: {},
+      accounts: {
+        a1: { id: 'a1', name: 'Карта', balance: 1000, deleted: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-06-01T00:00:00.000Z' },
+      },
+      holdings: {},
+      deposits: {},
+      settings: { defaultAccountId: null, updatedAt: '2026-01-01T00:00:00.000Z' },
+    }
+    const migrated = migrateAccountBalances(v)
+    assert.equal(migrated.accounts.a1.openingBalance, 1000)
+    assert.equal(migrated.accounts.a1.openingBalanceAsOf, '2026-06-01T00:00:00.000Z')
+    assert.equal(migrated.accounts.a1.balance, undefined)
+    assert.equal(migrated.version, 3)
+  })
+
+  it('is idempotent: an account that already has openingBalance is left untouched', () => {
+    const v = emptyVault()
+    const a = upsertAccount(v, { name: 'Карта', openingBalance: 500 }, '2026-08-01T10:00:00.000Z')
+    const migrated = migrateAccountBalances(v)
+    assert.deepEqual(migrated.accounts[a.id], a)
+  })
+
+  it('migrateVault runs v1→v2 then the account-balance migration', () => {
+    const v1 = {
+      expenses: {
+        e1: { id: 'e1', amount: 100, category: 'food', note: '', date: '2026-08-01', deleted: false, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' },
+      },
+      accounts: {
+        a1: { id: 'a1', name: 'Карта', balance: 2000, deleted: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    const migrated = migrateVault(v1)
+    assert.equal(migrated.version, 3)
+    assert.equal(migrated.transactions.e1.direction, 'expense')
+    assert.equal(migrated.accounts.a1.openingBalance, 2000)
+    assert.equal(migrated.accounts.a1.openingBalanceAsOf, '2026-01-01T00:00:00.000Z')
   })
 })
 
@@ -322,7 +390,7 @@ describe('migrateVaultV1toV2', () => {
     upsertTransaction(v2, { id: 'tx1', amount: 50, direction: 'income' }, '2026-08-01T00:00:00.000Z')
     const migrated = migrateVaultV1toV2(v2)
     assert.deepEqual(migrated.transactions['tx1'], v2.transactions['tx1'])
-    assert.equal(migrated.version, 2)
+    assert.equal(migrated.version, v2.version)
   })
 
   it('preserves all fields from the original expense', () => {
@@ -440,13 +508,13 @@ describe('mergeVaults', () => {
   it('uses the earliest createdAt and the higher version', () => {
     const a = emptyVault()
     a.createdAt = '2026-08-01T00:00:00.000Z'
-    a.version = 2
+    a.version = 3
     const b = emptyVault()
     b.createdAt = '2026-08-05T00:00:00.000Z'
-    b.version = 2
+    b.version = 3
     const m = mergeVaults(a, b)
     assert.equal(m.createdAt, '2026-08-01T00:00:00.000Z')
-    assert.equal(m.version, 2)
+    assert.equal(m.version, 3)
   })
 
   it('automatically migrates v1 vaults during merge', () => {
@@ -470,9 +538,41 @@ describe('mergeVaults', () => {
     }
     const v2 = emptyVault()
     const merged = mergeVaults(v1, v2)
-    assert.equal(merged.version, 2)
+    assert.equal(merged.version, 3)
     assert.ok(merged.transactions['e1'])
     assert.equal(merged.transactions['e1'].direction, 'expense')
+  })
+
+  it('migrates account balance to openingBalance on both sides before the per-account LWW pick', () => {
+    const a = {
+      version: 2,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      transactions: {},
+      accounts: {
+        acc1: { id: 'acc1', name: 'Карта', balance: 1000, deleted: false, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      },
+      holdings: {},
+      deposits: {},
+      settings: { defaultAccountId: null, updatedAt: '2026-01-01T00:00:00.000Z' },
+    }
+    const b = emptyVault()
+    const merged = mergeVaults(a, b)
+    assert.equal(merged.accounts.acc1.openingBalance, 1000)
+    assert.equal(merged.accounts.acc1.openingBalanceAsOf, '2026-01-01T00:00:00.000Z')
+    assert.equal(merged.accounts.acc1.balance, undefined)
+  })
+
+  it('concurrent same-account transaction adds both survive the merge (union, no LWW drop)', () => {
+    const a = emptyVault()
+    const acc = upsertAccount(a, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(a, { id: 'tA', amount: 100, direction: 'expense', accountId: acc.id }, '2026-08-02T10:00:00.000Z')
+    const b = emptyVault()
+    upsertAccount(b, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T00:00:00.000Z')
+    upsertTransaction(b, { id: 'tB', amount: 50, direction: 'expense', accountId: acc.id }, '2026-08-02T11:00:00.000Z')
+    const merged = mergeVaults(a, b)
+    assert.ok(merged.transactions.tA)
+    assert.ok(merged.transactions.tB)
+    assert.equal(accountBalance(merged.accounts.acc1, Object.values(merged.transactions)), 850)
   })
 
   it('merges deposits by LWW on updatedAt', () => {

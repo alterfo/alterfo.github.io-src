@@ -1,7 +1,26 @@
 const isLive = (x) => x && !x.deleted
 
-export function totalBalance(accounts) {
-  return (accounts || []).filter(isLive).reduce((sum, a) => sum + (Number.isFinite(a.balance) ? a.balance : 0), 0)
+// Derives an account's current balance at read time — never stored/mutated — as
+// openingBalance plus every live transaction linked to this account created since
+// openingBalanceAsOf. Full precision (RUB, no rounding). This is what keeps balance
+// correct under LWW account merges + union transaction merges: the account entity
+// itself only carries the rarely-changing reconciliation point, while the transaction
+// ledger (which merges correctly by union) is the source of truth for everything since.
+export function accountBalance(account, transactions) {
+  if (!account) return 0
+  const opening = Number.isFinite(account.openingBalance) ? account.openingBalance : 0
+  const asOf = account.openingBalanceAsOf || account.createdAt || '1970-01-01T00:00:00.000Z'
+  const delta = (transactions || [])
+    .filter((t) => isLive(t) && t.accountId === account.id && (t.createdAt || '') >= asOf)
+    .reduce((sum, t) => {
+      const amount = Number.isFinite(t.amount) ? t.amount : 0
+      return sum + (t.direction === 'income' ? amount : -amount)
+    }, 0)
+  return opening + delta
+}
+
+export function totalBalance(accounts, transactions) {
+  return (accounts || []).filter(isLive).reduce((sum, a) => sum + accountBalance(a, transactions), 0)
 }
 
 export function expenseByCategory(transactions, fromISO, toISO) {
@@ -86,8 +105,8 @@ export function depositValue(deposit, asOfISO) {
   return principal + interest
 }
 
-export function netWorth(accounts, holdings, deposits) {
-  let worth = totalBalance(accounts) + portfolioValue(holdings)
+export function netWorth(accounts, holdings, deposits, transactions) {
+  let worth = totalBalance(accounts, transactions) + portfolioValue(holdings)
   if (deposits) {
     worth += Object.values(deposits)
       .filter((d) => isLive(d) && !d.closed)

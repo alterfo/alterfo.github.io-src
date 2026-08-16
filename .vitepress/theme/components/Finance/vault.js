@@ -11,7 +11,7 @@ import { makeId, todayISO, DEFAULT_CATEGORY, EXPENSE_CATEGORIES, INCOME_CATEGORI
 export function emptyVault() {
   const now = new Date().toISOString()
   return {
-    version: 2,
+    version: 3,
     createdAt: now,
     transactions: {},
     accounts: {},
@@ -60,10 +60,47 @@ export function migrateVaultV1toV2(vault) {
   }
 }
 
+// Migrate v2 accounts (a manually-tracked running `balance`) to v3 (`openingBalance` +
+// `openingBalanceAsOf`, the reconciliation point `accountBalance` in stats.js derives
+// from). Idempotent: an account that already has `openingBalance` is left untouched.
+// The old `balance` value becomes the opening balance as of its own `updatedAt` (or
+// `createdAt`) — so live transactions already linked to the account (never reflected
+// in `balance` before this migration) start counting from that point forward, and
+// nothing is double-counted against balances the user already reconciled by hand.
+export function migrateAccountBalances(vault, now = new Date().toISOString()) {
+  const accounts = {}
+  for (const [id, a] of Object.entries(vault.accounts || {})) {
+    if (a.openingBalance !== undefined) {
+      accounts[id] = a
+      continue
+    }
+    const { balance, ...rest } = a
+    accounts[id] = {
+      ...rest,
+      openingBalance: Number.isFinite(balance) ? balance : 0,
+      openingBalanceAsOf: a.updatedAt || a.createdAt || now,
+    }
+  }
+  return { ...vault, accounts, version: Math.max(vault.version || 2, 3) }
+}
+
+// Run every migration in order. The one entry point UI code should call on vault load.
+export function migrateVault(vault, now = new Date().toISOString()) {
+  return migrateAccountBalances(migrateVaultV1toV2(vault), now)
+}
+
 // Create or edit a transaction (expense or income). Fields present on `transaction`
 // override the stored copy; missing fields fall back to the existing transaction
 // (partial edit) then to a default. createdAt is preserved across edits;
 // updatedAt is always bumped to `now`.
+//
+// Deliberately does NOT mutate the linked account's balance: transactions merge by
+// union across devices (mergeEntityMap keeps every id), so any account field that
+// tried to track a running total would need per-field LWW merge semantics that are
+// incompatible with a running total — a concurrent add on two tabs would keep both
+// transactions but only one side's increment. Account balance is instead *derived*
+// at read time from `account.openingBalance`/`openingBalanceAsOf` plus the (correctly
+// unioned) live transactions — see `stats.js`'s `accountBalance`.
 export function upsertTransaction(vault, transaction, now = new Date().toISOString()) {
   const id = transaction.id || makeId()
   const existing = vault.transactions[id]
@@ -93,14 +130,20 @@ export function upsertExpense(vault, expense, now = new Date().toISOString()) {
 }
 
 // Create or edit an account. Same partial-edit semantics as upsertExpense.
+// `openingBalance` is a reconciliation point, not a running total: writing it always
+// resets `openingBalanceAsOf` to `now`, so `stats.js`'s `accountBalance` derives the
+// current balance as openingBalance + every live linked transaction created since.
+// Editing another field (e.g. renaming) leaves the baseline untouched.
 export function upsertAccount(vault, account, now = new Date().toISOString()) {
   const id = account.id || makeId()
   const existing = vault.accounts[id]
+  const openingBalanceProvided = account.openingBalance !== undefined
 
   const stored = {
     id,
     name: account.name ?? existing?.name ?? '',
-    balance: account.balance ?? existing?.balance ?? 0,
+    openingBalance: account.openingBalance ?? existing?.openingBalance ?? 0,
+    openingBalanceAsOf: openingBalanceProvided ? now : (existing?.openingBalanceAsOf ?? now),
     deleted: account.deleted ?? existing?.deleted ?? false,
     createdAt: existing ? existing.createdAt : (account.createdAt ?? now),
     updatedAt: now,
@@ -317,10 +360,12 @@ function mergeSettings(aSettings, bSettings) {
 
 // Union-by-id LWW merge across all entity maps and settings. Returns a NEW vault; does not
 // mutate inputs. Deterministic, commutative, idempotent — safe for file sync / cross-tab
-// merge, no CRDT needed. Automatically migrates v1 vaults to v2 if needed.
+// merge, no CRDT needed. Runs the full migration chain on both inputs first (not just
+// v1→v2): an unmigrated account (still carrying `balance` instead of `openingBalance`)
+// must never win the per-account LWW pick and leak the old shape into the merged vault.
 export function mergeVaults(a, b) {
-  const aMigrated = migrateVaultV1toV2(a)
-  const bMigrated = migrateVaultV1toV2(b)
+  const aMigrated = migrateVault(a)
+  const bMigrated = migrateVault(b)
   return {
     version: Math.max(aMigrated.version || 2, bMigrated.version || 2),
     createdAt: (aMigrated.createdAt || '￿') < (bMigrated.createdAt || '￿') ? aMigrated.createdAt : bMigrated.createdAt,

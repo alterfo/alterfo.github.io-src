@@ -19,10 +19,10 @@ import {
   emptyVault, upsertTransaction, upsertAccount, upsertHolding,
   removeTransaction, removeAccount, removeHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
-  migrateVaultV1toV2, upsertDeposit, openDeposits, closeDeposit, sellHolding,
+  migrateVault, upsertDeposit, openDeposits, closeDeposit, sellHolding,
 } from './Finance/vault.js'
 import {
-  totalBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
+  totalBalance, accountBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
   holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
@@ -174,10 +174,14 @@ const monthExpense = computed(() => {
   return expenseByCategory(Object.values(vault.value.transactions), from, to)
 })
 const monthExpenseTotal = computed(() => Object.values(monthExpense.value).reduce((s, v) => s + v, 0))
-const totalBalanceVal = computed(() => totalBalance(accountsList.value))
+const totalBalanceVal = computed(() => totalBalance(accountsList.value, Object.values(vault.value.transactions)))
 const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
-const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value))
+const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value, Object.values(vault.value.transactions)))
+
+function acctBalance(account) {
+  return accountBalance(account, Object.values(vault.value.transactions))
+}
 
 function categoryLabel(id) {
   const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)
@@ -259,7 +263,7 @@ async function unlock() {
     const data = await decryptJSON(key, { iv, ciphertext })
     cryptoKey.value = key
     _salt = salt
-    vault.value = data && (data.expenses || data.transactions) ? migrateVaultV1toV2(data) : emptyVault()
+    vault.value = data && (data.expenses || data.transactions) ? migrateVault(data) : emptyVault()
     phase.value = 'unlocked'
     view.value = 'dashboard'
     qaDirection.value = 'expense'
@@ -389,8 +393,8 @@ function addAccount() {
     accountError.value = 'Введите название счёта.'
     return
   }
-  const balance = Number(naBalance.value) || 0
-  upsertAccount(vault.value, { name: naName.value.trim(), balance })
+  const openingBalance = Number(naBalance.value) || 0
+  upsertAccount(vault.value, { name: naName.value.trim(), openingBalance })
   naName.value = ''
   naBalance.value = ''
 }
@@ -403,13 +407,15 @@ function onAccountNameChange(id, e) {
   }
   upsertAccount(vault.value, { id, name: val })
 }
+// Manually editing the balance cell is a reconciliation: it resets the account's
+// opening-balance baseline to now (see upsertAccount in vault.js), not an increment.
 function onAccountBalanceChange(id, e) {
   const val = Number(e.target.value)
   if (!Number.isFinite(val)) {
-    e.target.value = vault.value.accounts[id]?.balance ?? 0
+    e.target.value = acctBalance(vault.value.accounts[id])
     return
   }
-  upsertAccount(vault.value, { id, balance: val })
+  upsertAccount(vault.value, { id, openingBalance: val })
 }
 function deleteAccount(id) {
   if (!confirm('Удалить этот счёт?')) return
@@ -963,7 +969,7 @@ onUnmounted(() => {
             <tbody>
               <tr v-for="a in accountsList" :key="a.id">
                 <td><input class="fin-cell-input" :value="a.name" @change="onAccountNameChange(a.id, $event)" /></td>
-                <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="a.balance" @change="onAccountBalanceChange(a.id, $event)" /></td>
+                <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="acctBalance(a)" @change="onAccountBalanceChange(a.id, $event)" /></td>
                 <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteAccount(a.id)">✕</button></td>
               </tr>
             </tbody>

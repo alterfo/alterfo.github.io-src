@@ -10,8 +10,8 @@ Page: `finance.md` (`layout: false`). SEO: `TOOL_CATEGORY` → `FinanceApplicati
 | File | Purpose |
 |------|---------|
 | `constants.js` | `makeId()`, `todayISO(date)` (local, not UTC), `EXPENSE_CATEGORIES` / `INCOME_CATEGORIES` (fixed lists), `DEFAULT_EXPENSE_CATEGORY` / `DEFAULT_INCOME_CATEGORY`. Pure |
-| `vault.js` | Pure (no DOM/crypto/IndexedDB → node-testable). `emptyVault()`, `upsertTransaction`/`upsertAccount`/`upsertHolding`/`upsertDeposit` (partial-edit semantics, `createdAt` preserved, `updatedAt` bumped), `removeTransaction`/`removeAccount`/`removeHolding`/`removeDeposit` (tombstone `deleted:true`, never splice), selectors `transactionsInRange`/`openAccounts`/`openHoldings`/`openDeposits`, `upsertSettings(vault, partial, now)` (persists `defaultAccountId`), `migrateVaultV1toV2(vault)` (one-time migration from expense-only schema), `closeDeposit(vault, closeOpts, now)` (marks closed + creates income transaction), `sellHolding(vault, sellOpts, now)` (reduces qty/tombstones + creates income transaction), `mergeVaults(a,b)` (LWW on `updatedAt` per entity map + settings, commutative/idempotent, `a` wins on tie) |
-| `stats.js` | Pure aggregation. `totalBalance(accounts)`, `expenseByCategory(transactions, fromISO, toISO)`, `incomeByCategory(transactions, fromISO, toISO)`, `netForRange(transactions, fromISO, toISO)` → `{income, expense, net}`, `holdingValue(holding)` (`qty * (lastPrice ?? purchasePrice)`), `portfolioValue(holdings)`, `holdingGainLoss(holding)` (subtracts `purchaseCommission`), `portfolioGainLoss(holdings)`, `depositAccruedInterest(deposit, asOfISO)` (simple or daily-compounded, capped at maturity), `depositValue(deposit, asOfISO)` (`principal + accrued`), `netWorth(accounts, holdings, deposits)`, `monthlyTrend(transactions, monthsBack, referenceISO)` → array of `{month, income, expense, net}`, `periodRange(kind, referenceISO)` where `kind` ∈ `{'month', 'year', 'all-time'}` → `{fromISO, toISO}`, legacy `spendByCategory` alias. Empty input → `0`/`{}`, never `NaN` |
+| `vault.js` | Pure (no DOM/crypto/IndexedDB → node-testable). `emptyVault()`, `upsertTransaction`/`upsertAccount`/`upsertHolding`/`upsertDeposit` (partial-edit semantics, `createdAt` preserved, `updatedAt` bumped), `removeTransaction`/`removeAccount`/`removeHolding`/`removeDeposit` (tombstone `deleted:true`, never splice), selectors `transactionsInRange`/`openAccounts`/`openHoldings`/`openDeposits`, `upsertSettings(vault, partial, now)` (persists `defaultAccountId`), `migrateVaultV1toV2(vault)` + `migrateAccountBalances(vault, now)` composed into `migrateVault(vault, now)` (the one entry point UI code calls — see "V1→V2→V3 migration" below), `closeDeposit(vault, closeOpts, now)` (marks closed + creates income transaction), `sellHolding(vault, sellOpts, now)` (reduces qty/tombstones + creates income transaction), `mergeVaults(a,b)` (runs `migrateVault` on both sides first, then LWW on `updatedAt` per entity map + settings, commutative/idempotent, `a` wins on tie). **Deliberately does NOT mutate account balance on transaction CRUD** — see "Account balance is derived, not stored" below for why (an earlier version of this fix did mutate it and a revmux review caught the resulting LWW-vs-running-total data-integrity bug before it shipped). |
+| `stats.js` | Pure aggregation. `accountBalance(account, transactions)` (derives an account's current balance — see below), `totalBalance(accounts, transactions)`, `expenseByCategory(transactions, fromISO, toISO)`, `incomeByCategory(transactions, fromISO, toISO)`, `netForRange(transactions, fromISO, toISO)` → `{income, expense, net}`, `holdingValue(holding)` (`qty * (lastPrice ?? purchasePrice)`), `portfolioValue(holdings)`, `holdingGainLoss(holding)` (subtracts `purchaseCommission`), `portfolioGainLoss(holdings)`, `depositAccruedInterest(deposit, asOfISO)` (simple or daily-compounded, capped at maturity), `depositValue(deposit, asOfISO)` (`principal + accrued`), `netWorth(accounts, holdings, deposits, transactions)`, `monthlyTrend(transactions, monthsBack, referenceISO)` → array of `{month, income, expense, net}`, `periodRange(kind, referenceISO)` where `kind` ∈ `{'month', 'year', 'all-time'}` → `{fromISO, toISO}`, legacy `spendByCategory` alias. Empty input → `0`/`{}`, never `NaN` |
 | `prices.js` | MOEX ISS current-price lookup — see "MOEX ISS price lookup" below. `parseMoexResponse(json)` is pure (node-testable against fixture JSON); `fetchPrice(ticker)` is the browser-only `fetch` wrapper; `MoexPriceError` typed error (`network`, `unknown-ticker`, `no-price`) |
 | `db.js` | Encrypted IndexedDB `finance` (single envelope). `loadEnvelope`, `saveEnvelope` (debounced 300 ms + cross-tab ping on `finance:saved`), `saveEnvelopeNow` (awaited, rejects on failure — create-vault guard), `cancelPendingSave`, `initCrossTabSync`. Browser-only |
 | `exporter.js` | `exportEnvelope` → download `.finance` file; `readEnvelopeFile` → string. Browser-only |
@@ -20,11 +20,11 @@ Page: `finance.md` (`layout: false`). SEO: `TOOL_CATEGORY` → `FinanceApplicati
 
 `PBKDF2(passphrase, salt=16 bytes, iterations=600000, SHA-256)` → AES-GCM 256; `iv` = 12 random bytes; at-rest envelope `{salt,iterations,iv,ciphertext}` base64 — no key, no plaintext persisted.
 
-## Vault shape (v2)
+## Vault shape (v3)
 
 ```
 {
-  version: 2,
+  version: 3,
   createdAt: ISO,
   transactions: { [id]: Transaction },
   accounts: { [id]: Account },
@@ -37,7 +37,9 @@ Transaction = { id, amount (RUB, positive), direction ('expense'|'income'),
                 category (from EXPENSE_CATEGORIES or INCOME_CATEGORIES),
                 accountId (string|null), note, date ('YYYY-MM-DD', local),
                 deleted, createdAt, updatedAt }
-Account     = { id, name, balance (RUB, manually entered), deleted, createdAt, updatedAt }
+Account     = { id, name, openingBalance (RUB), openingBalanceAsOf (ISO — the
+                reconciliation point; see "Account balance is derived" below),
+                deleted, createdAt, updatedAt }
 Holding     = { id, ticker (MOEX SECID, e.g. 'SBER'), qty,
                 purchaseDate ('YYYY-MM-DD'), purchasePrice (RUB),
                 purchaseCommission (RUB, default 0),
@@ -48,7 +50,58 @@ Deposit     = { id, name, principal (RUB), rate (annual fraction, e.g. 0.18),
                 capitalization (bool), closed (bool), deleted, createdAt, updatedAt }
 ```
 
-**V1→V2 migration:** `migrateVaultV1toV2()` is called automatically on vault load. Converts `expenses` → `transactions` (all become `direction: 'expense'`, `accountId: null`), adds empty `deposits: {}` and `settings: { defaultAccountId: null, updatedAt: createdAt }`, bumps `version: 2`. Idempotent — running on an already-migrated vault is a no-op.
+### Account balance is derived, not stored
+
+`stats.js`'s `accountBalance(account, transactions)` computes the current balance at
+read time as `openingBalance` + every **live** transaction linked to that account
+(`accountId` match) with `createdAt >= openingBalanceAsOf`. Nothing in `vault.js`
+mutates a balance field on transaction add/edit/delete — `upsertTransaction`/
+`removeTransaction` only ever touch `vault.transactions`.
+
+This is load-bearing, not a style choice. An earlier version of the expense-decrement
+fix (2026-08-15) mutated `account.balance` as a running total (`+=`/`-=` on every
+transaction CRUD). A revmux review of the whole module caught that this is
+incompatible with the sync model before it shipped: accounts merge per-record LWW on
+`updatedAt` (`mergeEntityMap`), but transactions merge by **union** — every id from
+both sides survives. Two tabs adding a same-account expense concurrently would keep
+*both* transactions after merge, but LWW would only keep *one* side's balance
+mutation, silently and permanently dropping the other's decrement. Deriving balance
+from the (correctly unioned) transaction ledger instead of mutating an LWW-merged
+field sidesteps the conflict entirely: `account` only carries the rarely-changing
+`openingBalance`/`openingBalanceAsOf` pair, for which per-field LWW is fine.
+
+Editing the balance cell in the accounts table (`onAccountBalanceChange` in
+`FinanceApp.vue`) is a **reconciliation**, not an increment: it calls `upsertAccount`
+with a new `openingBalance`, which per `upsertAccount`'s semantics always resets
+`openingBalanceAsOf` to `now` — so the new number becomes the baseline and only
+transactions added from that moment forward count on top of it. Editing any other
+account field (e.g. renaming) leaves the baseline untouched. `closeDeposit`/
+`sellHolding` need no special-casing — their payout/proceeds land in
+`vault.transactions` through the same `upsertTransaction` path, so they're picked up
+by `accountBalance` automatically once linked to an account.
+
+Full float precision throughout — no rounding of computed balances, only display
+formatting (`fmtRub`-style helpers) rounds.
+
+**No transaction-edit UI exists yet** (only quick-add + delete) — but `upsertTransaction`
+supports partial edits generically, and the `createdAt >= openingBalanceAsOf` cutoff
+means editing a transaction's amount *after* the account's baseline was last reconciled
+is picked up correctly (its current amount is summed, not an incremental delta), while
+editing one from *before* the baseline is not reflected — same limitation as a paper
+bank statement: a reconciled balance doesn't retroactively move when a transaction that
+predates it is corrected.
+
+**V1→V2→V3 migration:** `migrateVault(vault, now)` in `vault.js` is the one entry point UI
+code calls (`FinanceApp.vue`'s `unlock()`) — it composes `migrateVaultV1toV2` (converts
+`expenses` → `transactions`, all `direction: 'expense'`/`accountId: null`, adds empty
+`deposits: {}` and `settings`, bumps `version: 2`) then `migrateAccountBalances`
+(converts each account's old `balance` field to `openingBalance` = that value,
+`openingBalanceAsOf` = the account's own `updatedAt`/`createdAt`, bumps `version: 3`).
+Both migrations are idempotent — v1→v2 no-ops once `transactions` exists, and the
+balance migration no-ops once an account already has `openingBalance`. `mergeVaults`
+also runs `migrateVault` on both inputs before merging (not just v1→v2) — an unmigrated
+account must never win the per-account LWW pick and leak the old `balance` shape into
+the merged vault.
 
 **Categories:** `EXPENSE_CATEGORIES` (7 items, unchanged from v1): food, transport, utilities, health, entertainment, shopping, other. `INCOME_CATEGORIES` (6 items, new): dividends, stock_sale, deposit_interest, deposit_closure, salary, other.
 
@@ -65,7 +118,7 @@ Deposit     = { id, name, principal (RUB), rate (annual fraction, e.g. 0.18),
 
 ## Tests
 
-Unit tests (121 total: 54 vault + 61 stats + 6 prices):
+Unit tests (135 total: 61 vault + 68 stats + 6 prices):
 ```
 node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs
 ```

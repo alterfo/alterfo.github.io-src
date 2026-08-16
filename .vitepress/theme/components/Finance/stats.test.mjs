@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   totalBalance,
+  accountBalance,
   spendByCategory,
   expenseByCategory,
   incomeByCategory,
@@ -17,12 +18,12 @@ import {
   monthlyTrend,
 } from './stats.js'
 
-function account({ balance = 0, deleted = false } = {}) {
-  return { balance, deleted }
+function account({ id = 'acc', openingBalance = 0, openingBalanceAsOf = '1970-01-01T00:00:00.000Z', deleted = false } = {}) {
+  return { id, openingBalance, openingBalanceAsOf, deleted }
 }
 
-function transaction({ amount = 0, direction = 'expense', category = 'other', date = '2026-08-01', deleted = false } = {}) {
-  return { amount, direction, category, date, deleted }
+function transaction({ amount = 0, direction = 'expense', category = 'other', date = '2026-08-01', accountId = null, createdAt = '2026-08-01T00:00:00.000Z', deleted = false } = {}) {
+  return { amount, direction, category, date, accountId, createdAt, deleted }
 }
 
 function expense({ amount = 0, category = 'other', date = '2026-08-01', deleted = false } = {}) {
@@ -33,28 +34,68 @@ function holding({ qty = 0, purchasePrice = 0, purchaseCommission = 0, lastPrice
   return { qty, purchasePrice, purchaseCommission, lastPrice, deleted }
 }
 
+describe('accountBalance', () => {
+  it('is 0 for a missing account', () => {
+    assert.equal(accountBalance(undefined, []), 0)
+  })
+
+  it('is the opening balance when no transactions are linked', () => {
+    assert.equal(accountBalance(account({ id: 'a', openingBalance: 1000 }), []), 1000)
+  })
+
+  it('subtracts expenses and adds income created at/after openingBalanceAsOf', () => {
+    const a = account({ id: 'a', openingBalance: 1000, openingBalanceAsOf: '2026-08-01T00:00:00.000Z' })
+    const txs = [
+      transaction({ accountId: 'a', direction: 'expense', amount: 199.99, createdAt: '2026-08-02T00:00:00.000Z' }),
+      transaction({ accountId: 'a', direction: 'income', amount: 50.5, createdAt: '2026-08-03T00:00:00.000Z' }),
+    ]
+    assert.equal(accountBalance(a, txs), 1000 - 199.99 + 50.5)
+  })
+
+  it('ignores transactions created before openingBalanceAsOf (already baked into the opening balance)', () => {
+    const a = account({ id: 'a', openingBalance: 1000, openingBalanceAsOf: '2026-08-05T00:00:00.000Z' })
+    const txs = [
+      transaction({ accountId: 'a', direction: 'expense', amount: 500, createdAt: '2026-08-01T00:00:00.000Z' }),
+    ]
+    assert.equal(accountBalance(a, txs), 1000)
+  })
+
+  it('ignores transactions linked to a different account', () => {
+    const a = account({ id: 'a', openingBalance: 1000 })
+    const txs = [transaction({ accountId: 'other', direction: 'expense', amount: 500 })]
+    assert.equal(accountBalance(a, txs), 1000)
+  })
+
+  it('ignores deleted transactions', () => {
+    const a = account({ id: 'a', openingBalance: 1000 })
+    const txs = [transaction({ accountId: 'a', direction: 'expense', amount: 500, deleted: true })]
+    assert.equal(accountBalance(a, txs), 1000)
+  })
+
+  it('treats a non-finite openingBalance as 0, never NaN', () => {
+    const a = account({ id: 'a', openingBalance: NaN })
+    assert.equal(accountBalance(a, []), 0)
+    assert.ok(!Number.isNaN(accountBalance(a, [])))
+  })
+})
+
 describe('totalBalance', () => {
   it('is 0 for an empty/undefined account list', () => {
-    assert.equal(totalBalance([]), 0)
-    assert.equal(totalBalance(undefined), 0)
+    assert.equal(totalBalance([], []), 0)
+    assert.equal(totalBalance(undefined, undefined), 0)
   })
 
   it('sums a single account', () => {
-    assert.equal(totalBalance([account({ balance: 1000 })]), 1000)
+    assert.equal(totalBalance([account({ id: 'a', openingBalance: 1000 })], []), 1000)
   })
 
-  it('sums multiple accounts, excluding deleted ones', () => {
+  it('sums multiple accounts (via their derived balance), excluding deleted ones', () => {
     const accounts = [
-      account({ balance: 1000 }),
-      account({ balance: 500 }),
-      account({ balance: 9999, deleted: true }),
+      account({ id: 'a', openingBalance: 1000 }),
+      account({ id: 'b', openingBalance: 500 }),
+      account({ id: 'c', openingBalance: 9999, deleted: true }),
     ]
-    assert.equal(totalBalance(accounts), 1500)
-  })
-
-  it('treats a non-finite balance as 0, never NaN', () => {
-    assert.equal(totalBalance([account({ balance: NaN })]), 0)
-    assert.ok(!Number.isNaN(totalBalance([account({ balance: NaN })])))
+    assert.equal(totalBalance(accounts, []), 1500)
   })
 })
 
@@ -246,13 +287,13 @@ describe('netWorth', () => {
   })
 
   it('sums account balances and portfolio value', () => {
-    const accounts = [account({ balance: 1000 }), account({ balance: 500 })]
+    const accounts = [account({ id: 'a', openingBalance: 1000 }), account({ id: 'b', openingBalance: 500 })]
     const holdings = [holding({ qty: 10, purchasePrice: 250, lastPrice: 300 })]
     assert.equal(netWorth(accounts, holdings), 1000 + 500 + 3000)
   })
 
   it('includes deposit values when deposits are provided', () => {
-    const accounts = [account({ balance: 1000 })]
+    const accounts = [account({ id: 'a', openingBalance: 1000 })]
     const holdings = []
     const deposits = {
       d1: { principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: false, deleted: false },
@@ -262,7 +303,7 @@ describe('netWorth', () => {
   })
 
   it('excludes closed and deleted deposits', () => {
-    const accounts = [account({ balance: 1000 })]
+    const accounts = [account({ id: 'a', openingBalance: 1000 })]
     const holdings = []
     const deposits = {
       open: { principal: 10000, rate: 0.12, openDate: '2026-08-01', maturityDate: '2027-08-01', capitalization: false, closed: false, deleted: false },
