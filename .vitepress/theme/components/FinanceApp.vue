@@ -180,7 +180,8 @@ const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value
 const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value, Object.values(vault.value.transactions)))
 
 function acctBalance(account) {
-  return accountBalance(account, Object.values(vault.value.transactions))
+  const raw = accountBalance(account, Object.values(vault.value.transactions))
+  return Math.round(raw * 100) / 100
 }
 
 function categoryLabel(id) {
