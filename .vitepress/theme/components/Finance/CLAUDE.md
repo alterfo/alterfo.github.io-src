@@ -15,6 +15,8 @@ Page: `finance.md` (`layout: false`). SEO: `TOOL_CATEGORY` → `FinanceApplicati
 | `prices.js` | MOEX ISS current-price lookup — see "MOEX ISS price lookup" below. `parseMoexResponse(json)` is pure (node-testable against fixture JSON); `fetchPrice(ticker)` is the browser-only `fetch` wrapper; `MoexPriceError` typed error (`network`, `unknown-ticker`, `no-price`) |
 | `db.js` | Encrypted IndexedDB `finance` (single envelope). `loadEnvelope`, `saveEnvelope` (debounced 300 ms + cross-tab ping on `finance:saved`), `saveEnvelopeNow` (awaited, rejects on failure — create-vault guard), `cancelPendingSave`, `initCrossTabSync`. Browser-only |
 | `exporter.js` | `exportEnvelope` → download `.finance` file; `readEnvelopeFile` → string. Browser-only |
+| `CategoryBar.vue` | Dashboard helper SFC — one income/expense category row (label, proportional bar, amount). Used twice in `FinanceApp.vue`'s «Категории доходов»/«Категории расходов» sections |
+| `TrendChart.vue` | Dashboard helper SFC — inline-SVG `<g>` monthly income/expense bar chart, mounted inside `FinanceApp.vue`'s `<svg>`. Used once, in «Тренд за последние месяцы» |
 
 ## Crypto model (shared with journal/planner/decisions)
 
@@ -49,6 +51,30 @@ Deposit     = { id, name, principal (RUB), rate (annual fraction, e.g. 0.18),
                 openDate ('YYYY-MM-DD'), maturityDate ('YYYY-MM-DD'),
                 capitalization (bool), closed (bool), deleted, createdAt, updatedAt }
 ```
+
+### Dashboard helper components must be SFCs, not string templates
+
+`CategoryBar.vue` / `TrendChart.vue` are separate `.vue` SFC files, not
+`defineComponent({ template: '…' })` consts inlined in `FinanceApp.vue`. That inline
+form was the original shape (2026-08-15, `df0cecb`) and it silently broke the entire
+dashboard analytics block — no error surfaced during `npm run build`, no unit test
+caught it (the pure `stats.js` aggregation was correct all along), only the browser
+render failed. Root cause: a string `template:` option requires Vue's **runtime**
+template compiler, but VitePress bundles the **runtime-only** `esm-bundler` Vue build
+with no `vue → vue/dist/vue.esm-bundler.js` alias — mounting such a component throws
+"Component provided template option but runtime compilation is not supported in this
+build of Vue", which aborted the whole `<CategoryBar>`/`<TrendChart>` subtree render.
+SFC `<template>` blocks are compiled at build time by `@vitejs/plugin-vue`, sidestepping
+the runtime compiler entirely. **Never add a `template:` string to a `defineComponent`
+anywhere in this app** — always use a real `.vue` SFC (or an inline `<script setup>`
+template block in the parent). `Finance/components.render.test.mjs` statically greps
+for this anti-pattern as a regression guard.
+
+Scoped-CSS note: `FinanceApp.vue` loads `<style scoped src="./FinanceApp.css">`, and
+Vue scoped styles reach a child component's root element but not its inner elements.
+`CategoryBar.vue` therefore carries its own `<style scoped>` (the `.fin-category-*`
+rules moved out of `FinanceApp.css`); `TrendChart.vue` needs none — it's inline-SVG
+attributes only, no CSS classes with rules.
 
 ### Account balance is derived, not stored
 
@@ -118,9 +144,9 @@ the merged vault.
 
 ## Tests
 
-Unit tests (135 total: 61 vault + 68 stats + 6 prices):
+Unit tests (139 total: 61 vault + 68 stats + 6 prices + 4 dashboard-component render guard):
 ```
-node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs
+node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs .vitepress/theme/components/Finance/components.render.test.mjs
 ```
 
 Browser-only syntax check:
