@@ -6,14 +6,23 @@ const isLive = (x) => x && !x.deleted
 // correct under LWW account merges + union transaction merges: the account entity
 // itself only carries the rarely-changing reconciliation point, while the transaction
 // ledger (which merges correctly by union) is the source of truth for everything since.
+//
+// A transfer (direction:'transfer') can touch an account on either leg — accountId
+// (source, debited) or toAccountId (destination, credited; null for a funding transfer
+// that leaves the account ledger entirely, e.g. buying a holding). Both legs are
+// evaluated against this account's own openingBalanceAsOf cutoff.
 export function accountBalance(account, transactions) {
   if (!account) return 0
   const opening = Number.isFinite(account.openingBalance) ? account.openingBalance : 0
   const asOf = account.openingBalanceAsOf || account.createdAt || '1970-01-01T00:00:00.000Z'
   const delta = (transactions || [])
-    .filter((t) => isLive(t) && t.accountId === account.id && (t.createdAt || '') >= asOf)
+    .filter((t) => isLive(t) && (t.accountId === account.id || t.toAccountId === account.id) && (t.createdAt || '') >= asOf)
     .reduce((sum, t) => {
       const amount = Number.isFinite(t.amount) ? t.amount : 0
+      if (t.direction === 'transfer') {
+        if (t.toAccountId === account.id) return sum + amount
+        return sum - amount
+      }
       return sum + (t.direction === 'income' ? amount : -amount)
     }, 0)
   return opening + delta

@@ -17,9 +17,10 @@ import { loadEnvelope, saveEnvelope, cancelPendingSave, saveEnvelopeNow, initCro
 import { exportEnvelope, readEnvelopeFile } from './Finance/exporter.js'
 import {
   emptyVault, upsertTransaction, upsertAccount, upsertHolding,
-  removeTransaction, removeAccount, removeHolding,
+  removeTransaction, removeAccount, discardHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
   migrateVault, upsertDeposit, openDeposits, closeDeposit, sellHolding,
+  removeDeposit, transferBetweenAccounts,
 } from './Finance/vault.js'
 import {
   totalBalance, accountBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
@@ -102,11 +103,32 @@ function acctBalance(account) {
 }
 
 function categoryLabel(id) {
+  if (id === 'transfer') return 'Перевод'
   const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)
   if (expenseCat) return expenseCat.label
   const incomeCat = INCOME_CATEGORIES.find(c => c.id === id)
   if (incomeCat) return incomeCat.label
   return id
+}
+
+function accountName(id) {
+  return vault.value.accounts[id]?.name || null
+}
+
+// Transfer note is a synthesized "source → destination" (funding into a deposit/holding
+// has no toAccountId, so it falls back to the stored note, e.g. the deposit/ticker name).
+function transactionDescription(t) {
+  if (t.direction !== 'transfer') return t.note
+  if (t.toAccountId) {
+    return `${accountName(t.accountId) || '?'} → ${accountName(t.toAccountId) || '?'}`
+  }
+  return t.note
+}
+
+function transactionSign(t) {
+  if (t.direction === 'income') return '+'
+  if (t.direction === 'transfer') return '⇄'
+  return '−'
 }
 
 function getCategoriesForDirection(direction) {
@@ -152,6 +174,8 @@ async function createVault() {
     qaDirection.value = 'expense'
     qaCategory.value = mostRecentCategory('expense')
     qaAccount.value = vault.value.settings.defaultAccountId || null
+    ndAccountId.value = vault.value.settings.defaultAccountId || null
+    nhAccountId.value = vault.value.settings.defaultAccountId || null
     clearInputs()
   } catch (e) {
     error.value = 'Не удалось создать хранилище: ' + (e?.message || e)
@@ -187,6 +211,8 @@ async function unlock() {
     qaDirection.value = 'expense'
     qaCategory.value = mostRecentCategory('expense')
     qaAccount.value = vault.value.settings.defaultAccountId || null
+    ndAccountId.value = vault.value.settings.defaultAccountId || null
+    nhAccountId.value = vault.value.settings.defaultAccountId || null
     clearInputs()
   } catch {
     error.value = 'Неверный пароль или повреждённые данные.'
@@ -218,20 +244,29 @@ function lockVault() {
   ndOpenDate.value = todayISO()
   ndMaturityDate.value = todayISO()
   ndCapitalization.value = false
+  ndAccountId.value = null
   depositError.value = ''
   nhTicker.value = ''
   nhQty.value = ''
   nhPurchaseDate.value = todayISO()
   nhPurchasePrice.value = ''
   nhPurchaseCommission.value = ''
+  nhAccountId.value = null
   holdingError.value = ''
   sellHoldingId.value = null
   shQty.value = ''
   shSellPrice.value = ''
   shCommission.value = ''
   shDate.value = todayISO()
+  shAccountId.value = null
   shError.value = ''
   priceStatus.value = {}
+  trFromAccountId.value = null
+  trToAccountId.value = null
+  trAmount.value = ''
+  trDate.value = todayISO()
+  trNote.value = ''
+  trError.value = ''
   cancelImport() // drop any in-progress import (pending envelope + typed passphrase) from memory
   phase.value = 'locked'
   clearInputs()
@@ -303,7 +338,16 @@ const ndRate = ref('')
 const ndOpenDate = ref(todayISO())
 const ndMaturityDate = ref(todayISO())
 const ndCapitalization = ref(false)
+const ndAccountId = ref(null)
 const depositError = ref('')
+
+// ---- Transfers ----
+const trFromAccountId = ref(null)
+const trToAccountId = ref(null)
+const trAmount = ref('')
+const trDate = ref(todayISO())
+const trNote = ref('')
+const trError = ref('')
 
 function addAccount() {
   accountError.value = ''
@@ -315,6 +359,33 @@ function addAccount() {
   upsertAccount(vault.value, { name: naName.value.trim(), openingBalance })
   naName.value = ''
   naBalance.value = ''
+}
+
+function addTransfer() {
+  trError.value = ''
+  if (!trFromAccountId.value || !trToAccountId.value) {
+    trError.value = 'Выберите счета отправителя и получателя.'
+    return
+  }
+  if (trFromAccountId.value === trToAccountId.value) {
+    trError.value = 'Счета должны различаться.'
+    return
+  }
+  const amount = Number(trAmount.value)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    trError.value = 'Введите сумму.'
+    return
+  }
+  transferBetweenAccounts(vault.value, {
+    fromAccountId: trFromAccountId.value,
+    toAccountId: trToAccountId.value,
+    amount,
+    date: trDate.value || todayISO(),
+    note: trNote.value.trim(),
+  })
+  trAmount.value = ''
+  trNote.value = ''
+  trDate.value = todayISO()
 }
 
 function onAccountNameChange(id, e) {
@@ -363,6 +434,7 @@ function addDeposit() {
     openDate: ndOpenDate.value || todayISO(),
     maturityDate: ndMaturityDate.value || todayISO(),
     capitalization: ndCapitalization.value,
+    fromAccountId: ndAccountId.value || null,
   })
   ndName.value = ''
   ndPrincipal.value = ''
@@ -380,12 +452,22 @@ function closeDepositAction(id) {
   closeDeposit(vault.value, { depositId: id, payoutAmount, date: todayISO() })
 }
 
+// Distinct from closeDepositAction: undoes an open deposit (refunds the source account
+// if it was funded) instead of booking accrued interest as if it matured.
+function deleteDepositAction(id) {
+  const deposit = vault.value.deposits[id]
+  if (!deposit) return
+  if (!confirm(`Удалить вклад "${deposit.name}"? Списанная сумма вернётся на счёт.`)) return
+  removeDeposit(vault.value, id)
+}
+
 // ---- Investments ----
 const nhTicker = ref('')
 const nhQty = ref('')
 const nhPurchaseDate = ref(todayISO())
 const nhPurchasePrice = ref('')
 const nhPurchaseCommission = ref('')
+const nhAccountId = ref(null)
 const holdingError = ref('')
 
 // Sell holding state
@@ -394,6 +476,7 @@ const shQty = ref('')
 const shSellPrice = ref('')
 const shCommission = ref('')
 const shDate = ref(todayISO())
+const shAccountId = ref(null)
 const shError = ref('')
 
 function addHolding() {
@@ -414,7 +497,10 @@ function addHolding() {
     holdingError.value = 'Введите цену покупки.'
     return
   }
-  upsertHolding(vault.value, { ticker, qty, purchaseDate: nhPurchaseDate.value || todayISO(), purchasePrice, purchaseCommission })
+  upsertHolding(vault.value, {
+    ticker, qty, purchaseDate: nhPurchaseDate.value || todayISO(), purchasePrice, purchaseCommission,
+    fromAccountId: nhAccountId.value || null,
+  })
   nhTicker.value = ''
   nhQty.value = ''
   nhPurchasePrice.value = ''
@@ -436,8 +522,8 @@ function onHoldingPurchaseDateChange(id, e) {
   upsertHolding(vault.value, { id, purchaseDate: e.target.value })
 }
 function deleteHolding(id) {
-  if (!confirm('Удалить эту позицию?')) return
-  removeHolding(vault.value, id)
+  if (!confirm('Удалить эту позицию? Списанная сумма вернётся на счёт.')) return
+  discardHolding(vault.value, id)
 }
 
 function openSellForm(id) {
@@ -446,6 +532,7 @@ function openSellForm(id) {
   shSellPrice.value = ''
   shCommission.value = ''
   shDate.value = todayISO()
+  shAccountId.value = vault.value.settings.defaultAccountId || null
   shError.value = ''
 }
 
@@ -472,7 +559,10 @@ function submitSell() {
   if (!confirm(`Продать ${qty} шт. ${holding.ticker} по ${sellPrice} ₽/шт. = ${fmtRub(netProceeds)}`)) {
     return
   }
-  sellHolding(vault.value, { holdingId: sellHoldingId.value, qty, sellPrice, commission, date: shDate.value })
+  sellHolding(vault.value, {
+    holdingId: sellHoldingId.value, qty, sellPrice, commission, date: shDate.value,
+    toAccountId: shAccountId.value || null,
+  })
   sellHoldingId.value = null
   shQty.value = ''
   shSellPrice.value = ''
@@ -868,9 +958,9 @@ onUnmounted(() => {
               <tr v-for="t in recentTransactions" :key="t.id">
                 <td class="fin-table-date">{{ t.date }}</td>
                 <td>{{ categoryLabel(t.category) }}</td>
-                <td class="fin-table-note">{{ t.note }}</td>
+                <td class="fin-table-note">{{ transactionDescription(t) }}</td>
                 <td class="fin-table-num" :class="{ income: t.direction === 'income' }">
-                  {{ t.direction === 'income' ? '+' : '−' }}{{ fmtRub(t.amount) }}
+                  {{ transactionSign(t) }}{{ fmtRub(t.amount) }}
                 </td>
                 <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteTransaction(t.id)">✕</button></td>
               </tr>
@@ -901,6 +991,23 @@ onUnmounted(() => {
           </div>
           <p v-if="accountError" class="fin-form-error">{{ accountError }}</p>
 
+          <h2 class="fin-panel-title">Перевод между счетами</h2>
+          <div class="fin-add-row">
+            <select v-model="trFromAccountId" class="fin-text">
+              <option :value="null">Со счёта</option>
+              <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
+            <select v-model="trToAccountId" class="fin-text">
+              <option :value="null">На счёт</option>
+              <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
+            <input v-model="trAmount" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Сумма" @keydown.enter="addTransfer" />
+            <input v-model="trNote" type="text" class="fin-text" placeholder="Заметка (необязательно)" @keydown.enter="addTransfer" />
+            <input v-model="trDate" type="date" class="fin-text" @keydown.enter="addTransfer" />
+            <button class="fin-btn fin-btn-primary" @click="addTransfer">⇄ Перевод</button>
+          </div>
+          <p v-if="trError" class="fin-form-error">{{ trError }}</p>
+
           <h2 class="fin-panel-title">Вклады</h2>
           <table v-if="depositsList.length" class="fin-table">
             <thead><tr><th>Название</th><th>Сумма</th><th>Процент</th><th>Срок</th><th>Начислено</th><th>Текущая стоимость</th><th></th></tr></thead>
@@ -912,7 +1019,10 @@ onUnmounted(() => {
                 <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
                 <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
                 <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
-                <td><button class="fin-row-del" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">✕</button></td>
+                <td>
+                  <button class="fin-row-btn" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">Закрыть</button>
+                  <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteDepositAction(d.id)">✕</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -924,6 +1034,10 @@ onUnmounted(() => {
             <input v-model="ndRate" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Процент %" @keydown.enter="addDeposit" />
             <input v-model="ndOpenDate" type="date" class="fin-text" @keydown.enter="addDeposit" />
             <input v-model="ndMaturityDate" type="date" class="fin-text" @keydown.enter="addDeposit" />
+            <select v-model="ndAccountId" class="fin-text">
+              <option :value="null">Без списания со счёта</option>
+              <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
             <label class="fin-checkbox">
               <input v-model="ndCapitalization" type="checkbox" />
               Капитализация
@@ -973,6 +1087,10 @@ onUnmounted(() => {
                         <input v-model="shSellPrice" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Цена продажи" @keydown.enter="submitSell" />
                         <input v-model="shCommission" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Комиссия" @keydown.enter="submitSell" />
                         <input v-model="shDate" type="date" class="fin-text" @keydown.enter="submitSell" />
+                        <select v-model="shAccountId" class="fin-text">
+                          <option :value="null">На счёт (по умолчанию)</option>
+                          <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+                        </select>
                         <button class="fin-btn fin-btn-primary" @click="submitSell">Продать</button>
                         <button class="fin-btn" @click="openSellForm(h.id)">Отмена</button>
                       </div>
@@ -991,6 +1109,10 @@ onUnmounted(() => {
             <input v-model="nhPurchaseDate" type="date" class="fin-text" @keydown.enter="addHolding" />
             <input v-model="nhPurchasePrice" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Цена покупки" @keydown.enter="addHolding" />
             <input v-model="nhPurchaseCommission" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Комиссия" @keydown.enter="addHolding" />
+            <select v-model="nhAccountId" class="fin-text">
+              <option :value="null">Без списания со счёта</option>
+              <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
             <button class="fin-btn fin-btn-primary" @click="addHolding">+ Позиция</button>
           </div>
           <p v-if="holdingError" class="fin-form-error">{{ holdingError }}</p>

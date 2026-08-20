@@ -113,6 +113,7 @@ export function upsertTransaction(vault, transaction, now = new Date().toISOStri
     direction,
     category: transaction.category ?? existing?.category ?? defaultCategory,
     accountId: transaction.accountId ?? existing?.accountId ?? null,
+    toAccountId: transaction.toAccountId ?? existing?.toAccountId ?? null,
     note: transaction.note ?? existing?.note ?? '',
     date: transaction.date ?? existing?.date ?? todayISO(),
     deleted: transaction.deleted ?? existing?.deleted ?? false,
@@ -122,6 +123,27 @@ export function upsertTransaction(vault, transaction, now = new Date().toISOStri
 
   vault.transactions[id] = stored
   return stored
+}
+
+// A transfer moves money from `fromAccountId` to `toAccountId` (both required, must
+// differ) as a single transaction (direction: 'transfer') — one id, so it merges
+// atomically across devices instead of two independently-mergeable legs. Excluded from
+// expense/income analytics (stats.js filters by direction), so it never pollutes
+// income/expense totals or category breakdowns; accountBalance debits the source and
+// credits the destination directly. No-op (returns undefined) on invalid input.
+export function transferBetweenAccounts(vault, { fromAccountId, toAccountId, amount, date, note }, now = new Date().toISOString()) {
+  if (!fromAccountId || !toAccountId || fromAccountId === toAccountId) return
+  if (!(amount > 0)) return
+
+  return upsertTransaction(vault, {
+    amount,
+    direction: 'transfer',
+    category: 'transfer',
+    accountId: fromAccountId,
+    toAccountId,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
 }
 
 // Legacy: alias for backwards compatibility during migration phase (not used after tasks complete).
@@ -156,6 +178,11 @@ export function upsertAccount(vault, account, now = new Date().toISOString()) {
 // Create or edit a holding. lastPrice/priceAsOf use explicit-undefined-vs-null
 // semantics (like Decisions' reviewDate) so a caller can clear a cached price with
 // `null` while an omitted field preserves the existing cached value.
+// `fromAccountId` only takes effect on CREATE (no `existing`) — it funds the purchase
+// with a transfer debiting that account (amount qty*purchasePrice + purchaseCommission),
+// and the resulting transaction id is stashed as `purchaseTransactionId` so a later
+// `discardHolding` can refund it. Editing an existing holding (qty/price cell edits,
+// price refresh) never re-funds, even if `fromAccountId` is passed again.
 export function upsertHolding(vault, holding, now = new Date().toISOString()) {
   const id = holding.id || makeId()
   const existing = vault.holdings[id]
@@ -169,13 +196,42 @@ export function upsertHolding(vault, holding, now = new Date().toISOString()) {
     purchaseCommission: holding.purchaseCommission ?? existing?.purchaseCommission ?? 0,
     lastPrice: holding.lastPrice !== undefined ? holding.lastPrice : (existing?.lastPrice ?? null),
     priceAsOf: holding.priceAsOf !== undefined ? holding.priceAsOf : (existing?.priceAsOf ?? null),
+    purchaseTransactionId: existing ? (existing.purchaseTransactionId ?? null) : null,
     deleted: holding.deleted ?? existing?.deleted ?? false,
     createdAt: existing ? existing.createdAt : (holding.createdAt ?? now),
     updatedAt: now,
   }
 
+  if (!existing && holding.fromAccountId) {
+    const funding = transferBetweenAccountOrAsset(vault, {
+      fromAccountId: holding.fromAccountId,
+      amount: stored.qty * stored.purchasePrice + stored.purchaseCommission,
+      date: stored.purchaseDate,
+      note: stored.ticker,
+    }, now)
+    stored.purchaseTransactionId = funding?.id ?? null
+  }
+
   vault.holdings[id] = stored
   return stored
+}
+
+// Internal helper: a one-legged transfer that debits `fromAccountId` with no matching
+// `toAccountId` credit — used when money leaves the account ledger into a non-account
+// asset (deposit principal, holding purchase). Same direction:'transfer'/category:'transfer'
+// shape as transferBetweenAccounts so accountBalance and stats.js treat it identically
+// (excluded from expense/income analytics, debits the source account).
+function transferBetweenAccountOrAsset(vault, { fromAccountId, amount, date, note }, now) {
+  if (!fromAccountId || !(amount > 0)) return
+  return upsertTransaction(vault, {
+    amount,
+    direction: 'transfer',
+    category: 'transfer',
+    accountId: fromAccountId,
+    toAccountId: null,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
 }
 
 // Update vault settings (defaultAccountId). Partial-edit semantics:
@@ -216,6 +272,8 @@ export function removeAccount(vault, id, now = new Date().toISOString()) {
   return a
 }
 
+// Used by sellHolding (a sale that fully liquidates a position) — deliberately does NOT
+// refund the funding transaction, since the sale itself pays out proceeds separately.
 export function removeHolding(vault, id, now = new Date().toISOString()) {
   const h = vault.holdings[id]
   if (!h) return
@@ -224,7 +282,20 @@ export function removeHolding(vault, id, now = new Date().toISOString()) {
   return h
 }
 
-export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date }, now = new Date().toISOString()) {
+// UI-facing "delete this position" (no sale involved): tombstones the holding AND, if
+// it was funded via upsertHolding's `fromAccountId`, refunds the source account by
+// tombstoning the funding transaction. Distinct from removeHolding (used by sellHolding,
+// which must NOT refund — the sale's own proceeds transaction is the payout).
+export function discardHolding(vault, id, now = new Date().toISOString()) {
+  const h = vault.holdings[id]
+  if (!h) return
+  if (h.purchaseTransactionId) {
+    removeTransaction(vault, h.purchaseTransactionId, now)
+  }
+  return removeHolding(vault, id, now)
+}
+
+export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date, toAccountId }, now = new Date().toISOString()) {
   const holding = vault.holdings[holdingId]
   if (!holding) return
   const holdingQty = Number.isFinite(holding.qty) ? holding.qty : 0
@@ -242,7 +313,7 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
     amount: netProceeds,
     direction: 'income',
     category: 'stock_sale',
-    accountId: vault.settings?.defaultAccountId ?? null,
+    accountId: toAccountId ?? vault.settings?.defaultAccountId ?? null,
     note: holding.ticker,
     date,
   }, now)
@@ -250,6 +321,9 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
   return holding
 }
 
+// `fromAccountId` only takes effect on CREATE (no `existing`) — same funding semantics
+// as upsertHolding's `fromAccountId`, see there. Stashed as `sourceTransactionId` so
+// `removeDeposit` can refund it if the deposit is discarded while still open.
 export function upsertDeposit(vault, deposit, now = new Date().toISOString()) {
   const id = deposit.id || makeId()
   const existing = vault.deposits[id]
@@ -263,18 +337,37 @@ export function upsertDeposit(vault, deposit, now = new Date().toISOString()) {
     maturityDate: deposit.maturityDate ?? existing?.maturityDate ?? todayISO(),
     capitalization: deposit.capitalization ?? existing?.capitalization ?? false,
     closed: deposit.closed ?? existing?.closed ?? false,
+    sourceTransactionId: existing ? (existing.sourceTransactionId ?? null) : null,
     deleted: deposit.deleted ?? existing?.deleted ?? false,
     createdAt: existing ? existing.createdAt : (deposit.createdAt ?? now),
     updatedAt: now,
+  }
+
+  if (!existing && deposit.fromAccountId) {
+    const funding = transferBetweenAccountOrAsset(vault, {
+      fromAccountId: deposit.fromAccountId,
+      amount: stored.principal,
+      date: stored.openDate,
+      note: `Вклад: ${stored.name}`,
+    }, now)
+    stored.sourceTransactionId = funding?.id ?? null
   }
 
   vault.deposits[id] = stored
   return stored
 }
 
+// Tombstones the deposit and, if it was still open and funded via upsertDeposit's
+// `fromAccountId`, refunds the source account by tombstoning the funding transaction
+// (money "comes back" to the account it left). A deposit closed via closeDeposit
+// already has closed:true, so its funding leg is left alone here — closeDeposit pays
+// out separately via its own income transaction, refunding on top would double-credit.
 export function removeDeposit(vault, id, now = new Date().toISOString()) {
   const d = vault.deposits[id]
   if (!d) return
+  if (!d.closed && d.sourceTransactionId) {
+    removeTransaction(vault, d.sourceTransactionId, now)
+  }
   d.deleted = true
   d.updatedAt = now
   return d

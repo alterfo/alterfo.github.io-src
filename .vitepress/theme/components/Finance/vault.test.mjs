@@ -9,11 +9,13 @@ import {
   removeTransaction,
   removeAccount,
   removeHolding,
+  discardHolding,
   upsertDeposit,
   removeDeposit,
   openDeposits,
   closeDeposit,
   sellHolding,
+  transferBetweenAccounts,
   transactionsInRange,
   openAccounts,
   openHoldings,
@@ -622,6 +624,35 @@ describe('upsertDeposit', () => {
     assert.equal(d.openDate, '2026-08-01')
     assert.equal(d.maturityDate, '2027-08-01')
   })
+
+  it('on create with fromAccountId, funds the principal via a transfer and stashes sourceTransactionId', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Мой вклад', principal: 50000, rate: 0.12, fromAccountId: 'acc1' }, t1)
+    assert.ok(d.sourceTransactionId)
+    const funding = v.transactions[d.sourceTransactionId]
+    assert.equal(funding.direction, 'transfer')
+    assert.equal(funding.accountId, 'acc1')
+    assert.equal(funding.toAccountId, null)
+    assert.equal(funding.amount, 50000)
+    assert.ok(funding.note.includes('Мой вклад'))
+  })
+
+  it('without fromAccountId, does not create a funding transaction', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T00:00:00.000Z')
+    assert.equal(d.sourceTransactionId, null)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('editing an existing deposit never re-funds, even if fromAccountId is passed again', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const created = upsertDeposit(v, { name: 'Вклад', principal: 50000, fromAccountId: 'acc1' }, t1)
+    upsertDeposit(v, { id: created.id, principal: 60000, fromAccountId: 'acc1' }, '2026-08-02T10:00:00.000Z')
+    const transferTxs = Object.values(v.transactions).filter(t => t.direction === 'transfer')
+    assert.equal(transferTxs.length, 1)
+  })
 })
 
 describe('removeDeposit', () => {
@@ -638,6 +669,31 @@ describe('removeDeposit', () => {
   it('is a no-op for an unknown id', () => {
     const v = emptyVault()
     assert.equal(removeDeposit(v, 'nope'), undefined)
+  })
+
+  it('refunds the source account by tombstoning the funding transaction when still open', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000, fromAccountId: 'acc1' }, t1)
+    const t2 = '2026-08-02T10:00:00.000Z'
+    removeDeposit(v, d.id, t2)
+    assert.equal(v.transactions[d.sourceTransactionId].deleted, true)
+  })
+
+  it('does not touch the funding transaction once the deposit is closed (closeDeposit already paid out)', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000, fromAccountId: 'acc1' }, t1)
+    closeDeposit(v, { depositId: d.id, payoutAmount: 52000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    removeDeposit(v, d.id, '2026-08-16T10:00:00.000Z')
+    assert.equal(v.transactions[d.sourceTransactionId].deleted, false)
+  })
+
+  it('a deposit created without fromAccountId has nothing to refund', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T00:00:00.000Z')
+    removeDeposit(v, d.id, '2026-08-02T00:00:00.000Z')
+    assert.equal(Object.keys(v.transactions).length, 0)
   })
 })
 
@@ -783,5 +839,110 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
     assert.equal(txs[0].accountId, null)
+  })
+
+  it('an explicit toAccountId overrides settings.defaultAccountId', () => {
+    const v = emptyVault()
+    upsertSettings(v, { defaultAccountId: 'acc-default' }, '2026-08-01T10:00:00.000Z')
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 5 }, '2026-08-01T10:00:00.000Z').id
+    sellHolding(v, { holdingId, qty: 5, sellPrice: 300, commission: 0, date: '2026-08-15', toAccountId: 'acc-chosen' }, '2026-08-15T10:00:00.000Z')
+
+    const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
+    assert.equal(txs[0].accountId, 'acc-chosen')
+  })
+})
+
+describe('transferBetweenAccounts', () => {
+  it('creates a single direction:transfer transaction debiting the source and crediting the destination', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const tx = transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: 500, date: '2026-08-01', note: 'На отпуск' }, t1)
+    assert.equal(tx.direction, 'transfer')
+    assert.equal(tx.category, 'transfer')
+    assert.equal(tx.accountId, 'acc1')
+    assert.equal(tx.toAccountId, 'acc2')
+    assert.equal(tx.amount, 500)
+    assert.equal(tx.note, 'На отпуск')
+    assert.equal(Object.keys(v.transactions).length, 1)
+  })
+
+  it('is a no-op when fromAccountId equals toAccountId', () => {
+    const v = emptyVault()
+    const result = transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc1', amount: 100, date: '2026-08-01' }, '2026-08-01T10:00:00.000Z')
+    assert.equal(result, undefined)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('is a no-op when either account is missing, or amount is not positive', () => {
+    const v = emptyVault()
+    assert.equal(transferBetweenAccounts(v, { fromAccountId: null, toAccountId: 'acc2', amount: 100, date: '2026-08-01' }), undefined)
+    assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: null, amount: 100, date: '2026-08-01' }), undefined)
+    assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: 0, date: '2026-08-01' }), undefined)
+    assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: -5, date: '2026-08-01' }), undefined)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+})
+
+describe('upsertHolding funding (fromAccountId)', () => {
+  it('on create with fromAccountId, funds the purchase via a transfer and stashes purchaseTransactionId', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, purchaseCommission: 50, fromAccountId: 'acc1' }, t1)
+    assert.ok(h.purchaseTransactionId)
+    const funding = v.transactions[h.purchaseTransactionId]
+    assert.equal(funding.direction, 'transfer')
+    assert.equal(funding.accountId, 'acc1')
+    assert.equal(funding.toAccountId, null)
+    assert.equal(funding.amount, 2550) // 10*250 + 50
+    assert.equal(funding.note, 'SBER')
+  })
+
+  it('without fromAccountId, does not create a funding transaction', () => {
+    const v = emptyVault()
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(h.purchaseTransactionId, null)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('editing an existing holding never re-funds, even if fromAccountId is passed again', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const created = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, fromAccountId: 'acc1' }, t1)
+    upsertHolding(v, { id: created.id, qty: 12, fromAccountId: 'acc1' }, '2026-08-02T10:00:00.000Z')
+    const transferTxs = Object.values(v.transactions).filter(t => t.direction === 'transfer')
+    assert.equal(transferTxs.length, 1)
+  })
+})
+
+describe('discardHolding', () => {
+  it('tombstones the holding and refunds the funding transaction', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, fromAccountId: 'acc1' }, t1)
+    const t2 = '2026-08-02T10:00:00.000Z'
+    discardHolding(v, h.id, t2)
+    assert.equal(v.holdings[h.id].deleted, true)
+    assert.equal(v.transactions[h.purchaseTransactionId].deleted, true)
+  })
+
+  it('is a no-op for an unknown id', () => {
+    const v = emptyVault()
+    assert.equal(discardHolding(v, 'nope'), undefined)
+  })
+
+  it('a holding created without fromAccountId has nothing to refund', () => {
+    const v = emptyVault()
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10 }, '2026-08-01T10:00:00.000Z')
+    discardHolding(v, h.id, '2026-08-02T10:00:00.000Z')
+    assert.equal(v.holdings[h.id].deleted, true)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('sellHolding (full sale via removeHolding) does NOT refund the funding transaction', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const h = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250, fromAccountId: 'acc1' }, t1)
+    sellHolding(v, { holdingId: h.id, qty: 10, sellPrice: 300, commission: 0, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    assert.equal(v.transactions[h.purchaseTransactionId].deleted, false)
   })
 })

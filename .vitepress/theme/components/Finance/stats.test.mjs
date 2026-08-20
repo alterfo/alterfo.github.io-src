@@ -77,6 +77,31 @@ describe('accountBalance', () => {
     assert.equal(accountBalance(a, []), 0)
     assert.ok(!Number.isNaN(accountBalance(a, [])))
   })
+
+  it('a transfer debits the source account (accountId leg)', () => {
+    const a = account({ id: 'a', openingBalance: 1000 })
+    const txs = [{ ...transaction({ amount: 300, createdAt: '2026-08-02T00:00:00.000Z' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' }]
+    assert.equal(accountBalance(a, txs), 700)
+  })
+
+  it('a transfer credits the destination account (toAccountId leg)', () => {
+    const b = account({ id: 'b', openingBalance: 500 })
+    const txs = [{ ...transaction({ amount: 300, createdAt: '2026-08-02T00:00:00.000Z' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' }]
+    assert.equal(accountBalance(b, txs), 800)
+  })
+
+  it('a funding transfer (toAccountId null) only debits the source, no phantom credit', () => {
+    const a = account({ id: 'a', openingBalance: 1000 })
+    const txs = [{ ...transaction({ amount: 400, createdAt: '2026-08-02T00:00:00.000Z' }), direction: 'transfer', accountId: 'a', toAccountId: null }]
+    assert.equal(accountBalance(a, txs), 600)
+  })
+
+  it('a full transfer round-trips: source and destination together are unaffected', () => {
+    const a = account({ id: 'a', openingBalance: 1000 })
+    const b = account({ id: 'b', openingBalance: 500 })
+    const txs = [{ ...transaction({ amount: 300, createdAt: '2026-08-02T00:00:00.000Z' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' }]
+    assert.equal(accountBalance(a, txs) + accountBalance(b, txs), 1500)
+  })
 })
 
 describe('totalBalance', () => {
@@ -132,6 +157,14 @@ describe('expenseByCategory', () => {
     assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
   })
 
+  it('ignores transfer transactions (a self-transfer is not an expense)', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      { ...transaction({ amount: 5000, category: 'transfer', date: '2026-08-10' }), direction: 'transfer', toAccountId: 'b' },
+    ]
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
+  })
+
   it('treats a non-finite amount as 0, never NaN', () => {
     const result = expenseByCategory([transaction({ amount: NaN, direction: 'expense', category: 'food', date: '2026-08-01' })], '2026-08-01', '2026-08-31')
     assert.equal(result.food, 0)
@@ -167,6 +200,14 @@ describe('incomeByCategory', () => {
     const transactions = [
       transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
       transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-10' }),
+    ]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
+  })
+
+  it('ignores transfer transactions (a self-transfer is not income)', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      { ...transaction({ amount: 5000, category: 'transfer', date: '2026-08-10' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' },
     ]
     assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
   })
@@ -314,6 +355,22 @@ describe('netWorth', () => {
     const withOnlyOpen = netWorth(accounts, holdings, { open: deposits.open })
     assert.equal(worth, withOnlyOpen)
   })
+
+  it('a funding transfer into a deposit leaves net worth unchanged (cash out, deposit value in)', () => {
+    const before = netWorth([account({ id: 'a', openingBalance: 10000 })], [], {}, [])
+
+    const acc = account({ id: 'a', openingBalance: 10000 })
+    const fundingTx = {
+      ...transaction({ amount: 4000, date: '2026-08-01', createdAt: '2026-08-01T00:00:00.000Z' }),
+      direction: 'transfer', accountId: 'a', toAccountId: null,
+    }
+    const deposits = {
+      d1: { principal: 4000, rate: 0, openDate: '2026-08-01', maturityDate: '2026-08-01', capitalization: false, closed: false, deleted: false },
+    }
+    const after = netWorth([acc], [], deposits, [fundingTx])
+
+    assert.equal(before, after)
+  })
 })
 
 function deposit({ principal = 0, rate = 0, openDate = '2026-08-01', maturityDate = '2026-12-31', capitalization = false, closed = false, deleted = false } = {}) {
@@ -416,6 +473,14 @@ describe('netForRange', () => {
       transaction({ amount: 100, direction: 'expense', category: 'transport', date: '2026-08-20' }),
     ]
     assert.deepEqual(netForRange(transactions, '2026-08-01', '2026-08-31'), { income: 1200, expense: 400, net: 800 })
+  })
+
+  it('excludes a transfer between own accounts entirely (not income, not expense)', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      { ...transaction({ amount: 5000, category: 'transfer', date: '2026-08-10' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' },
+    ]
+    assert.deepEqual(netForRange(transactions, '2026-08-01', '2026-08-31'), { income: 1000, expense: 0, net: 1000 })
   })
 
   it('excludes out-of-range and deleted transactions', () => {
