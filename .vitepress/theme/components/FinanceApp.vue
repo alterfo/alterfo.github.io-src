@@ -23,7 +23,7 @@ import {
   removeDeposit, transferBetweenAccounts,
 } from './Finance/vault.js'
 import {
-  totalBalance, accountBalance, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
+  totalBalance, accountBalance, transactionsForAccount, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
   holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
@@ -129,6 +129,19 @@ function transactionSign(t) {
   if (t.direction === 'income') return '+'
   if (t.direction === 'transfer') return '⇄'
   return '−'
+}
+
+// Sign/credit relative to a specific account: a transfer is a credit ('+') when this
+// account is the destination (toAccountId) and a debit ('−') when it's the source
+// (accountId) — unlike transactionSign's account-agnostic '⇄', a per-account statement
+// needs to show which side of the transfer this account was on.
+function isCreditForAccount(t, accountId) {
+  if (t.direction === 'income') return true
+  if (t.direction === 'expense') return false
+  return t.toAccountId === accountId
+}
+function transactionSignForAccount(t, accountId) {
+  return isCreditForAccount(t, accountId) ? '+' : '−'
 }
 
 function getCategoriesForDirection(direction) {
@@ -238,6 +251,7 @@ function lockVault() {
   naName.value = ''
   naBalance.value = ''
   accountError.value = ''
+  statementAccountId.value = null
   ndName.value = ''
   ndPrincipal.value = ''
   ndRate.value = ''
@@ -329,6 +343,18 @@ function deleteTransaction(id) {
 const naName = ref('')
 const naBalance = ref('')
 const accountError = ref('')
+
+// Per-account statement (движения по счёту): expands a row under the clicked account,
+// mirroring the sell-holding expand-row pattern below (sellHoldingId).
+const statementAccountId = ref(null)
+const statementTransactions = computed(() => {
+  const account = vault.value.accounts[statementAccountId.value]
+  if (!account) return []
+  return transactionsForAccount(account, Object.values(vault.value.transactions)).slice().reverse()
+})
+function toggleStatement(id) {
+  statementAccountId.value = statementAccountId.value === id ? null : id
+}
 
 // ---- Deposits ----
 const depositsList = computed(() => openDeposits(vault.value))
@@ -975,11 +1001,36 @@ onUnmounted(() => {
           <table v-if="accountsList.length" class="fin-table">
             <thead><tr><th>Название</th><th>Баланс</th><th></th></tr></thead>
             <tbody>
-              <tr v-for="a in accountsList" :key="a.id">
-                <td><input class="fin-cell-input" :value="a.name" @change="onAccountNameChange(a.id, $event)" /></td>
-                <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="acctBalance(a)" @change="onAccountBalanceChange(a.id, $event)" /></td>
-                <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteAccount(a.id)">✕</button></td>
-              </tr>
+              <template v-for="a in accountsList" :key="a.id">
+                <tr>
+                  <td><input class="fin-cell-input" :value="a.name" @change="onAccountNameChange(a.id, $event)" /></td>
+                  <td><input class="fin-cell-input fin-cell-num" type="number" step="0.01" :value="acctBalance(a)" @change="onAccountBalanceChange(a.id, $event)" /></td>
+                  <td>
+                    <button class="fin-row-btn" title="Движения по счёту" aria-label="Движения по счёту" @click="toggleStatement(a.id)">
+                      {{ statementAccountId === a.id ? 'Скрыть' : 'Движения' }}
+                    </button>
+                    <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteAccount(a.id)">✕</button>
+                  </td>
+                </tr>
+                <tr v-if="statementAccountId === a.id" class="fin-statement-row">
+                  <td colspan="3">
+                    <table v-if="statementTransactions.length" class="fin-table fin-statement-table">
+                      <tbody>
+                        <tr v-for="t in statementTransactions" :key="t.id">
+                          <td class="fin-table-date">{{ t.date }}</td>
+                          <td>{{ categoryLabel(t.category) }}</td>
+                          <td class="fin-table-note">{{ transactionDescription(t) }}</td>
+                          <td class="fin-table-num" :class="{ income: isCreditForAccount(t, a.id) }">
+                            {{ transactionSignForAccount(t, a.id) }}{{ fmtRub(t.amount) }}
+                          </td>
+                          <td><button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteTransaction(t.id)">✕</button></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p v-else class="fin-empty-hint">Нет движений по этому счёту.</p>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет счетов.</p>

@@ -28,6 +28,22 @@ export function accountBalance(account, transactions) {
   return opening + delta
 }
 
+// All live transactions that touch this account — either leg of a transfer
+// (accountId as source, toAccountId as destination) or accountId of an
+// expense/income — sorted ascending by date (ties broken by createdAt). Same
+// account-matching rule as accountBalance, but without the openingBalanceAsOf
+// cutoff: a statement of movements should show full history, not just the
+// activity counted since the account's last reconciliation.
+export function transactionsForAccount(account, transactions) {
+  if (!account) return []
+  return (transactions || [])
+    .filter((t) => isLive(t) && (t.accountId === account.id || t.toAccountId === account.id))
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1
+      return (a.createdAt || '').localeCompare(b.createdAt || '')
+    })
+}
+
 export function totalBalance(accounts, transactions) {
   return (accounts || []).filter(isLive).reduce((sum, a) => sum + accountBalance(a, transactions), 0)
 }

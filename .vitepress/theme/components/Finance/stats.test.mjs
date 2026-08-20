@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   totalBalance,
   accountBalance,
+  transactionsForAccount,
   spendByCategory,
   expenseByCategory,
   incomeByCategory,
@@ -101,6 +102,51 @@ describe('accountBalance', () => {
     const b = account({ id: 'b', openingBalance: 500 })
     const txs = [{ ...transaction({ amount: 300, createdAt: '2026-08-02T00:00:00.000Z' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' }]
     assert.equal(accountBalance(a, txs) + accountBalance(b, txs), 1500)
+  })
+})
+
+describe('transactionsForAccount', () => {
+  it('is empty for a missing account', () => {
+    assert.deepEqual(transactionsForAccount(undefined, []), [])
+  })
+
+  it('includes expenses/income where accountId matches', () => {
+    const a = account({ id: 'a' })
+    const t1 = transaction({ accountId: 'a', date: '2026-08-01' })
+    const t2 = transaction({ accountId: 'b', date: '2026-08-02' })
+    assert.deepEqual(transactionsForAccount(a, [t1, t2]), [t1])
+  })
+
+  it('includes both legs of a transfer touching this account', () => {
+    const a = account({ id: 'a' })
+    const outgoing = { ...transaction({ date: '2026-08-01' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' }
+    const incoming = { ...transaction({ date: '2026-08-02' }), direction: 'transfer', accountId: 'c', toAccountId: 'a' }
+    const unrelated = { ...transaction({ date: '2026-08-03' }), direction: 'transfer', accountId: 'b', toAccountId: 'c' }
+    assert.deepEqual(transactionsForAccount(a, [outgoing, incoming, unrelated]), [outgoing, incoming])
+  })
+
+  it('excludes deleted transactions', () => {
+    const a = account({ id: 'a' })
+    const t = transaction({ accountId: 'a', deleted: true })
+    assert.deepEqual(transactionsForAccount(a, [t]), [])
+  })
+
+  it('is not limited by openingBalanceAsOf — shows full history', () => {
+    const a = account({ id: 'a', openingBalanceAsOf: '2026-08-05T00:00:00.000Z' })
+    const before = transaction({ accountId: 'a', date: '2026-08-01', createdAt: '2026-08-01T00:00:00.000Z' })
+    assert.deepEqual(transactionsForAccount(a, [before]), [before])
+  })
+
+  it('sorts ascending by date, ties broken by createdAt', () => {
+    const a = account({ id: 'a' })
+    const later = transaction({ accountId: 'a', date: '2026-08-03', createdAt: '2026-08-03T00:00:00.000Z' })
+    const earlier = transaction({ accountId: 'a', date: '2026-08-01', createdAt: '2026-08-01T00:00:00.000Z' })
+    const sameDate1 = transaction({ accountId: 'a', date: '2026-08-02', createdAt: '2026-08-02T09:00:00.000Z' })
+    const sameDate2 = transaction({ accountId: 'a', date: '2026-08-02', createdAt: '2026-08-02T05:00:00.000Z' })
+    assert.deepEqual(
+      transactionsForAccount(a, [later, earlier, sameDate1, sameDate2]),
+      [earlier, sameDate2, sameDate1, later]
+    )
   })
 })
 

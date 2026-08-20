@@ -311,6 +311,9 @@
 }
 .fin-row-del:hover { color: var(--ds-danger); }
 
+.fin-statement-row td { padding: 10px; background: var(--ds-raised); }
+.fin-statement-table { font-size: 13px; }
+
 .fin-sell-form-row td { padding: 12px 10px; background: var(--ds-raised); }
 .fin-sell-form { display: flex; flex-direction: column; gap: 10px; }
 .fin-sell-fields { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
