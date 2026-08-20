@@ -68,12 +68,13 @@ node --test .vitepress/theme/components/onboarding.test.mjs
 - **CDP debugging**: `chrome --headless=new --remote-debugging-port=N --user-data-dir=/tmp/x about:blank`; create tab via `/json/new?url=about:blank` then `Page.navigate`; subscribe to `Runtime.exceptionThrown`; WebGPU canvases only via `Page.captureScreenshot`.
 - Plan files: `docs/plans/` (git-ignored, local only).
 - **MOEX ISS runtime-fetch exception**: every app in this repo makes zero runtime calls to external hosts, *except* `/finance`'s `Finance/prices.js`, which calls `iss.moex.com` (official Moscow Exchange ISS API) to fetch current prices for held RU-market tickers. This is a deliberate, narrow, user-approved exception — one host, no API key, user-initiated only (a "refresh prices" button, never automatic/polling), only the public ticker symbol sent. Now queries at most two boards per ticker (shares first, bonds as fallback on `unknown-ticker`) — still the same one host, no new inputs. See `Finance/CLAUDE.md` for detail. Not an accidental CDN/runtime-fetch violation.
-- **Known deferred advisories** (4 total, GitHub-flagged: 1 high, 3 moderate; `vitepress`/`vite`/`esbuild` are `devDependencies` only — none of this ships in the built static site, all four are dev-server/dev-tooling only):
+- **Known deferred advisories** (4 GHSA IDs across 2 packages, GitHub-flagged: 1 high, 3 moderate; `vitepress`/`vite`/`esbuild` are `devDependencies` only — none of this ships in the built static site, all dev-server/dev-tooling only):
   - GHSA-67mh-4wv8-2f99 — esbuild ≤0.24.2 dev-server CORS (moderate)
   - GHSA-fx2h-pf6j-xcff — vite ≤6.4.2 `server.fs.deny` bypass on Windows alternate paths (**high**)
   - GHSA-4w7w-66w2-5vf9 — vite path traversal in optimized-deps `.map` handling (moderate)
   - GHSA-v6wh-96g9-6wx3 — `launch-editor` (vite's click-to-open-in-editor) NTLMv2 hash disclosure via UNC path on Windows (moderate)
   - No fix available for any of them (`npm audit fix` confirms) — all are transitively pinned by `vitepress@1.6.4`'s `vite@5.4.21`/`esbuild@0.21.5`. `vitepress@2.0.0` is still alpha (`alpha.18` as of 2026-07-12), not stable — re-evaluate once it ships stable and bumps the vite major.
+  - 2026-08-20: `npm audit fix` cleared 5 additional transitive advisories (js-yaml, nanoid, postcss, tar — incl. one **critical** DoS, undici) that had crept in since this list was last written — all patch/minor bumps within existing semver ranges (`package.json` untouched, only `package-lock.json`), verified via the full test suite + `npm run build`. GitHub's Dependabot count can drift ahead of this list between sessions (it flagged 15 open alerts vs. the 4 recorded here before this pass) — if `git push` reports a vulnerability count that doesn't match this section, re-run `npm audit` before assuming it's just these 4.
 
 ## Code intelligence — GitNexus
 
