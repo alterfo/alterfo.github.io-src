@@ -25,11 +25,7 @@
       </div>
     </section>
 
-    <!-- staff divider -->
     <div class="staff-divider" aria-hidden="true">
-      <!-- Только линейки стана: глиф паузы (U+1D13D) убран — на части систем
-           рендерился «тофу»-квадратом, а preserveAspectRatio="none" ещё и
-           расплющивал его по горизонтали. -->
       <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
         <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(230,228,224,0.12)" stroke-width="1"/>
       </svg>
@@ -76,15 +72,14 @@
           <p>
             Самоучка в музыке — гитара, барабаны, эрху, кларнет, голос, DAW.
             Изучал теорию музыки: гармония, лады, контрапункт. Пишу и выпускаю
-            треки, снимаю клипы через аудио-реактивные пайплайны на ComfyUI.
+            треки, делаю клипы нейросетями.
             Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
           </p>
           <p>
             В IT 20 лет: 10 лет системный инженер, 13 лет в разработке —
-            последние 10 как Fullstack TypeScript. Сейчас технический лидер
-            в Альфа-Банке. Внедрил CODEOWNERS по всей компании — TTL упал
-            с 9&nbsp;месяцев до 2–3. Монорепо ускорило платформенные релизы
-            с полугода до квартала. Нанял 10 разработчиков — ни один не ушёл.
+            последние 8 как руководитель. Сейчас специализируюсь на разработке 
+            больших проектов ИИ-агентами и менеджменте знаний. Связаться со мной можно по почте 
+            <a href="mailto:alterfo@ya.ru">alterfo@ya.ru</a>.
           </p>
           <p class="bio-accent">
             Оба мира устроены одинаково: сложные системы требуют правильной
@@ -125,7 +120,7 @@ const musicSkills = [
 ]
 
 const codeSkills = [
-  'Fullstack TypeScript · 10+ лет',
+  'Fullstack TypeScript/Go · 10+ лет',
   'Vue · React · Angular · Node.js · Nest.js',
   'AI · RAG · Агентные флоу · OpenAI API',
   'Kubernetes · Docker · Kafka · Монорепо',
@@ -168,8 +163,6 @@ onBeforeUnmount(() => {
   padding: 0 1.5rem;
 }
 
-/* Sections sit directly over the particle canvas — no backdrop tint, the
-   particles show through (removed 2026-07-12: read as a generic dark overlay). */
 .life-circle-section, .growth, .expertise, .bio, .staff-divider, .site-footer {
   position: relative;
   z-index: 1;
@@ -206,8 +199,6 @@ onBeforeUnmount(() => {
   padding: 0 1.5rem;
 }
 
-/* Countdown «1000 дней роста» — its own band above the Music/Code block.
-   Self-sizing via --cd-value-size; no transform/negative-margin hacks. */
 .growth-inner {
   display: flex;
   justify-content: center;
@@ -288,8 +279,6 @@ onBeforeUnmount(() => {
   padding: 2rem 0 3.5rem;
 }
 
-/* «Подробнее» links to the long-form case studies (the wheel spheres
-   themselves still link to the live apps). */
 .case-study-links {
   display: flex;
   flex-wrap: wrap;
@@ -396,8 +385,6 @@ onBeforeUnmount(() => {
 
 .exp-list li {
   font-size: 0.88rem;
-  /* 0.8 alpha of warm cream over the void-toned canvas — comfortably above
-     WCAG AA (4.5:1) for body text; brighter base than the old lavender tint. */
   color: rgba(230, 228, 224, 0.8);
   line-height: 1.5;
   padding-left: 1rem;
@@ -419,7 +406,6 @@ onBeforeUnmount(() => {
   padding: 1.5rem;
   text-align: center;
   font-size: 0.8rem;
-  /* 0.7 alpha of warm cream over the void-toned canvas — WCAG AA (4.5:1) for body text */
   color: rgba(230, 228, 224, 0.7);
   letter-spacing: 0.08em;
   display: flex;
@@ -429,7 +415,6 @@ onBeforeUnmount(() => {
 }
 
 .site-footer a {
-  /* higher alpha than the plain footer text — stays above it for link affordance */
   color: rgba(230, 228, 224, 0.78);
   text-decoration: none;
   transition: color 0.2s;

@@ -12,3 +12,4 @@ public/mediapipe/*.task
 *.docx
 *.zip
 smoke-shots/
+.revmux/
