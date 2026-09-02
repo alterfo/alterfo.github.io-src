@@ -23,7 +23,7 @@ const solitaireHud = ref({ score: 0, time: 0, canUndo: false, won: false })
 
 const stats = ref(emptyStats())
 const savedGames = ref({ queens: null, tango: null, zip: null, solitaire: null })
-const lastWon = ref({ queens: false, tango: false, zip: false, solitaire: false })
+const resultRecorded = ref({ queens: false, tango: false, zip: false, solitaire: false })
 const loaded = ref(false)
 
 let solitaireTimer = null
@@ -41,7 +41,7 @@ const activeStreak = computed(() => stats.value.games?.[activeGame.value]?.curre
 const activeHasSave = computed(() => hasUsableSavedGame(savedGames.value[activeGame.value]))
 const savedGamesList = computed(() => games.filter((game) => game.id !== activeGame.value && hasUsableSavedGame(savedGames.value[game.id])))
 
-watch(activeGame, (value, oldValue) => {
+watch(activeGame, async (value, oldValue) => {
   if (oldValue && oldValue !== value) persistGame(oldValue)
   if (value === 'solitaire') {
     solitaireHud.value.time = 0
@@ -49,6 +49,7 @@ watch(activeGame, (value, oldValue) => {
   } else {
     stopSolitaireTimer()
   }
+  await restoreSavedGame(value)
 })
 
 function onSolitaireUpdate(payload) {
@@ -73,6 +74,19 @@ function stopSolitaireTimer() {
   if (!solitaireTimer) return
   clearInterval(solitaireTimer)
   solitaireTimer = null
+}
+
+async function restoreSavedGame(gameId) {
+  const saved = savedGames.value[gameId]
+  if (!hasUsableSavedGame(saved)) return
+  await nextTick()
+  const board = boardRefs[gameId]?.value
+  if (!board?.restoreState) return
+  board.restoreState(saved.state)
+  if (gameId === 'solitaire') {
+    solitaireHud.value.time = Math.max(0, Number(saved.state?.elapsedSeconds) || 0)
+    if (!saved.state?.won) startSolitaireTimer()
+  }
 }
 
 function solitaireNew() {
@@ -100,20 +114,32 @@ async function initPersistence() {
     loadGame('solitaire'),
   ])
   savedGames.value = { queens, tango, zip, solitaire }
+  await restoreSavedGame(activeGame.value)
   loaded.value = true
 }
 
 function recordWinIfNeeded(gameId, score) {
-  if (lastWon.value[gameId]) return
+  if (resultRecorded.value[gameId]) return
   stats.value = recordResult(stats.value, gameId, score, true)
   saveStats(stats.value)
+  resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
+}
+
+function recordLossIfNeeded(gameId, state) {
+  if (!state || state.won || resultRecorded.value[gameId]) return
+  stats.value = recordResult(stats.value, gameId, state.score, false)
+  saveStats(stats.value)
+  resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
 }
 
 function persistGame(gameId) {
   if (!loaded.value) return
   const board = boardRefs[gameId]?.value
-  const state = board?.getState?.()
-  if (!state) return
+  const rawState = board?.getState?.()
+  if (!rawState) return
+  const state = gameId === 'solitaire'
+    ? { ...rawState, elapsedSeconds: solitaireHud.value.time }
+    : rawState
   if (state.won) {
     recordWinIfNeeded(gameId, state.score)
     savedGames.value = { ...savedGames.value, [gameId]: null }
@@ -122,7 +148,6 @@ function persistGame(gameId) {
     savedGames.value = { ...savedGames.value, [gameId]: { gameId, state } }
     saveGame(gameId, state)
   }
-  lastWon.value = { ...lastWon.value, [gameId]: Boolean(state.won) }
 }
 
 function persistActive() {
@@ -130,18 +155,17 @@ function persistActive() {
 }
 
 function beforeNewGame(gameId) {
-  lastWon.value = { ...lastWon.value, [gameId]: false }
+  const board = boardRefs[gameId]?.value
+  const state = board?.getState?.()
+  if (state) recordLossIfNeeded(gameId, state)
   persistGame(gameId)
-  lastWon.value = { ...lastWon.value, [gameId]: false }
+  resultRecorded.value = { ...resultRecorded.value, [gameId]: false }
 }
 
 async function continueGame(gameId) {
   const saved = savedGames.value[gameId]
   if (!hasUsableSavedGame(saved)) return
   activeGame.value = gameId
-  await nextTick()
-  const board = boardRefs[gameId]?.value
-  if (board?.restoreState) board.restoreState(saved.state)
 }
 
 function startAutosave() {

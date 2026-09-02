@@ -8,7 +8,6 @@ import {
   legalMoves,
   movesEqual,
   applyMove,
-  autoMoveToFoundation,
   hint,
   isWon,
   score,
@@ -134,9 +133,28 @@ function playToFoundation(suit) {
   else selected.value = null
 }
 
-function autoFoundation() {
+function autoFoundation(source, from, cardIndex) {
   if (!game.value || won.value) return
-  commit(autoMoveToFoundation(game.value))
+  if (source === 'waste') {
+    if (game.value.waste.length === 0) return
+    const topCard = game.value.waste[game.value.waste.length - 1]
+    if (!topCard.faceUp) return
+    const move = legalMoves(game.value).find((candidate) =>
+      candidate.type === 'wasteToFoundation' && candidate.toSuit === topCard.suit,
+    )
+    commit(move)
+    return
+  }
+  if (source === 'tableau') {
+    const pile = game.value.tableau[from]
+    if (!pile || cardIndex !== pile.length - 1) return
+    const topCard = pile[pile.length - 1]
+    if (!topCard.faceUp) return
+    const move = legalMoves(game.value).find((candidate) =>
+      candidate.type === 'tableauToFoundation' && candidate.from === from,
+    )
+    commit(move)
+  }
 }
 
 function startDrag(event, source, from, count) {
@@ -253,7 +271,7 @@ defineExpose({
           :class="{ empty: game.waste.length === 0 }"
           aria-label="Сброс"
           @click="selectWaste"
-          @dblclick="autoFoundation"
+          @dblclick="autoFoundation('waste')"
         >
           <span v-if="game.waste.length" class="card" :class="{ red: isRed(game.waste[game.waste.length - 1].suit) }">
             <span class="card-rank">{{ rankLabel(game.waste[game.waste.length - 1]) }}</span>
@@ -311,7 +329,7 @@ defineExpose({
             :draggable="card.faceUp"
             :aria-label="card.faceUp ? `${rankLabel(card)} ${suitTitle(card)}` : 'Закрытая карта'"
             @click="selectTableau(pileIndex, cardIndex)"
-            @dblclick="autoFoundation"
+            @dblclick="autoFoundation('tableau', pileIndex, cardIndex)"
             @dragstart="startDrag($event, 'tableau', pileIndex, runCountFrom(pile, cardIndex))"
             @dragend="endDrag"
           >

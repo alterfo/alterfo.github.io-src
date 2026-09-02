@@ -99,6 +99,8 @@ function startDrag(row, col) {
   if (!puzzle.value) return
   dragging = true
   append(row * size.value + col)
+  window.addEventListener('pointerup', endDrag)
+  window.addEventListener('pointercancel', endDrag)
 }
 
 function enterCell(row, col) {
@@ -108,6 +110,8 @@ function enterCell(row, col) {
 
 function endDrag() {
   dragging = false
+  window.removeEventListener('pointerup', endDrag)
+  window.removeEventListener('pointercancel', endDrag)
 }
 
 function undoLast() {
@@ -177,6 +181,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  endDrag()
 })
 
 function getState() {
