@@ -206,10 +206,36 @@ onMounted(() => {
   newGame()
 })
 
+function cloneGame(state) {
+  if (!state) return null
+  return JSON.parse(JSON.stringify(state))
+}
+
+function getState() {
+  if (!game.value) return null
+  return {
+    won: won.value,
+    score: currentScore.value,
+    game: cloneGame(game.value),
+    history: history.value.map(cloneGame),
+  }
+}
+
+function restoreState(state) {
+  if (!state || !state.game) return
+  game.value = cloneGame(state.game)
+  history.value = (state.history || []).map(cloneGame)
+  selected.value = null
+  dragPayload = null
+  sync()
+}
+
 defineExpose({
   newGame,
   undo,
   requestHint,
+  getState,
+  restoreState,
 })
 </script>
 

@@ -76,6 +76,41 @@ onMounted(() => {
 onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
+
+function getState() {
+  if (!puzzle.value) return null
+  return {
+    won: solved.value,
+    score: score.value,
+    hints: hints.value,
+    elapsedSeconds: elapsedSeconds.value,
+    puzzle: {
+      size: puzzle.value.size,
+      solution: [...puzzle.value.solution],
+      regions: Array.from(puzzle.value.regions),
+    },
+    queens: [...queens.value],
+  }
+}
+
+function restoreState(state) {
+  if (!state || !state.puzzle) return
+  const size = state.puzzle.size
+  puzzle.value = {
+    size,
+    solution: [...state.puzzle.solution],
+    regions: Uint8Array.from(state.puzzle.regions || []),
+  }
+  queens.value = new Array(size).fill(-1).map((_, index) =>
+    Number.isInteger(state.queens?.[index]) ? state.queens[index] : -1,
+  )
+  hints.value = Math.max(0, Number(state.hints) || 0)
+  elapsedSeconds.value = Math.max(0, Number(state.elapsedSeconds) || 0)
+  solved.value = Boolean(state.won)
+  startedAt = Date.now()
+}
+
+defineExpose({ getState, restoreState })
 </script>
 
 <template>
