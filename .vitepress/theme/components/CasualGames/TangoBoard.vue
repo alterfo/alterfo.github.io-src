@@ -34,6 +34,16 @@ const conflictKeys = computed(() => {
       keys.add(`${conflict.start}:${conflict.col}`)
       keys.add(`${conflict.start + 1}:${conflict.col}`)
       keys.add(`${conflict.start + 2}:${conflict.col}`)
+    } else if (conflict.type === 'rowDuplicate') {
+      for (let col = 0; col < size; col += 1) {
+        keys.add(`${conflict.rowA}:${col}`)
+        keys.add(`${conflict.rowB}:${col}`)
+      }
+    } else if (conflict.type === 'colDuplicate') {
+      for (let row = 0; row < size; row += 1) {
+        keys.add(`${row}:${conflict.colA}`)
+        keys.add(`${row}:${conflict.colB}`)
+      }
     } else if (conflict.type === 'constraint') {
       keys.add(`${Math.floor(conflict.a / size)}:${conflict.a % size}`)
       keys.add(`${Math.floor(conflict.b / size)}:${conflict.b % size}`)

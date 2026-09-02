@@ -25,7 +25,11 @@ const stats = ref(emptyStats())
 const savedGames = ref({ queens: null, tango: null, zip: null, solitaire: null })
 const resultRecorded = ref({ queens: false, tango: false, zip: false, solitaire: false })
 const loaded = ref(false)
-const saveFailed = ref(false)
+const gameSaveFailed = ref(false)
+const statsSaveFailed = ref(false)
+
+let statsDirty = false
+let statsSaving = false
 
 let solitaireTimer = null
 let autosaveTimer = null
@@ -41,6 +45,7 @@ const activeBest = computed(() => stats.value.games?.[activeGame.value]?.best ??
 const activeStreak = computed(() => stats.value.games?.[activeGame.value]?.currentStreak ?? 0)
 const activeHasSave = computed(() => hasUsableSavedGame(savedGames.value[activeGame.value]))
 const savedGamesList = computed(() => games.filter((game) => game.id !== activeGame.value && hasUsableSavedGame(savedGames.value[game.id])))
+const saveFailed = computed(() => gameSaveFailed.value || statsSaveFailed.value)
 
 function hasProgress(gameId, state) {
   if (!state) return false
@@ -64,7 +69,26 @@ function hasProgress(gameId, state) {
 }
 
 function markSaveResult(ok) {
-  saveFailed.value = !ok
+  gameSaveFailed.value = !ok
+}
+
+async function flushStats() {
+  if (statsSaving) {
+    statsDirty = true
+    return
+  }
+  statsSaving = true
+  do {
+    statsDirty = false
+    const snapshot = stats.value
+    const ok = await saveStats(snapshot)
+    statsSaveFailed.value = !ok
+    if (!ok) {
+      statsDirty = true
+      break
+    }
+  } while (statsDirty)
+  statsSaving = false
 }
 
 watch(activeGame, async (value, oldValue) => {
@@ -113,7 +137,14 @@ async function restoreSavedGame(gameId) {
   const board = boardRefs[gameId]?.value
   if (!board?.restoreState) return
   if (hasProgress(gameId, board.getState())) return
-  board.restoreState(saved.state)
+  try {
+    board.restoreState(saved.state)
+  } catch (err) {
+    console.warn('[casual-games] restoreState failed:', err)
+    savedGames.value = { ...savedGames.value, [gameId]: null }
+    saveGame(gameId, null).then(markSaveResult)
+    return
+  }
   if (gameId === 'solitaire') {
     solitaireHud.value.time = Math.max(0, Number(saved.state?.elapsedSeconds) || 0)
     if (!saved.state?.won) startSolitaireTimer()
@@ -137,31 +168,38 @@ function solitaireHint() {
 }
 
 async function initPersistence() {
-  const storedStats = await loadStats()
-  if (storedStats) stats.value = storedStats
-  const [queens, tango, zip, solitaire] = await Promise.all([
-    loadGame('queens'),
-    loadGame('tango'),
-    loadGame('zip'),
-    loadGame('solitaire'),
-  ])
-  savedGames.value = { queens, tango, zip, solitaire }
-  await restoreSavedGame(activeGame.value)
-  loaded.value = true
+  try {
+    const storedStats = await loadStats()
+    if (storedStats) stats.value = storedStats
+    const [queens, tango, zip, solitaire] = await Promise.all([
+      loadGame('queens'),
+      loadGame('tango'),
+      loadGame('zip'),
+      loadGame('solitaire'),
+    ])
+    savedGames.value = { queens, tango, zip, solitaire }
+    await restoreSavedGame(activeGame.value)
+  } catch (err) {
+    console.warn('[casual-games] initPersistence failed:', err)
+  } finally {
+    loaded.value = true
+  }
 }
 
 function recordWinIfNeeded(gameId, score) {
   if (resultRecorded.value[gameId]) return
   stats.value = recordResult(stats.value, gameId, score, true)
-  saveStats(stats.value).then(markSaveResult)
   resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
+  statsDirty = true
+  void flushStats()
 }
 
 function recordLossIfNeeded(gameId, state) {
   if (!state || state.won || resultRecorded.value[gameId]) return
   stats.value = recordResult(stats.value, gameId, state.score, false)
-  saveStats(stats.value).then(markSaveResult)
   resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
+  statsDirty = true
+  void flushStats()
 }
 
 function persistGame(gameId) {
@@ -176,6 +214,9 @@ function persistGame(gameId) {
     recordWinIfNeeded(gameId, state.score)
     savedGames.value = { ...savedGames.value, [gameId]: null }
     saveGame(gameId, null).then(markSaveResult)
+  } else if (!hasProgress(gameId, rawState)) {
+    savedGames.value = { ...savedGames.value, [gameId]: null }
+    saveGame(gameId, null).then(markSaveResult)
   } else {
     savedGames.value = { ...savedGames.value, [gameId]: { gameId, state } }
     saveGame(gameId, state).then(markSaveResult)
@@ -183,6 +224,7 @@ function persistGame(gameId) {
 }
 
 function persistActive() {
+  if (statsDirty) void flushStats()
   persistGame(activeGame.value)
 }
 

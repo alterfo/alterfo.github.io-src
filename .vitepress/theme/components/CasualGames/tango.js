@@ -76,6 +76,20 @@ export function validate(puzzle, board) {
       if (a !== EMPTY && a === b && b === c) conflicts.push({ type: 'colRun', col, start: row, value: a })
     }
   }
+  for (let rowA = 0; rowA < size; rowA += 1) {
+    for (let rowB = rowA + 1; rowB < size; rowB += 1) {
+      if (rowIsFullyDuplicate(board, size, rowA, rowB)) {
+        conflicts.push({ type: 'rowDuplicate', rowA, rowB })
+      }
+    }
+  }
+  for (let colA = 0; colA < size; colA += 1) {
+    for (let colB = colA + 1; colB < size; colB += 1) {
+      if (columnIsFullyDuplicate(board, size, colA, colB)) {
+        conflicts.push({ type: 'colDuplicate', colA, colB })
+      }
+    }
+  }
   for (let index = 0; index < puzzle.constraints.length; index += 1) {
     const { a, b, op } = puzzle.constraints[index]
     const valueA = board[a]
@@ -199,6 +213,11 @@ function isRowColumnValidAt(grid, size, row, col) {
     const b = grid[row * size + col - 1]
     if (a === value && b === value) return false
   }
+  if (col === size - 1) {
+    for (let otherRow = 0; otherRow < row; otherRow += 1) {
+      if (rowIsFullyDuplicate(grid, size, row, otherRow)) return false
+    }
+  }
   let colMoons = 0
   let colSuns = 0
   for (let r = 0; r <= row; r += 1) {
@@ -213,6 +232,11 @@ function isRowColumnValidAt(grid, size, row, col) {
     const b = grid[(row - 1) * size + col]
     if (a === value && b === value) return false
   }
+  if (row === size - 1) {
+    for (let otherCol = 0; otherCol < col; otherCol += 1) {
+      if (columnIsFullyDuplicate(grid, size, col, otherCol)) return false
+    }
+  }
   return true
 }
 
@@ -222,6 +246,24 @@ function constraintValidAt(board, index, value, constraintAdj) {
     if (otherValue === EMPTY) continue
     if (op === EQUAL && otherValue !== value) return false
     if (op === DIFF && otherValue === value) return false
+  }
+  return true
+}
+
+function rowIsFullyDuplicate(board, size, rowA, rowB) {
+  for (let col = 0; col < size; col += 1) {
+    const a = board[rowA * size + col]
+    const b = board[rowB * size + col]
+    if (a === EMPTY || b === EMPTY || a !== b) return false
+  }
+  return true
+}
+
+function columnIsFullyDuplicate(board, size, colA, colB) {
+  for (let row = 0; row < size; row += 1) {
+    const a = board[row * size + colA]
+    const b = board[row * size + colB]
+    if (a === EMPTY || b === EMPTY || a !== b) return false
   }
   return true
 }

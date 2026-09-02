@@ -51,6 +51,16 @@ function verifyPuzzle(puzzle) {
     assert.equal(values.filter((value) => value === SUN).length, 3)
     assert.equal(values.filter((value) => value === MOON).length, 3)
   }
+  for (let rowA = 0; rowA < SIZE; rowA += 1) {
+    for (let rowB = rowA + 1; rowB < SIZE; rowB += 1) {
+      assert.notDeepEqual(rowValues(puzzle.solution, rowA), rowValues(puzzle.solution, rowB))
+    }
+  }
+  for (let colA = 0; colA < SIZE; colA += 1) {
+    for (let colB = colA + 1; colB < SIZE; colB += 1) {
+      assert.notDeepEqual(columnValues(puzzle.solution, colA), columnValues(puzzle.solution, colB))
+    }
+  }
   for (const constraint of puzzle.constraints) {
     assert.ok(Number.isInteger(constraint.a) && constraint.a >= 0 && constraint.a < TOTAL)
     assert.ok(Number.isInteger(constraint.b) && constraint.b >= 0 && constraint.b < TOTAL)
@@ -118,6 +128,26 @@ test('validate reports column run conflicts', () => {
   assert.ok(conflicts.some((conflict) => conflict.type === 'colRun' && conflict.col === 0 && conflict.start === 0))
 })
 
+test('validate reports duplicate row conflicts', () => {
+  const puzzle = generate(mulberry32(5))
+  const board = new Array(TOTAL).fill(EMPTY)
+  const row = rowValues(puzzle.solution, 0)
+  row.forEach((value, col) => { board[col] = value })
+  row.forEach((value, col) => { board[SIZE + col] = value })
+  const conflicts = validate(puzzle, board)
+  assert.ok(conflicts.some((conflict) => conflict.type === 'rowDuplicate' && conflict.rowA === 0 && conflict.rowB === 1))
+})
+
+test('validate reports duplicate column conflicts', () => {
+  const puzzle = generate(mulberry32(5))
+  const board = new Array(TOTAL).fill(EMPTY)
+  const column = columnValues(puzzle.solution, 0)
+  column.forEach((value, row) => { board[row * SIZE] = value })
+  column.forEach((value, row) => { board[row * SIZE + 1] = value })
+  const conflicts = validate(puzzle, board)
+  assert.ok(conflicts.some((conflict) => conflict.type === 'colDuplicate' && conflict.colA === 0 && conflict.colB === 1))
+})
+
 test('validate reports equal-constraint violations', () => {
   const puzzle = { size: SIZE, constraints: [{ a: 0, b: 1, op: EQUAL }] }
   const board = new Array(TOTAL).fill(EMPTY)
@@ -158,6 +188,17 @@ test('isSolved accepts only a complete, conflict-free board', () => {
   const wrong = puzzle.solution.slice()
   wrong[5] = wrong[5] === SUN ? MOON : SUN
   assert.equal(isSolved(puzzle, wrong), false)
+})
+
+test('isSolved rejects complete boards with duplicate rows or columns', () => {
+  const puzzle = generate(mulberry32(23))
+  const duplicateRow = puzzle.solution.slice()
+  for (let col = 0; col < SIZE; col += 1) duplicateRow[SIZE + col] = puzzle.solution[col]
+  assert.equal(isSolved(puzzle, duplicateRow), false)
+
+  const duplicateColumn = puzzle.solution.slice()
+  for (let row = 0; row < SIZE; row += 1) duplicateColumn[row * SIZE + 1] = puzzle.solution[row * SIZE]
+  assert.equal(isSolved(puzzle, duplicateColumn), false)
 })
 
 test('hint returns the first differing cell and null when solved', () => {
