@@ -55,6 +55,7 @@ watch(activeGame, async (value, oldValue) => {
 function onSolitaireUpdate(payload) {
   solitaireHud.value = { ...solitaireHud.value, ...payload }
   if (payload.won) stopSolitaireTimer()
+  else if (activeGame.value === 'solitaire') startSolitaireTimer()
 }
 
 function formatSolitaireClock(seconds) {
@@ -78,7 +79,10 @@ function stopSolitaireTimer() {
 
 async function restoreSavedGame(gameId) {
   const saved = savedGames.value[gameId]
-  if (!hasUsableSavedGame(saved)) return
+  if (!hasUsableSavedGame(saved)) {
+    resultRecorded.value = { ...resultRecorded.value, [gameId]: false }
+    return
+  }
   await nextTick()
   const board = boardRefs[gameId]?.value
   if (!board?.restoreState) return

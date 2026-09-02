@@ -203,6 +203,7 @@ test('shouldPreloadLink: each tool app root chunk stays eager only on its own pa
     ['OpenPoseEditor', 'openpose.md'],
     ['PlannerEditor', 'planner.md'],
     ['DecisionJournal', 'decision-journal.md'],
+    ['FinanceApp', 'finance.md'],
     ['CasualGames', 'casual-games.md'],
   ]
   for (const [chunk, page] of cases) {
