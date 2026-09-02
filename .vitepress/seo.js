@@ -66,6 +66,7 @@ export const TOOL_CATEGORY = {
   'openpose.md': 'DesignApplication',
   'decision-journal.md': 'BusinessApplication',
   'finance.md': 'FinanceApplication',
+  'casual-games.md': 'GameApplication',
 }
 
 // Build the per-page JSON-LD object (or null if the page type has none).
@@ -150,8 +151,9 @@ const LAZY_CHUNK_PAGE = {
   OpenPoseEditor: 'openpose.md',
   PlannerEditor: 'planner.md',
   DecisionJournal: 'decision-journal.md',
+  CasualGames: 'casual-games.md',
 }
-const LAZY_CHUNK_RE = /\/(IDEF0Editor|Journal|Piano|OpenPoseEditor|PlannerEditor|DecisionJournal|WebGPUParticles)\.[^/]+\.js$/
+const LAZY_CHUNK_RE = /\/(IDEF0Editor|Journal|Piano|OpenPoseEditor|PlannerEditor|DecisionJournal|CasualGames|WebGPUParticles)\.[^/]+\.js$/
 
 // VitePress's shouldPreload(link, page) hook (config.mts): false demotes a link
 // from an eager <link rel="modulepreload"> to a low-priority <link rel="prefetch">
