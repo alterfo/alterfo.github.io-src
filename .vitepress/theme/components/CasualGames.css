@@ -48,10 +48,14 @@
 .cg-board {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: auto;
   padding: 24px;
+}
+
+.cg-board > * {
+  margin: auto;
 }
 
 .cg-placeholder {

@@ -9,8 +9,13 @@ let _dbPromise = null
 
 function openDB() {
   if (_dbPromise) return _dbPromise
+  let req
+  try {
+    req = indexedDB.open(DB_NAME, DB_VERSION)
+  } catch (err) {
+    return Promise.reject(err)
+  }
   _dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = (event) => {
       const db = event.target.result
       if (!db.objectStoreNames.contains(STATS_STORE)) db.createObjectStore(STATS_STORE)

@@ -178,11 +178,15 @@ async function initPersistence() {
       loadGame('solitaire'),
     ])
     savedGames.value = { queens, tango, zip, solitaire }
-    await restoreSavedGame(activeGame.value)
   } catch (err) {
     console.warn('[casual-games] initPersistence failed:', err)
-  } finally {
-    loaded.value = true
+  }
+  loaded.value = true
+  await nextTick()
+  try {
+    await restoreSavedGame(activeGame.value)
+  } catch (err) {
+    console.warn('[casual-games] restoreSavedGame failed:', err)
   }
 }
 
@@ -309,11 +313,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="cg-board" role="tabpanel">
-      <QueensBoard v-if="activeGame === 'queens'" ref="queensBoard" @before-new-game="beforeNewGame(activeGame)" />
-      <TangoBoard v-else-if="activeGame === 'tango'" ref="tangoBoard" @before-new-game="beforeNewGame(activeGame)" />
-      <ZipBoard v-else-if="activeGame === 'zip'" ref="zipBoard" @before-new-game="beforeNewGame(activeGame)" />
-      <SolitaireBoard v-else-if="activeGame === 'solitaire'" ref="solitaireBoard" @update="onSolitaireUpdate" />
-      <p v-else class="cg-placeholder">Выберите игру. Доска появится после подключения движка.</p>
+      <template v-if="loaded">
+        <QueensBoard v-if="activeGame === 'queens'" ref="queensBoard" @before-new-game="beforeNewGame(activeGame)" />
+        <TangoBoard v-else-if="activeGame === 'tango'" ref="tangoBoard" @before-new-game="beforeNewGame(activeGame)" />
+        <ZipBoard v-else-if="activeGame === 'zip'" ref="zipBoard" @before-new-game="beforeNewGame(activeGame)" />
+        <SolitaireBoard v-else-if="activeGame === 'solitaire'" ref="solitaireBoard" @update="onSolitaireUpdate" />
+      </template>
+      <p v-else class="cg-placeholder">Загрузка…</p>
     </div>
 
     <footer v-if="activeGame === 'solitaire'" class="cg-hud">
