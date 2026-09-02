@@ -4,6 +4,8 @@ import { mulberry32 } from './rng.js'
 import { generate, validatePath, isSolved, hint } from './zip.js'
 import { scorePuzzle, formatClock } from './scoring.js'
 
+const emit = defineEmits(['before-new-game'])
+
 const puzzle = ref(null)
 const path = ref([])
 const hints = ref(0)
@@ -57,11 +59,7 @@ const endCell = computed(() => {
 
 const score = computed(() =>
   puzzle.value
-    ? scorePuzzle({
-        basePoints: puzzle.value.size * 100,
-        hints: hints.value,
-        elapsedSeconds: elapsedSeconds.value,
-      })
+    ? scorePuzzle(puzzle.value.size * 100, hints.value, elapsedSeconds.value)
     : 0,
 )
 
@@ -134,6 +132,7 @@ function requestHint() {
 }
 
 function newGame() {
+  if (puzzle.value) emit('before-new-game')
   const rng = mulberry32(Date.now() >>> 0)
   puzzle.value = generate(rng)
   path.value = []
@@ -207,7 +206,7 @@ function restoreState(state) {
   hints.value = Math.max(0, Number(state.hints) || 0)
   elapsedSeconds.value = Math.max(0, Number(state.elapsedSeconds) || 0)
   solved.value = Boolean(state.won)
-  startedAt = Date.now()
+  startedAt = Date.now() - elapsedSeconds.value * 1000
 }
 
 defineExpose({ getState, restoreState })

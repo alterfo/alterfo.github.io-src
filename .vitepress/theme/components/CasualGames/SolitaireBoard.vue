@@ -6,6 +6,7 @@ import {
   isRed,
   deal,
   legalMoves,
+  movesEqual,
   applyMove,
   autoMoveToFoundation,
   hint,
@@ -48,21 +49,13 @@ function commit(move) {
   if (!game.value || !move) return
   const legal = legalMoves(game.value).some((candidate) => movesEqual(candidate, move))
   if (!legal) return
-  history.value.push(game.value)
-  game.value = applyMove(game.value, move)
+  const previous = game.value
+  const next = applyMove(game.value, move)
+  history.value.push(previous)
+  game.value = next
   selected.value = null
   dragPayload = null
   sync()
-}
-
-function movesEqual(a, b) {
-  if (!a || !b || a.type !== b.type) return false
-  if (a.type === 'tableauToFoundation' || a.type === 'tableauToTableau') {
-    return a.from === b.from
-  }
-  if (a.type === 'wasteToFoundation') return a.toSuit === b.toSuit
-  if (a.type === 'wasteToTableau') return a.to === b.to
-  return true
 }
 
 function undo() {

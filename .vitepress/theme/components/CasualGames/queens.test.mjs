@@ -131,7 +131,7 @@ test('hint returns the first mismatching solution cell and null when solved', ()
 
 test('queens scoring rewards larger boards and penalizes hints and time', () => {
   assert.ok(queensScore(8, 0, 0) > queensScore(5, 0, 0))
-  assert.equal(queensScore(8, 0, 0), scorePuzzle({ basePoints: 800, hints: 0, elapsedSeconds: 0 }))
+  assert.equal(queensScore(8, 0, 0), scorePuzzle(800, 0, 0))
   const clean = queensScore(8, 0, 30)
   const withHints = queensScore(8, 2, 30)
   const slower = queensScore(8, 0, 60)

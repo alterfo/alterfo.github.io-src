@@ -245,7 +245,7 @@ onMounted(async () => {
 
 /* Center «ship-ranger» mark — light monochrome on the dark hole. Hover mirrors
    the .segment affordance: subtle scale + a neutral glow (no per-sphere color, so
-   it stays neutral against the 8 colored spheres). */
+   it stays neutral against the 10 colored spheres). */
 .center-mark {
   cursor: pointer;
   transition: transform 0.2s ease, filter 0.2s ease;

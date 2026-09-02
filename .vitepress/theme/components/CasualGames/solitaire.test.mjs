@@ -4,6 +4,7 @@ import { mulberry32 } from './rng.js'
 import {
   SUITS,
   isRed,
+  movesEqual,
   deal,
   legalMoves,
   applyMove,
@@ -217,4 +218,15 @@ test('autoMoveToFoundation returns the first safe foundation move', () => {
 test('score returns the accumulated score', () => {
   const state = makeState({ score: 75 })
   assert.equal(score(state), 75)
+})
+
+test('movesEqual compares full move identity, not just source', () => {
+  assert.equal(movesEqual({ type: 'tableauToFoundation', from: 0, toSuit: 'clubs' }, { type: 'tableauToFoundation', from: 0, toSuit: 'clubs' }), true)
+  assert.equal(movesEqual({ type: 'tableauToFoundation', from: 0, toSuit: 'clubs' }, { type: 'tableauToFoundation', from: 0, toSuit: 'diamonds' }), false)
+  assert.equal(movesEqual({ type: 'tableauToTableau', from: 1, to: 2, count: 3 }, { type: 'tableauToTableau', from: 1, to: 2, count: 3 }), true)
+  assert.equal(movesEqual({ type: 'tableauToTableau', from: 1, to: 2, count: 3 }, { type: 'tableauToTableau', from: 1, to: 2, count: 2 }), false)
+  assert.equal(movesEqual({ type: 'wasteToFoundation', toSuit: 'spades' }, { type: 'wasteToFoundation', toSuit: 'spades' }), true)
+  assert.equal(movesEqual({ type: 'wasteToFoundation', toSuit: 'spades' }, { type: 'wasteToFoundation', toSuit: 'hearts' }), false)
+  assert.equal(movesEqual({ type: 'draw' }, { type: 'draw' }), true)
+  assert.equal(movesEqual({ type: 'draw' }, { type: 'wasteToTableau', to: 0 }), false)
 })

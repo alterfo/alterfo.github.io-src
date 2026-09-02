@@ -7,8 +7,6 @@ import {
   recordResult,
   mergeStats,
   normalizeStats,
-  toPlain,
-  fromPlain,
   serializeGame,
   deserializeGame,
   hasUsableSavedGame,
@@ -96,43 +94,13 @@ test('normalizeStats returns emptyStats for null input', () => {
   assert.deepEqual(normalizeStats(null), emptyStats())
 })
 
-test('toPlain converts typed arrays and leaves primitives untouched', () => {
-  assert.equal(toPlain(5), 5)
-  assert.equal(toPlain('x'), 'x')
-  assert.deepEqual(toPlain([1, 2]), [1, 2])
-  const typed = toPlain({ regions: Uint8Array.from([1, 2, 3]) })
-  assert.equal(typed.regions.__typedArray, 'Uint8Array')
-  assert.deepEqual(typed.regions.values, [1, 2, 3])
-})
-
-test('fromPlain reconstructs typed arrays and nested objects', () => {
-  const value = fromPlain({ regions: { __typedArray: 'Uint8Array', values: [4, 5] }, size: 2 })
-  assert.ok(value.regions instanceof Uint8Array)
-  assert.deepEqual(Array.from(value.regions), [4, 5])
-  assert.equal(value.size, 2)
-})
-
-test('toPlain/fromPlain round-trips a complex game state', () => {
-  const state = {
-    won: false,
-    score: 120,
-    puzzle: { size: 4, regions: Uint8Array.from([0, 1, 2, 3]) },
-    queens: [-1, 0, 1, -1],
-  }
-  const restored = fromPlain(toPlain(state))
-  assert.deepEqual(restored.queens, state.queens)
-  assert.ok(restored.puzzle.regions instanceof Uint8Array)
-  assert.deepEqual(Array.from(restored.puzzle.regions), [0, 1, 2, 3])
-  assert.equal(restored.won, false)
-})
-
 test('serializeGame/deserializeGame round-trip with gameId', () => {
-  const record = serializeGame('queens', { won: false, score: 10, regions: Uint8Array.from([9]) })
+  const state = { won: false, score: 10, queens: [-1, 0, -1] }
+  const record = serializeGame('queens', state)
   assert.equal(record.gameId, 'queens')
   const restored = deserializeGame(record)
   assert.equal(restored.gameId, 'queens')
-  assert.ok(restored.state.regions instanceof Uint8Array)
-  assert.equal(restored.state.score, 10)
+  assert.deepEqual(restored.state, state)
 })
 
 test('deserializeGame returns null for invalid record', () => {

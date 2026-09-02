@@ -5,6 +5,8 @@ import { mulberry32 } from './rng.js'
 import { generate, regionAt, validate, isSolved, hint } from './queens.js'
 import { queensScore, formatClock } from './scoring.js'
 
+const emit = defineEmits(['before-new-game'])
+
 const DEFAULT_SIZE = 8
 
 const puzzle = ref(null)
@@ -54,6 +56,7 @@ function requestHint() {
 }
 
 function newGame() {
+  if (puzzle.value) emit('before-new-game')
   const rng = mulberry32(Date.now() >>> 0)
   puzzle.value = generate(DEFAULT_SIZE, rng)
   queens.value = new Array(puzzle.value.size).fill(-1)
@@ -107,7 +110,7 @@ function restoreState(state) {
   hints.value = Math.max(0, Number(state.hints) || 0)
   elapsedSeconds.value = Math.max(0, Number(state.elapsedSeconds) || 0)
   solved.value = Boolean(state.won)
-  startedAt = Date.now()
+  startedAt = Date.now() - elapsedSeconds.value * 1000
 }
 
 defineExpose({ getState, restoreState })

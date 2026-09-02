@@ -8,6 +8,16 @@ export function isRed(suit) {
   return RED_SUITS.has(suit)
 }
 
+export function movesEqual(a, b) {
+  if (!a || !b || a.type !== b.type) return false
+  if (a.type === 'tableauToFoundation') return a.from === b.from && a.toSuit === b.toSuit
+  if (a.type === 'tableauToTableau') return a.from === b.from && a.to === b.to && a.count === b.count
+  if (a.type === 'wasteToFoundation') return a.toSuit === b.toSuit
+  if (a.type === 'wasteToTableau') return a.to === b.to
+  if (a.type === 'draw') return true
+  return false
+}
+
 export function deal(rng) {
   if (typeof rng !== 'function') throw new TypeError('rng must be a function')
   const shuffled = shuffle(createDeck(), rng)

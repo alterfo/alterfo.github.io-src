@@ -19,7 +19,7 @@ in `index.mts`). Page: `casual-games.md` (`layout: false`). SEO: `TOOL_CATEGORY`
 | `zip.js` | Zip engine. `generate(rng)`, `countSolutions`, `validatePath`, `isSolved`, `hint`; constants `SIZE`/`EMPTY` — pure |
 | `solitaire.js` | Klondike engine. `deal(rng)`, `legalMoves(state)`, `applyMove`, `autoMoveToFoundation`, `hint`, `isWon`, `score`; helpers `SUITS`/`isRed` — pure |
 | `scoring.js` | Puzzle scoring helpers. `scorePuzzle`, `queensScore`, `formatClock`; penalties `HINT_PENALTY`/`TIME_PENALTY_PER_SECOND` — pure |
-| `stats.js` | Pure record/serialization logic. `emptyStats`, `recordResult`, `mergeStats`, `normalizeStats`, `serializeGame`/`deserializeGame`, `toPlain`/`fromPlain`, `hasUsableSavedGame`; `GAME_IDS` |
+| `stats.js` | Pure record/serialization logic. `emptyStats`, `recordResult`, `mergeStats`, `normalizeStats`, `serializeGame`/`deserializeGame`, `hasUsableSavedGame`; `GAME_IDS` |
 | `db.js` | Plain IndexedDB `casual-games` (v1): stores `stats` and `games`. `loadStats`/`saveStats`/`saveGame`/`loadGame` — browser-only |
 | `QueensBoard.vue` | SVG grid board: place/remove queen, conflict highlighting, «новая»/«подсказка», score |
 | `TangoBoard.vue` | 6×6 grid: click cycles empty→☀→🌙, draws `=`/`×` constraints, violation highlight |
@@ -30,9 +30,11 @@ in `index.mts`). Page: `casual-games.md` (`layout: false`). SEO: `TOOL_CATEGORY`
 ## Game state model
 
 Each board exposes `getState()` → `{ score, won, ...game-specific }` and
-`restoreState(state)` (plus `newGame`/`undo`/`requestHint`). `CasualGames.vue`
-autosaves the active board every 2 s and on `beforeunload`; won games are cleared
-instead of saved. `loadGame` returns `{ gameId, savedAt, state }`, and
+`restoreState(state)`. Only `SolitaireBoard.vue` also exposes `newGame`/`undo`/
+`requestHint`; `QueensBoard.vue`, `TangoBoard.vue` and `ZipBoard.vue` expose only
+`getState`/`restoreState` (Zip's undo segment is the internal `undoLast` method).
+`CasualGames.vue` autosaves the active board every 2 s and on `beforeunload`; won games
+are cleared instead of saved. `loadGame` returns `{ gameId, savedAt, state }`, and
 `hasUsableSavedGame` accepts only `state.won === false`.
 
 Per-game stats: `{ best, plays, wins, currentStreak, longestStreak }`.

@@ -39,17 +39,17 @@ const boardRefs = {
 const activeBest = computed(() => stats.value.games?.[activeGame.value]?.best ?? 0)
 const activeStreak = computed(() => stats.value.games?.[activeGame.value]?.currentStreak ?? 0)
 const activeHasSave = computed(() => hasUsableSavedGame(savedGames.value[activeGame.value]))
-const savedGamesList = computed(() => games.filter((game) => hasUsableSavedGame(savedGames.value[game.id])))
+const savedGamesList = computed(() => games.filter((game) => game.id !== activeGame.value && hasUsableSavedGame(savedGames.value[game.id])))
 
 watch(activeGame, (value, oldValue) => {
   if (oldValue && oldValue !== value) persistGame(oldValue)
-  if (value === 'solitaire') startSolitaireTimer()
-  else stopSolitaireTimer()
+  if (value === 'solitaire') {
+    solitaireHud.value.time = 0
+    startSolitaireTimer()
+  } else {
+    stopSolitaireTimer()
+  }
 })
-
-function activeBoard() {
-  return boardRefs[activeGame.value]?.value || null
-}
 
 function onSolitaireUpdate(payload) {
   solitaireHud.value = { ...solitaireHud.value, ...payload }
@@ -76,6 +76,7 @@ function stopSolitaireTimer() {
 }
 
 function solitaireNew() {
+  beforeNewGame('solitaire')
   if (solitaireBoard.value?.newGame) solitaireBoard.value.newGame()
   solitaireHud.value.time = 0
   startSolitaireTimer()
@@ -128,6 +129,12 @@ function persistActive() {
   persistGame(activeGame.value)
 }
 
+function beforeNewGame(gameId) {
+  lastWon.value = { ...lastWon.value, [gameId]: false }
+  persistGame(gameId)
+  lastWon.value = { ...lastWon.value, [gameId]: false }
+}
+
 async function continueGame(gameId) {
   const saved = savedGames.value[gameId]
   if (!hasUsableSavedGame(saved)) return
@@ -159,6 +166,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopSolitaireTimer()
   stopAutosave()
   window.removeEventListener('beforeunload', handleBeforeUnload)
   persistActive()
@@ -202,9 +210,9 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="cg-board" role="tabpanel">
-      <QueensBoard v-if="activeGame === 'queens'" ref="queensBoard" />
-      <TangoBoard v-else-if="activeGame === 'tango'" ref="tangoBoard" />
-      <ZipBoard v-else-if="activeGame === 'zip'" ref="zipBoard" />
+      <QueensBoard v-if="activeGame === 'queens'" ref="queensBoard" @before-new-game="beforeNewGame(activeGame)" />
+      <TangoBoard v-else-if="activeGame === 'tango'" ref="tangoBoard" @before-new-game="beforeNewGame(activeGame)" />
+      <ZipBoard v-else-if="activeGame === 'zip'" ref="zipBoard" @before-new-game="beforeNewGame(activeGame)" />
       <SolitaireBoard v-else-if="activeGame === 'solitaire'" ref="solitaireBoard" @update="onSolitaireUpdate" />
       <p v-else class="cg-placeholder">Выберите игру. Доска появится после подключения движка.</p>
     </div>

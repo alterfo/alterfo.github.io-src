@@ -70,37 +70,8 @@ export function normalizeStats(record) {
   return { updatedAt: Math.floor(Number(record.updatedAt) || 0), games }
 }
 
-export function toPlain(value) {
-  if (value instanceof Uint8Array || value instanceof Int8Array || value instanceof Uint8ClampedArray) {
-    return { __typedArray: value.constructor.name, values: Array.from(value) }
-  }
-  if (Array.isArray(value)) return value.map(toPlain)
-  if (value && typeof value === 'object') {
-    const out = {}
-    for (const key of Object.keys(value)) out[key] = toPlain(value[key])
-    return out
-  }
-  return value
-}
-
-export function fromPlain(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value) && typeof value.__typedArray === 'string') {
-    if (value.__typedArray === 'Uint8Array') return Uint8Array.from(value.values || [])
-    if (value.__typedArray === 'Int8Array') return Int8Array.from(value.values || [])
-    if (value.__typedArray === 'Uint8ClampedArray') return Uint8ClampedArray.from(value.values || [])
-    return Array.from(value.values || [])
-  }
-  if (Array.isArray(value)) return value.map(fromPlain)
-  if (value && typeof value === 'object') {
-    const out = {}
-    for (const key of Object.keys(value)) out[key] = fromPlain(value[key])
-    return out
-  }
-  return value
-}
-
 export function serializeGame(gameId, state) {
-  return { gameId, savedAt: Date.now(), state: toPlain(state) }
+  return { gameId, savedAt: Date.now(), state }
 }
 
 export function deserializeGame(record) {
@@ -108,7 +79,7 @@ export function deserializeGame(record) {
   return {
     gameId: record.gameId,
     savedAt: Number(record.savedAt) || 0,
-    state: fromPlain(record.state),
+    state: record.state,
   }
 }
 
