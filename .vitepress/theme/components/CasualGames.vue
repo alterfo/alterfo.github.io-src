@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import QueensBoard from './CasualGames/QueensBoard.vue'
+import TangoBoard from './CasualGames/TangoBoard.vue'
 
 const games = [
   { id: 'queens', label: 'Queens' },
@@ -31,10 +32,11 @@ const activeGame = ref('queens')
 
     <div class="cg-board" role="tabpanel">
       <QueensBoard v-if="activeGame === 'queens'" />
+      <TangoBoard v-else-if="activeGame === 'tango'" />
       <p v-else class="cg-placeholder">Выберите игру. Доска появится после подключения движка.</p>
     </div>
 
-    <footer v-if="activeGame !== 'queens'" class="cg-hud">
+    <footer v-if="activeGame !== 'queens' && activeGame !== 'tango'" class="cg-hud">
       <span class="cg-stat">Счёт: 0</span>
       <span class="cg-stat">Время: 00:00</span>
       <button type="button" class="cg-hint" disabled>Подсказка</button>

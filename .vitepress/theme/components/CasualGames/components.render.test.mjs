@@ -6,22 +6,33 @@ import path from 'node:path'
 
 const dir = path.dirname(fileURLToPath(import.meta.url))
 const queensBoardPath = path.join(dir, 'QueensBoard.vue')
+const tangoBoardPath = path.join(dir, 'TangoBoard.vue')
 const shellPath = path.join(dir, '..', 'CasualGames.vue')
 
 const runtimeStringTemplatePattern = /defineComponent\s*\(\s*\{[^}]*\btemplate\s*:/s
 
-test('QueensBoard.vue does not define a runtime string-template component', () => {
-  const src = readFileSync(queensBoardPath, 'utf8')
-  assert.doesNotMatch(src, runtimeStringTemplatePattern)
-})
+for (const [label, file] of [
+  ['QueensBoard.vue', queensBoardPath],
+  ['TangoBoard.vue', tangoBoardPath],
+]) {
+  test(`${label} does not define a runtime string-template component`, () => {
+    const src = readFileSync(file, 'utf8')
+    assert.doesNotMatch(src, runtimeStringTemplatePattern)
+  })
 
-test('QueensBoard.vue is a single-file component', () => {
-  const src = readFileSync(queensBoardPath, 'utf8')
-  assert.match(src, /<script\s+setup>/)
-  assert.match(src, /<template>/)
-})
+  test(`${label} is a single-file component`, () => {
+    const src = readFileSync(file, 'utf8')
+    assert.match(src, /<script\s+setup>/)
+    assert.match(src, /<template>/)
+  })
+}
 
 test('CasualGames.vue imports QueensBoard as an SFC', () => {
   const src = readFileSync(shellPath, 'utf8')
   assert.match(src, /import\s+QueensBoard\s+from\s+['"]\.\/CasualGames\/QueensBoard\.vue['"]/)
+})
+
+test('CasualGames.vue imports TangoBoard as an SFC', () => {
+  const src = readFileSync(shellPath, 'utf8')
+  assert.match(src, /import\s+TangoBoard\s+from\s+['"]\.\/CasualGames\/TangoBoard\.vue['"]/)
 })
