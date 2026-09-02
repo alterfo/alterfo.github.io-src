@@ -8,6 +8,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url))
 const queensBoardPath = path.join(dir, 'QueensBoard.vue')
 const tangoBoardPath = path.join(dir, 'TangoBoard.vue')
 const zipBoardPath = path.join(dir, 'ZipBoard.vue')
+const solitaireBoardPath = path.join(dir, 'SolitaireBoard.vue')
 const shellPath = path.join(dir, '..', 'CasualGames.vue')
 
 const runtimeStringTemplatePattern = /defineComponent\s*\(\s*\{[^}]*\btemplate\s*:/s
@@ -16,6 +17,7 @@ for (const [label, file] of [
   ['QueensBoard.vue', queensBoardPath],
   ['TangoBoard.vue', tangoBoardPath],
   ['ZipBoard.vue', zipBoardPath],
+  ['SolitaireBoard.vue', solitaireBoardPath],
 ]) {
   test(`${label} does not define a runtime string-template component`, () => {
     const src = readFileSync(file, 'utf8')
@@ -42,4 +44,9 @@ test('CasualGames.vue imports TangoBoard as an SFC', () => {
 test('CasualGames.vue imports ZipBoard as an SFC', () => {
   const src = readFileSync(shellPath, 'utf8')
   assert.match(src, /import\s+ZipBoard\s+from\s+['"]\.\/CasualGames\/ZipBoard\.vue['"]/)
+})
+
+test('CasualGames.vue imports SolitaireBoard as an SFC', () => {
+  const src = readFileSync(shellPath, 'utf8')
+  assert.match(src, /import\s+SolitaireBoard\s+from\s+['"]\.\/CasualGames\/SolitaireBoard\.vue['"]/)
 })
