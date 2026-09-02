@@ -58,7 +58,7 @@ function commit(move) {
 }
 
 function undo() {
-  if (!game.value || history.value.length === 0) return
+  if (!game.value || history.value.length === 0 || won.value) return
   game.value = history.value.pop()
   selected.value = null
   dragPayload = null

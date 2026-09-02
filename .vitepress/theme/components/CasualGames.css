@@ -110,6 +110,10 @@
   color: var(--ds-accent-light);
 }
 
+.cg-save-error {
+  color: #f87171;
+}
+
 .cg-saves {
   display: flex;
   flex-wrap: wrap;

@@ -25,6 +25,7 @@ const stats = ref(emptyStats())
 const savedGames = ref({ queens: null, tango: null, zip: null, solitaire: null })
 const resultRecorded = ref({ queens: false, tango: false, zip: false, solitaire: false })
 const loaded = ref(false)
+const saveFailed = ref(false)
 
 let solitaireTimer = null
 let autosaveTimer = null
@@ -40,6 +41,31 @@ const activeBest = computed(() => stats.value.games?.[activeGame.value]?.best ??
 const activeStreak = computed(() => stats.value.games?.[activeGame.value]?.currentStreak ?? 0)
 const activeHasSave = computed(() => hasUsableSavedGame(savedGames.value[activeGame.value]))
 const savedGamesList = computed(() => games.filter((game) => game.id !== activeGame.value && hasUsableSavedGame(savedGames.value[game.id])))
+
+function hasProgress(gameId, state) {
+  if (!state) return false
+  if (gameId === 'queens') {
+    return (Array.isArray(state.queens) && state.queens.some((row) => Number.isInteger(row) && row >= 0))
+      || Number(state.hints) > 0
+  }
+  if (gameId === 'tango') {
+    if (Number(state.hints) > 0) return true
+    const givens = Array.isArray(state.puzzle?.givens) ? state.puzzle.givens : []
+    const board = Array.isArray(state.board) ? state.board : []
+    return givens.length > 0 && board.some((value, index) => value !== givens[index])
+  }
+  if (gameId === 'zip') {
+    return (Array.isArray(state.path) && state.path.length > 0) || Number(state.hints) > 0
+  }
+  if (gameId === 'solitaire') {
+    return Array.isArray(state.history) && state.history.length > 0
+  }
+  return false
+}
+
+function markSaveResult(ok) {
+  saveFailed.value = !ok
+}
 
 watch(activeGame, async (value, oldValue) => {
   if (oldValue && oldValue !== value) persistGame(oldValue)
@@ -86,6 +112,7 @@ async function restoreSavedGame(gameId) {
   await nextTick()
   const board = boardRefs[gameId]?.value
   if (!board?.restoreState) return
+  if (hasProgress(gameId, board.getState())) return
   board.restoreState(saved.state)
   if (gameId === 'solitaire') {
     solitaireHud.value.time = Math.max(0, Number(saved.state?.elapsedSeconds) || 0)
@@ -101,6 +128,7 @@ function solitaireNew() {
 }
 
 function solitaireUndo() {
+  if (solitaireHud.value.won) return
   if (solitaireBoard.value?.undo) solitaireBoard.value.undo()
 }
 
@@ -125,14 +153,14 @@ async function initPersistence() {
 function recordWinIfNeeded(gameId, score) {
   if (resultRecorded.value[gameId]) return
   stats.value = recordResult(stats.value, gameId, score, true)
-  saveStats(stats.value)
+  saveStats(stats.value).then(markSaveResult)
   resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
 }
 
 function recordLossIfNeeded(gameId, state) {
   if (!state || state.won || resultRecorded.value[gameId]) return
   stats.value = recordResult(stats.value, gameId, state.score, false)
-  saveStats(stats.value)
+  saveStats(stats.value).then(markSaveResult)
   resultRecorded.value = { ...resultRecorded.value, [gameId]: true }
 }
 
@@ -147,10 +175,10 @@ function persistGame(gameId) {
   if (state.won) {
     recordWinIfNeeded(gameId, state.score)
     savedGames.value = { ...savedGames.value, [gameId]: null }
-    saveGame(gameId, null)
+    saveGame(gameId, null).then(markSaveResult)
   } else {
     savedGames.value = { ...savedGames.value, [gameId]: { gameId, state } }
-    saveGame(gameId, state)
+    saveGame(gameId, state).then(markSaveResult)
   }
 }
 
@@ -161,7 +189,7 @@ function persistActive() {
 function beforeNewGame(gameId) {
   const board = boardRefs[gameId]?.value
   const state = board?.getState?.()
-  if (state) recordLossIfNeeded(gameId, state)
+  if (hasProgress(gameId, state)) recordLossIfNeeded(gameId, state)
   persistGame(gameId)
   resultRecorded.value = { ...resultRecorded.value, [gameId]: false }
 }
@@ -222,6 +250,7 @@ onBeforeUnmount(() => {
       <span class="cg-stat">Рекорд: {{ activeBest }}</span>
       <span class="cg-stat">Серия: {{ activeStreak }}</span>
       <span v-if="activeHasSave" class="cg-stat cg-save-hint">Партия сохранена</span>
+      <span v-if="saveFailed" class="cg-stat cg-save-error">Не удалось сохранить</span>
     </div>
 
     <div v-if="savedGamesList.length" class="cg-saves">
@@ -249,7 +278,7 @@ onBeforeUnmount(() => {
       <span class="cg-stat">Счёт: {{ solitaireHud.score }}</span>
       <span class="cg-stat">Время: {{ formatSolitaireClock(solitaireHud.time) }}</span>
       <button type="button" class="cg-hint" @click="solitaireNew">Новая</button>
-      <button type="button" class="cg-hint" :disabled="!solitaireHud.canUndo" @click="solitaireUndo">Отмена</button>
+      <button type="button" class="cg-hint" :disabled="!solitaireHud.canUndo || solitaireHud.won" @click="solitaireUndo">Отмена</button>
       <button type="button" class="cg-hint" :disabled="solitaireHud.won" @click="solitaireHint">Подсказка</button>
     </footer>
   </div>

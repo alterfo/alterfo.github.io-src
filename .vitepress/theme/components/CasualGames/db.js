@@ -46,7 +46,7 @@ export async function loadStats() {
 }
 
 export async function saveStats(stats) {
-  if (typeof indexedDB === 'undefined') return
+  if (typeof indexedDB === 'undefined') return false
   try {
     const db = await openDB()
     await new Promise((resolve, reject) => {
@@ -55,13 +55,15 @@ export async function saveStats(stats) {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
+    return true
   } catch (err) {
     console.warn('[casual-games] saveStats failed:', err)
+    return false
   }
 }
 
 export async function saveGame(gameId, state) {
-  if (typeof indexedDB === 'undefined') return
+  if (typeof indexedDB === 'undefined') return false
   try {
     const db = await openDB()
     if (state == null) {
@@ -71,7 +73,7 @@ export async function saveGame(gameId, state) {
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
       })
-      return
+      return true
     }
     const record = serializeGame(gameId, state)
     await new Promise((resolve, reject) => {
@@ -80,8 +82,10 @@ export async function saveGame(gameId, state) {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
+    return true
   } catch (err) {
     console.warn('[casual-games] saveGame failed:', err)
+    return false
   }
 }
 
