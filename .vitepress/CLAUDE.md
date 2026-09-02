@@ -2,7 +2,7 @@
 
 ## Design system «Spiral»
 
-**Cool graphite + jewel-tone accents** palette shared by the home page and all six apps.
+**Cool graphite + jewel-tone accents** palette shared by the home page and all eight client-side apps.
 History: cosmic-violet-home / slate-apps split (generic "AI-generated site", see
 `[[feedback-no-generic-claude-ui]]`) → warm-ink earth tones (terracotta/ochre/olive —
 2026-07-12, first pass) → **current** cool graphite + jewel tones (2026-07-12, same day,
@@ -89,24 +89,25 @@ Self-hosted per `[[no-cdn-rule]]` — no Google Fonts `<link>` at runtime:
 ### Palette mirrors — change a color in BOTH
 
 CSS can't be imported as JS values:
-- `theme/styles/vars.css` — `--ds-*` CSS custom properties (8 spectrum colors incl. `--ds-teal: #2d5654` 7th/decisions, `--ds-yellow: #9098a8` 8th/music)
-- `theme/components/spectrum.js` — JS mirror: `SPECTRUM` (8 hex), `CANVAS_PALETTE` (8 rgba prefixes), `PROJECT_COLORS` (project → hex)
+- `theme/styles/vars.css` — `--ds-*` CSS custom properties (10 spectrum colors incl. `--ds-teal: #2d5654` 7th/decisions, `--ds-yellow: #9098a8` 8th/music, `--ds-indigo: #4a3868` 9th/finance, `--ds-turquoise: #3b7a85` 10th/games)
+- `theme/components/spectrum.js` — JS mirror: `SPECTRUM` (10 hex), `CANVAS_PALETTE` (10 rgba prefixes), `PROJECT_COLORS` (project → hex)
 
 Unit-tested in `spectrum.test.mjs`. `WebGPUParticles.js`'s `COLORS` array is an
-**independent** normalized-RGB mirror of the same 8 jewel-tone hues — not test-guarded,
+**independent** normalized-RGB mirror of the same 10 jewel-tone hues — not test-guarded,
 edit by hand if the spectrum changes.
 
-### Spectrum semantics (8 spheres = 8 particle colors, jewel/gallery tones)
+### Spectrum semantics (10 spheres = 10 particle colors, jewel/gallery tones)
 
 `--ds-violet` `#7a3348` бордо/wine (AR), `--ds-cyan` `#a8874a` бронза/bronze
 (blog/openpose), `--ds-green` `#3f5946` хвоя/pine (idef0), `--ds-pink` `#8a5568`
 мальва/mauve (journal), `--ds-amber` `#4a6178` сталь/steel-blue (piano), `--ds-orange`
 `#6b5a48` каштан/chestnut (github/planner), `--ds-teal` `#2d5654` антрацит-тил/deep-teal
-(decisions), `--ds-yellow` `#9098a8` графит/graphite (music).
+(decisions), `--ds-yellow` `#9098a8` графит/graphite (music), `--ds-indigo` `#4a3868`
+индиго/indigo (finance), `--ds-turquoise` `#3b7a85` бирюза/turquoise (games).
 
 ### LifeCircle «колесо жизни»
 
-`theme/components/LifeCircle.vue` — donut wheel of 8 spheres, outer radius encodes readiness. `buildSegments` is generalized to `n = defs.length`: `span = 360/n`, 4° gap between spheres. Spheres/readiness: Дневник 9, IDEF0 8, AR 5, Piano 4, OpenPose 4, Планировщик 4, Решения 4, Музыка 3.
+`theme/components/LifeCircle.vue` — donut wheel of 10 spheres, outer radius encodes readiness. `buildSegments` is generalized to `n = defs.length`: `span = 360/n`, 4° gap between spheres. Spheres/readiness: Дневник 9, IDEF0 8, AR 5, Piano 4, OpenPose 4, Планировщик 4, Решения 4, Музыка 3, Финансы 2, Пазлы 2.
 
 Pure helpers in `lifecircle.js` (`deg2rad`, `arcPath`, `labelXY`, `fillRadius`, `buildSegments`, `centerMark`) — all unit-tested in `lifecircle.test.mjs`.
 

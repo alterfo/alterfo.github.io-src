@@ -1,8 +1,8 @@
 .cg-root {
-  --ds-accent: #8f5a2f;
-  --ds-accent-light: #b69478;
-  --ds-accent-hover: #764a27;
-  --ds-accent-bg: rgba(143, 90, 47, 0.18);
+  --ds-accent: #3b7a85;
+  --ds-accent-light: #8fb2b8;
+  --ds-accent-hover: #2f626a;
+  --ds-accent-bg: rgba(59, 122, 133, 0.18);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -28,7 +28,7 @@
   color: var(--ds-text-muted);
   background: var(--ds-surface-solid);
   border: 1px solid var(--ds-border);
-  border-radius: 999px;
+  border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
   transition: color .15s, border-color .15s, background .15s;
