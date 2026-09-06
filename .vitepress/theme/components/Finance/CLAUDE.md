@@ -86,12 +86,23 @@ one-legged transfer and stashes the resulting transaction id as
 the old behavior exactly (no funding transaction at all), so existing deposits/holdings
 and manual entry without an account are unaffected.
 
+**Selling a holding** is the mirror image: `sellHolding` books a one-legged credit
+transfer (`accountId: null`, `toAccountId` = payout account) returning the cost basis
+(`qty * purchasePrice`, capped at `netProceeds`), then books an
+`income`/`stock_sale` leg **only when there is a realized gain**
+(`netProceeds - costBasis > 0`). This fixes the previous behavior where the full gross
+sale proceeds were booked as income — a losing sale still showed positive income and
+inflated «Чистый доход», while a gain was overstated by the return of capital. Now a
+loss or breakeven books zero income, and the two legs together always credit the
+account exactly `netProceeds`, matching how unrealized drawdown already stays out of
+net income.
+
 Undoing a funded purchase must **refund**, not just tombstone:
 - `discardHolding(vault, id, now)` — tombstones the holding and, if `purchaseTransactionId`
   is set, tombstones that funding transaction too (money "comes back"). This is distinct
   from `removeHolding` (tombstone only), which `sellHolding` still uses internally for a
-  full liquidation — a sale already pays out its own proceeds transaction, so refunding
-  the original purchase on top would double-credit the account.
+  full liquidation — a sale already pays out its own proceeds via the two-leg payout
+  above, so refunding the original purchase on top would double-credit the account.
 - `removeDeposit(vault, id, now)` refunds the same way, but **only if the deposit is
   still open** (`!closed`) — a deposit closed via `closeDeposit` already paid out
   separately (its own income transaction), so `removeDeposit` leaves that funding leg

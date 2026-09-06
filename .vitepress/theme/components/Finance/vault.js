@@ -234,6 +234,25 @@ function transferBetweenAccountOrAsset(vault, { fromAccountId, amount, date, not
   }, now)
 }
 
+// Internal helper: a one-legged transfer that credits `toAccountId` with no matching
+// `accountId` debit — the mirror image of transferBetweenAccountOrAsset. Used when a
+// sale returns capital from a non-account asset (holding) back into an account. Same
+// direction:'transfer'/category:'transfer' shape as transferBetweenAccounts so
+// accountBalance and stats.js treat it identically (excluded from expense/income
+// analytics, credits the destination account).
+function creditAccountFromAsset(vault, { toAccountId, amount, date, note }, now) {
+  if (!toAccountId || !(amount > 0)) return
+  return upsertTransaction(vault, {
+    amount,
+    direction: 'transfer',
+    category: 'transfer',
+    accountId: null,
+    toAccountId,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
+}
+
 // Update vault settings (defaultAccountId). Partial-edit semantics:
 // fields present on `settings` override the stored value, missing fields
 // fall back to the existing value. updatedAt is always bumped to `now`.
@@ -295,6 +314,11 @@ export function discardHolding(vault, id, now = new Date().toISOString()) {
   return removeHolding(vault, id, now)
 }
 
+// Sells `qty` of a holding. The payout is split so income analytics only ever see the
+// realized gain: a transfer leg returns the cost basis to the account (excluded from
+// income/expense), and a stock_sale income leg is created only when `realized > 0`.
+// The two legs together credit exactly `netProceeds` to `toAccountId` (or the default
+// account). A losing sale books zero income, so realized losses stay out of net income.
 export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date, toAccountId }, now = new Date().toISOString()) {
   const holding = vault.holdings[holdingId]
   if (!holding) return
@@ -302,6 +326,9 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
   if (qty > holdingQty) return
 
   const netProceeds = qty * sellPrice - commission
+  const costBasis = qty * holding.purchasePrice
+  const realized = netProceeds - costBasis
+  const targetAccountId = toAccountId ?? vault.settings?.defaultAccountId ?? null
 
   if (qty === holdingQty) {
     removeHolding(vault, holdingId, now)
@@ -309,14 +336,24 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
     upsertHolding(vault, { id: holdingId, qty: holdingQty - qty }, now)
   }
 
-  upsertTransaction(vault, {
-    amount: netProceeds,
-    direction: 'income',
-    category: 'stock_sale',
-    accountId: toAccountId ?? vault.settings?.defaultAccountId ?? null,
+  creditAccountFromAsset(vault, {
+    toAccountId: targetAccountId,
+    amount: Math.min(netProceeds, costBasis),
     note: holding.ticker,
     date,
   }, now)
+
+  if (realized > 0) {
+    upsertTransaction(vault, {
+      amount: realized,
+      direction: 'income',
+      category: 'stock_sale',
+      accountId: null,
+      toAccountId: targetAccountId,
+      note: holding.ticker,
+      date,
+    }, now)
+  }
 
   return holding
 }

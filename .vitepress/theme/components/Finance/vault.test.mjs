@@ -776,10 +776,16 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
     assert.equal(txs.length, 1)
-    assert.equal(txs[0].amount, 2970)
+    assert.equal(txs[0].amount, 470)
     assert.equal(txs[0].direction, 'income')
-    assert.equal(txs[0].accountId, 'acc1')
+    assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, 'acc1')
     assert.equal(txs[0].note, 'SBER')
+
+    const transfer = Object.values(v.transactions).find(t => !t.deleted && t.direction === 'transfer')
+    assert.equal(transfer.amount, 2500)
+    assert.equal(transfer.accountId, null)
+    assert.equal(transfer.toAccountId, 'acc1')
   })
 
   it('partial sell reduces qty and creates an income transaction', () => {
@@ -798,7 +804,7 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
     assert.equal(txs.length, 1)
-    assert.equal(txs[0].amount, 2380)
+    assert.equal(txs[0].amount, 380)
   })
 
   it('oversell is rejected (returns undefined)', () => {
@@ -822,7 +828,7 @@ describe('sellHolding', () => {
     sellHolding(v, { holdingId, qty: 5, sellPrice: 200, commission: 150, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
-    assert.equal(txs[0].amount, 850)
+    assert.equal(txs[0].amount, 350)
   })
 
   it('is a no-op for an unknown holdingId', () => {
@@ -839,6 +845,7 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
     assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, null)
   })
 
   it('an explicit toAccountId overrides settings.defaultAccountId', () => {
@@ -848,7 +855,51 @@ describe('sellHolding', () => {
     sellHolding(v, { holdingId, qty: 5, sellPrice: 300, commission: 0, date: '2026-08-15', toAccountId: 'acc-chosen' }, '2026-08-15T10:00:00.000Z')
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
-    assert.equal(txs[0].accountId, 'acc-chosen')
+    assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, 'acc-chosen')
+  })
+
+  it('books zero income on a loss and credits the account exactly netProceeds', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 200, commission: 30, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 0)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 1970)
+  })
+
+  it('books only the realized gain on a profit while the account still receives netProceeds', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 300, commission: 30, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 1)
+    assert.equal(income[0].amount, 470)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 2970)
+  })
+
+  it('books no income at breakeven, only the capital-return transfer', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 250, commission: 0, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 0)
+    const transfers = Object.values(v.transactions).filter(t => !t.deleted && t.direction === 'transfer')
+    assert.equal(transfers.length, 1)
+    assert.equal(transfers[0].amount, 2500)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 2500)
   })
 })
 
