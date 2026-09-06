@@ -27,6 +27,7 @@ import {
   holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest, lastTransaction,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
+import { buildRecommendations } from './Finance/recommendations.js'
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
 import CategoryBar from './Finance/CategoryBar.vue'
 import TrendChart from './Finance/TrendChart.vue'
@@ -99,6 +100,12 @@ const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
 const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value, Object.values(vault.value.transactions)))
 const lastExpense = computed(() => lastTransaction(Object.values(vault.value.transactions), 'expense'))
+const recommendationsList = computed(() => buildRecommendations({
+  accounts: accountsList.value,
+  holdings: holdingsList.value,
+  deposits: depositsList.value,
+  transactions: Object.values(vault.value.transactions),
+}, todayISO()))
 
 function acctBalance(account) {
   const raw = accountBalance(account, Object.values(vault.value.transactions))
@@ -1038,6 +1045,20 @@ onUnmounted(() => {
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет ни одной записи. Добавьте первую запись выше.</p>
+
+          <div v-if="recommendationsList.length" class="fin-recommendations">
+            <h2 class="fin-panel-title">Рекомендации</h2>
+            <table class="fin-table">
+              <tbody>
+                <tr v-for="rec in recommendationsList" :key="rec.id">
+                  <td :class="rec.severity === 'warning' ? 'bad' : 'ok'">
+                    <div>{{ rec.title }}</div>
+                    <div class="fin-table-note">{{ rec.detail }}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Accounts -->
