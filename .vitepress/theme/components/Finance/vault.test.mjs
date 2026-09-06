@@ -11,6 +11,7 @@ import {
   removeHolding,
   discardHolding,
   upsertDeposit,
+  addDepositContribution,
   removeDeposit,
   openDeposits,
   closeDeposit,
@@ -652,6 +653,76 @@ describe('upsertDeposit', () => {
     upsertDeposit(v, { id: created.id, principal: 60000, fromAccountId: 'acc1' }, '2026-08-02T10:00:00.000Z')
     const transferTxs = Object.values(v.transactions).filter(t => t.direction === 'transfer')
     assert.equal(transferTxs.length, 1)
+  })
+})
+
+describe('addDepositContribution', () => {
+  it('increases principal and creates no transaction when fromAccountId is omitted', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, t1)
+
+    const result = addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-02' }, t2)
+
+    assert.equal(result.id, d.id)
+    assert.equal(result.principal, 60000)
+    assert.equal(v.deposits[d.id].principal, 60000)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('with fromAccountId debits the account and preserves the deposit note', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 100000 }, t1)
+    const d = upsertDeposit(v, { name: 'Мой вклад', principal: 50000 }, t1)
+
+    addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-02', fromAccountId: 'acc1' }, t2)
+
+    assert.equal(v.deposits[d.id].principal, 60000)
+    const transfers = Object.values(v.transactions).filter(t => t.direction === 'transfer')
+    assert.equal(transfers.length, 1)
+    assert.equal(transfers[0].accountId, 'acc1')
+    assert.equal(transfers[0].toAccountId, null)
+    assert.equal(transfers[0].amount, 10000)
+    assert.ok(transfers[0].note.includes('Мой вклад'))
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 90000)
+  })
+
+  it('is a no-op for a closed deposit', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, t1)
+    closeDeposit(v, { depositId: d.id, payoutAmount: 52000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    const transferCountBefore = Object.values(v.transactions).filter(t => t.direction === 'transfer').length
+
+    const result = addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-16', fromAccountId: 'acc1' }, '2026-08-16T10:00:00.000Z')
+
+    assert.equal(result, undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
+    assert.equal(Object.values(v.transactions).filter(t => t.direction === 'transfer').length, transferCountBefore)
+  })
+
+  it('is a no-op for a non-positive or non-finite amount', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T10:00:00.000Z')
+
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: 0 }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: -100 }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: Number.NaN }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('is a no-op for an unknown or deleted depositId', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T10:00:00.000Z')
+    removeDeposit(v, d.id, '2026-08-02T10:00:00.000Z')
+
+    assert.equal(addDepositContribution(v, { depositId: 'nope', amount: 1000 }, '2026-08-03T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: 1000 }, '2026-08-03T10:00:00.000Z'), undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
   })
 })
 

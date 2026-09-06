@@ -20,7 +20,7 @@ import {
   removeTransaction, removeAccount, discardHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
   migrateVault, upsertDeposit, openDeposits, closeDeposit, sellHolding,
-  removeDeposit, transferBetweenAccounts,
+  removeDeposit, transferBetweenAccounts, addDepositContribution,
 } from './Finance/vault.js'
 import {
   totalBalance, accountBalance, transactionsForAccount, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
@@ -366,6 +366,11 @@ const ndMaturityDate = ref(todayISO())
 const ndCapitalization = ref(false)
 const ndAccountId = ref(null)
 const depositError = ref('')
+const topUpDepositId = ref(null)
+const tuAmount = ref('')
+const tuDate = ref(todayISO())
+const tuAccountId = ref(null)
+const tuError = ref('')
 
 // ---- Transfers ----
 const trFromAccountId = ref(null)
@@ -485,6 +490,36 @@ function deleteDepositAction(id) {
   if (!deposit) return
   if (!confirm(`Удалить вклад "${deposit.name}"? Списанная сумма вернётся на счёт.`)) return
   removeDeposit(vault.value, id)
+}
+
+function openTopUpForm(id) {
+  topUpDepositId.value = topUpDepositId.value === id ? null : id
+  tuAmount.value = ''
+  tuDate.value = todayISO()
+  tuAccountId.value = null
+  tuError.value = ''
+}
+
+function submitTopUp() {
+  tuError.value = ''
+  const deposit = vault.value.deposits[topUpDepositId.value]
+  if (!deposit || deposit.deleted || deposit.closed) return
+  const amount = Number(tuAmount.value)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    tuError.value = 'Введите сумму пополнения.'
+    return
+  }
+  addDepositContribution(vault.value, {
+    depositId: topUpDepositId.value,
+    amount,
+    date: tuDate.value || todayISO(),
+    fromAccountId: tuAccountId.value || null,
+  })
+  topUpDepositId.value = null
+  tuAmount.value = ''
+  tuDate.value = todayISO()
+  tuAccountId.value = null
+  tuError.value = ''
 }
 
 // ---- Investments ----
@@ -1063,18 +1098,38 @@ onUnmounted(() => {
           <table v-if="depositsList.length" class="fin-table">
             <thead><tr><th>Название</th><th>Сумма</th><th>Процент</th><th>Срок</th><th>Начислено</th><th>Текущая стоимость</th><th></th></tr></thead>
             <tbody>
-              <tr v-for="d in depositsList" :key="d.id">
-                <td>{{ d.name }}</td>
-                <td class="fin-table-num">{{ fmtRub(d.principal) }}</td>
-                <td class="fin-table-num">{{ (d.rate * 100).toFixed(2) }}%</td>
-                <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
-                <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
-                <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
-                <td>
-                  <button class="fin-row-btn" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">Закрыть</button>
-                  <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteDepositAction(d.id)">✕</button>
-                </td>
-              </tr>
+              <template v-for="d in depositsList" :key="d.id">
+                <tr>
+                  <td>{{ d.name }}</td>
+                  <td class="fin-table-num">{{ fmtRub(d.principal) }}</td>
+                  <td class="fin-table-num">{{ (d.rate * 100).toFixed(2) }}%</td>
+                  <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
+                  <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
+                  <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
+                  <td>
+                    <button class="fin-row-btn" title="Пополнить" aria-label="Пополнить" :disabled="d.closed" @click="openTopUpForm(d.id)">Пополнить</button>
+                    <button class="fin-row-btn" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">Закрыть</button>
+                    <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteDepositAction(d.id)">✕</button>
+                  </td>
+                </tr>
+                <tr v-if="topUpDepositId === d.id" class="fin-sell-form-row">
+                  <td colspan="7">
+                    <div class="fin-sell-form">
+                      <div class="fin-sell-fields">
+                        <input v-model="tuAmount" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Сумма пополнения" @keydown.enter="submitTopUp" />
+                        <input v-model="tuDate" type="date" class="fin-text" @keydown.enter="submitTopUp" />
+                        <select v-model="tuAccountId" class="fin-text">
+                          <option :value="null">Без списания со счёта</option>
+                          <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+                        </select>
+                        <button class="fin-btn fin-btn-primary" @click="submitTopUp">Пополнить</button>
+                        <button class="fin-btn" @click="openTopUpForm(d.id)">Отмена</button>
+                      </div>
+                      <p v-if="tuError" class="fin-form-error">{{ tuError }}</p>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет активных вкладов.</p>

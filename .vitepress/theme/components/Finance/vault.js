@@ -435,6 +435,31 @@ export function closeDeposit(vault, { depositId, payoutAmount, date }, now = new
   return deposit
 }
 
+// Adds `amount` to an open deposit's principal, optionally debiting an account (the
+// mirror of the create-time funding path). No-ops on a missing/deleted/closed deposit
+// or a non-positive amount. Top-ups are additive-only: unlike removeDeposit, this does
+// not stash a transaction id for refund — undoing a single top-up is out of scope
+// (YAGNI), and removeDeposit still only unwinds the original creation funding.
+export function addDepositContribution(vault, { depositId, amount, date, fromAccountId }, now = new Date().toISOString()) {
+  const existing = vault.deposits[depositId]
+  if (!existing || existing.deleted || existing.closed) return
+  if (!(amount > 0)) return
+
+  const principal = Number.isFinite(existing.principal) ? existing.principal : 0
+  const updated = upsertDeposit(vault, { id: depositId, principal: principal + amount }, now)
+
+  if (fromAccountId) {
+    transferBetweenAccountOrAsset(vault, {
+      fromAccountId,
+      amount,
+      date,
+      note: `Вклад: ${existing.name}`,
+    }, now)
+  }
+
+  return updated
+}
+
 // Non-deleted transactions with date in [fromISO, toISO] (inclusive), sorted ascending.
 // Optional direction filter: 'expense' | 'income' | undefined (both).
 export function transactionsInRange(vault, fromISO, toISO, direction) {
