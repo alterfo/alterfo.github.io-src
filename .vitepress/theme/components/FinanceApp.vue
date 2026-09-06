@@ -24,7 +24,7 @@ import {
 } from './Finance/vault.js'
 import {
   totalBalance, accountBalance, transactionsForAccount, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
-  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest,
+  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest, lastTransaction,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
@@ -96,6 +96,7 @@ const totalBalanceVal = computed(() => totalBalance(accountsList.value, Object.v
 const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
 const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value, Object.values(vault.value.transactions)))
+const lastExpense = computed(() => lastTransaction(Object.values(vault.value.transactions), 'expense'))
 
 function acctBalance(account) {
   const raw = accountBalance(account, Object.values(vault.value.transactions))
@@ -941,6 +942,12 @@ onUnmounted(() => {
             <div class="fin-summary-card">
               <span class="fin-summary-n" :class="portfolioGainLossVal >= 0 ? 'ok' : 'bad'">{{ fmtRub(portfolioGainLossVal) }}</span>
               <span class="fin-summary-l">Прибыль/убыток</span>
+            </div>
+            <div class="fin-summary-card">
+              <span class="fin-summary-l">Последний расход</span>
+              <span v-if="lastExpense" class="fin-summary-n">{{ fmtRub(lastExpense.amount) }}</span>
+              <span v-if="lastExpense" class="fin-summary-l">{{ fmtDate(lastExpense.date) }}</span>
+              <span v-else class="fin-summary-n">Пока нет трат</span>
             </div>
           </div>
 

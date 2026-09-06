@@ -68,6 +68,12 @@ export function incomeByCategory(transactions, fromISO, toISO) {
   return byCategory
 }
 
+export function lastTransaction(transactions, direction) {
+  const matches = (transactions || []).filter((t) => isLive(t) && t.direction === direction)
+  if (!matches.length) return null
+  return matches.reduce((latest, t) => ((t.createdAt || '') > (latest.createdAt || '') ? t : latest), matches[0])
+}
+
 export function spendByCategory(expenses, fromISO, toISO) {
   return expenseByCategory(expenses, fromISO, toISO)
 }
