@@ -9,7 +9,7 @@ VitePress-based personal site with eight fully client-side apps and one content 
 - `/openpose` — OpenPose pose editor (MediaPipe BlazePose WASM, drag-edit skeletons, ControlNet PNG + JSON export)
 - `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, encrypted `.planner` export/import)
 - `/decision-journal` — encrypted decision journal with calibration (Brier score + confidence-bucket table)
-- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, on-demand MOEX ISS price refresh, encrypted `.finance` export/import)
+- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, deposit top-ups, on-demand MOEX ISS price refresh, local investment recommendations, encrypted `.finance` export/import)
 - `/casual-games` — casual puzzle collection (Queens, Tango, Zip, Klondike solitaire; seeded level generation, hints, scoring, local IndexedDB persistence)
 - `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
 
