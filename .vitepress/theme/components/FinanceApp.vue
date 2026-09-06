@@ -51,6 +51,7 @@ const vault = ref(emptyVault())
 const view = ref('dashboard') // 'dashboard' | 'accounts' | 'investments'
 const dashboardPeriod = ref('month') // 'month' | 'year' | 'all-time'
 const trendMonths = ref(6) // 6 or 12
+const dashboardMonth = ref(todayISO().slice(0, 7)) // 'YYYY-MM', for the month period picker
 
 // ---- Selectors over the vault ----
 const accountsList = computed(() => openAccounts(vault.value))
@@ -64,7 +65,8 @@ function monthRange() {
 }
 
 const currentPeriodRange = computed(() => {
-  const { fromISO, toISO } = periodRange(dashboardPeriod.value, todayISO())
+  const referenceISO = dashboardPeriod.value === 'month' ? `${dashboardMonth.value}-01` : todayISO()
+  const { fromISO, toISO } = periodRange(dashboardPeriod.value, referenceISO)
   return [fromISO, toISO || '2999-12-31']
 })
 
@@ -955,6 +957,7 @@ onUnmounted(() => {
             <button :class="{ active: dashboardPeriod === 'month' }" @click="dashboardPeriod = 'month'">Месяц</button>
             <button :class="{ active: dashboardPeriod === 'year' }" @click="dashboardPeriod = 'year'">Год</button>
             <button :class="{ active: dashboardPeriod === 'all-time' }" @click="dashboardPeriod = 'all-time'">Всё время</button>
+            <input v-if="dashboardPeriod === 'month'" type="month" v-model="dashboardMonth">
           </div>
 
           <div class="fin-analytics">
