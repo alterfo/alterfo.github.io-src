@@ -20,13 +20,14 @@ import {
   removeTransaction, removeAccount, discardHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
   migrateVault, upsertDeposit, openDeposits, closeDeposit, sellHolding,
-  removeDeposit, transferBetweenAccounts,
+  removeDeposit, transferBetweenAccounts, addDepositContribution, adjustAccountBalance,
 } from './Finance/vault.js'
 import {
   totalBalance, accountBalance, transactionsForAccount, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
-  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest,
+  holdingGainLoss, netWorth, netForRange, monthlyTrend, periodRange, depositValue, depositAccruedInterest, lastTransaction,
 } from './Finance/stats.js'
 import { fetchPrice, MoexPriceError } from './Finance/prices.js'
+import { buildRecommendations } from './Finance/recommendations.js'
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, DEFAULT_CATEGORY, todayISO } from './Finance/constants.js'
 import CategoryBar from './Finance/CategoryBar.vue'
 import TrendChart from './Finance/TrendChart.vue'
@@ -51,6 +52,7 @@ const vault = ref(emptyVault())
 const view = ref('dashboard') // 'dashboard' | 'accounts' | 'investments'
 const dashboardPeriod = ref('month') // 'month' | 'year' | 'all-time'
 const trendMonths = ref(6) // 6 or 12
+const dashboardMonth = ref(todayISO().slice(0, 7)) // 'YYYY-MM', for the month period picker
 
 // ---- Selectors over the vault ----
 const accountsList = computed(() => openAccounts(vault.value))
@@ -64,7 +66,8 @@ function monthRange() {
 }
 
 const currentPeriodRange = computed(() => {
-  const { fromISO, toISO } = periodRange(dashboardPeriod.value, todayISO())
+  const referenceISO = dashboardPeriod.value === 'month' ? `${dashboardMonth.value}-01` : todayISO()
+  const { fromISO, toISO } = periodRange(dashboardPeriod.value, referenceISO)
   return [fromISO, toISO || '2999-12-31']
 })
 
@@ -96,6 +99,13 @@ const totalBalanceVal = computed(() => totalBalance(accountsList.value, Object.v
 const portfolioValueVal = computed(() => portfolioValue(holdingsList.value))
 const portfolioGainLossVal = computed(() => portfolioGainLoss(holdingsList.value))
 const netWorthVal = computed(() => netWorth(accountsList.value, holdingsList.value, depositsList.value, Object.values(vault.value.transactions)))
+const lastExpense = computed(() => lastTransaction(Object.values(vault.value.transactions), 'expense'))
+const recommendationsList = computed(() => buildRecommendations({
+  accounts: accountsList.value,
+  holdings: holdingsList.value,
+  deposits: depositsList.value,
+  transactions: Object.values(vault.value.transactions),
+}, todayISO()))
 
 function acctBalance(account) {
   const raw = accountBalance(account, Object.values(vault.value.transactions))
@@ -104,6 +114,7 @@ function acctBalance(account) {
 
 function categoryLabel(id) {
   if (id === 'transfer') return 'Перевод'
+  if (id === 'adjustment') return 'Корректировка'
   const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)
   if (expenseCat) return expenseCat.label
   const incomeCat = INCOME_CATEGORIES.find(c => c.id === id)
@@ -366,6 +377,11 @@ const ndMaturityDate = ref(todayISO())
 const ndCapitalization = ref(false)
 const ndAccountId = ref(null)
 const depositError = ref('')
+const topUpDepositId = ref(null)
+const tuAmount = ref('')
+const tuDate = ref(todayISO())
+const tuAccountId = ref(null)
+const tuError = ref('')
 
 // ---- Transfers ----
 const trFromAccountId = ref(null)
@@ -422,15 +438,19 @@ function onAccountNameChange(id, e) {
   }
   upsertAccount(vault.value, { id, name: val })
 }
-// Manually editing the balance cell is a reconciliation: it resets the account's
-// opening-balance baseline to now (see upsertAccount in vault.js), not an increment.
+// Manually editing the balance cell books the difference as an 'adjustment'
+// transaction (see adjustAccountBalance in vault.js) rather than silently resetting
+// the account's opening-balance baseline, so there's an audit-trail entry for
+// "where did this change come from".
 function onAccountBalanceChange(id, e) {
   const val = Number(e.target.value)
   if (!Number.isFinite(val)) {
     e.target.value = acctBalance(vault.value.accounts[id])
     return
   }
-  upsertAccount(vault.value, { id, openingBalance: val })
+  const current = acctBalance(vault.value.accounts[id])
+  const delta = val - current
+  adjustAccountBalance(vault.value, { accountId: id, delta, note: 'Ручная корректировка баланса' })
 }
 function deleteAccount(id) {
   if (!confirm('Удалить этот счёт?')) return
@@ -485,6 +505,36 @@ function deleteDepositAction(id) {
   if (!deposit) return
   if (!confirm(`Удалить вклад "${deposit.name}"? Списанная сумма вернётся на счёт.`)) return
   removeDeposit(vault.value, id)
+}
+
+function openTopUpForm(id) {
+  topUpDepositId.value = topUpDepositId.value === id ? null : id
+  tuAmount.value = ''
+  tuDate.value = todayISO()
+  tuAccountId.value = null
+  tuError.value = ''
+}
+
+function submitTopUp() {
+  tuError.value = ''
+  const deposit = vault.value.deposits[topUpDepositId.value]
+  if (!deposit || deposit.deleted || deposit.closed) return
+  const amount = Number(tuAmount.value)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    tuError.value = 'Введите сумму пополнения.'
+    return
+  }
+  addDepositContribution(vault.value, {
+    depositId: topUpDepositId.value,
+    amount,
+    date: tuDate.value || todayISO(),
+    fromAccountId: tuAccountId.value || null,
+  })
+  topUpDepositId.value = null
+  tuAmount.value = ''
+  tuDate.value = todayISO()
+  tuAccountId.value = null
+  tuError.value = ''
 }
 
 // ---- Investments ----
@@ -907,12 +957,19 @@ onUnmounted(() => {
               <span class="fin-summary-n" :class="portfolioGainLossVal >= 0 ? 'ok' : 'bad'">{{ fmtRub(portfolioGainLossVal) }}</span>
               <span class="fin-summary-l">Прибыль/убыток</span>
             </div>
+            <div class="fin-summary-card">
+              <span class="fin-summary-l">Последний расход</span>
+              <span v-if="lastExpense" class="fin-summary-n">{{ fmtRub(lastExpense.amount) }}</span>
+              <span v-if="lastExpense" class="fin-summary-l">{{ fmtDate(lastExpense.date) }}</span>
+              <span v-else class="fin-summary-n">Пока нет трат</span>
+            </div>
           </div>
 
           <div class="fin-period-selector">
             <button :class="{ active: dashboardPeriod === 'month' }" @click="dashboardPeriod = 'month'">Месяц</button>
             <button :class="{ active: dashboardPeriod === 'year' }" @click="dashboardPeriod = 'year'">Год</button>
             <button :class="{ active: dashboardPeriod === 'all-time' }" @click="dashboardPeriod = 'all-time'">Всё время</button>
+            <input v-if="dashboardPeriod === 'month'" type="month" v-model="dashboardMonth">
           </div>
 
           <div class="fin-analytics">
@@ -993,6 +1050,20 @@ onUnmounted(() => {
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет ни одной записи. Добавьте первую запись выше.</p>
+
+          <div v-if="recommendationsList.length" class="fin-recommendations">
+            <h2 class="fin-panel-title">Рекомендации</h2>
+            <table class="fin-table">
+              <tbody>
+                <tr v-for="rec in recommendationsList" :key="rec.id">
+                  <td :class="rec.severity === 'warning' ? 'bad' : 'ok'">
+                    <div>{{ rec.title }}</div>
+                    <div class="fin-table-note">{{ rec.detail }}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Accounts -->
@@ -1063,18 +1134,38 @@ onUnmounted(() => {
           <table v-if="depositsList.length" class="fin-table">
             <thead><tr><th>Название</th><th>Сумма</th><th>Процент</th><th>Срок</th><th>Начислено</th><th>Текущая стоимость</th><th></th></tr></thead>
             <tbody>
-              <tr v-for="d in depositsList" :key="d.id">
-                <td>{{ d.name }}</td>
-                <td class="fin-table-num">{{ fmtRub(d.principal) }}</td>
-                <td class="fin-table-num">{{ (d.rate * 100).toFixed(2) }}%</td>
-                <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
-                <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
-                <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
-                <td>
-                  <button class="fin-row-btn" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">Закрыть</button>
-                  <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteDepositAction(d.id)">✕</button>
-                </td>
-              </tr>
+              <template v-for="d in depositsList" :key="d.id">
+                <tr>
+                  <td>{{ d.name }}</td>
+                  <td class="fin-table-num">{{ fmtRub(d.principal) }}</td>
+                  <td class="fin-table-num">{{ (d.rate * 100).toFixed(2) }}%</td>
+                  <td>{{ d.openDate }} – {{ d.maturityDate }}</td>
+                  <td class="fin-table-num">{{ fmtRub(depositAccruedInterest(d, new Date().toISOString())) }}</td>
+                  <td class="fin-table-num">{{ fmtRub(depositValue(d, new Date().toISOString())) }}</td>
+                  <td>
+                    <button class="fin-row-btn" title="Пополнить" aria-label="Пополнить" :disabled="d.closed" @click="openTopUpForm(d.id)">Пополнить</button>
+                    <button class="fin-row-btn" title="Закрыть" aria-label="Закрыть" @click="closeDepositAction(d.id)">Закрыть</button>
+                    <button class="fin-row-del" title="Удалить" aria-label="Удалить" @click="deleteDepositAction(d.id)">✕</button>
+                  </td>
+                </tr>
+                <tr v-if="topUpDepositId === d.id" class="fin-sell-form-row">
+                  <td colspan="7">
+                    <div class="fin-sell-form">
+                      <div class="fin-sell-fields">
+                        <input v-model="tuAmount" type="number" step="0.01" class="fin-text fin-text-num" placeholder="Сумма пополнения" @keydown.enter="submitTopUp" />
+                        <input v-model="tuDate" type="date" class="fin-text" @keydown.enter="submitTopUp" />
+                        <select v-model="tuAccountId" class="fin-text">
+                          <option :value="null">Без списания со счёта</option>
+                          <option v-for="a in accountsList" :key="a.id" :value="a.id">{{ a.name }}</option>
+                        </select>
+                        <button class="fin-btn fin-btn-primary" @click="submitTopUp">Пополнить</button>
+                        <button class="fin-btn" @click="openTopUpForm(d.id)">Отмена</button>
+                      </div>
+                      <p v-if="tuError" class="fin-form-error">{{ tuError }}</p>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
           <p v-else class="fin-empty-hint">Пока нет активных вкладов.</p>

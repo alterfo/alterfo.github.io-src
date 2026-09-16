@@ -151,6 +151,30 @@ export function upsertExpense(vault, expense, now = new Date().toISOString()) {
   return upsertTransaction(vault, { ...expense, direction: 'expense' }, now)
 }
 
+// Editing the balance cell in the accounts table books the difference as an
+// 'adjustment' transaction instead of resetting the openingBalance baseline — keeps
+// stats.js's derived-balance model intact (see "Account balance is derived, not
+// stored" in CLAUDE.md) and leaves an audit-trail entry instead of a silent
+// reconciliation. `delta` (newBalance - accountBalance(account, transactions)) is
+// computed by the caller, since vault.js has no dependency on stats.js. Positive
+// delta books an income leg, negative books an expense leg; category 'adjustment' is
+// excluded from expenseByCategory/incomeByCategory/lastTransaction so it never
+// pollutes real income/expense stats. No-op on a missing/deleted account or a zero delta.
+export function adjustAccountBalance(vault, { accountId, delta, date, note }, now = new Date().toISOString()) {
+  const account = vault.accounts[accountId]
+  if (!account || account.deleted) return
+  if (!Number.isFinite(delta) || delta === 0) return
+
+  return upsertTransaction(vault, {
+    amount: Math.abs(delta),
+    direction: delta > 0 ? 'income' : 'expense',
+    category: 'adjustment',
+    accountId,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
+}
+
 // Create or edit an account. Same partial-edit semantics as upsertExpense.
 // `openingBalance` is a reconciliation point, not a running total: writing it always
 // resets `openingBalanceAsOf` to `now`, so `stats.js`'s `accountBalance` derives the
@@ -234,6 +258,25 @@ function transferBetweenAccountOrAsset(vault, { fromAccountId, amount, date, not
   }, now)
 }
 
+// Internal helper: a one-legged transfer that credits `toAccountId` with no matching
+// `accountId` debit — the mirror image of transferBetweenAccountOrAsset. Used when a
+// sale returns capital from a non-account asset (holding) back into an account. Same
+// direction:'transfer'/category:'transfer' shape as transferBetweenAccounts so
+// accountBalance and stats.js treat it identically (excluded from expense/income
+// analytics, credits the destination account).
+function creditAccountFromAsset(vault, { toAccountId, amount, date, note }, now) {
+  if (!toAccountId || !(amount > 0)) return
+  return upsertTransaction(vault, {
+    amount,
+    direction: 'transfer',
+    category: 'transfer',
+    accountId: null,
+    toAccountId,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
+}
+
 // Update vault settings (defaultAccountId). Partial-edit semantics:
 // fields present on `settings` override the stored value, missing fields
 // fall back to the existing value. updatedAt is always bumped to `now`.
@@ -295,6 +338,11 @@ export function discardHolding(vault, id, now = new Date().toISOString()) {
   return removeHolding(vault, id, now)
 }
 
+// Sells `qty` of a holding. The payout is split so income analytics only ever see the
+// realized gain: a transfer leg returns the cost basis to the account (excluded from
+// income/expense), and a stock_sale income leg is created only when `realized > 0`.
+// The two legs together credit exactly `netProceeds` to `toAccountId` (or the default
+// account). A losing sale books zero income, so realized losses stay out of net income.
 export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date, toAccountId }, now = new Date().toISOString()) {
   const holding = vault.holdings[holdingId]
   if (!holding) return
@@ -302,6 +350,9 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
   if (qty > holdingQty) return
 
   const netProceeds = qty * sellPrice - commission
+  const costBasis = qty * holding.purchasePrice
+  const realized = netProceeds - costBasis
+  const targetAccountId = toAccountId ?? vault.settings?.defaultAccountId ?? null
 
   if (qty === holdingQty) {
     removeHolding(vault, holdingId, now)
@@ -309,14 +360,24 @@ export function sellHolding(vault, { holdingId, qty, sellPrice, commission, date
     upsertHolding(vault, { id: holdingId, qty: holdingQty - qty }, now)
   }
 
-  upsertTransaction(vault, {
-    amount: netProceeds,
-    direction: 'income',
-    category: 'stock_sale',
-    accountId: toAccountId ?? vault.settings?.defaultAccountId ?? null,
+  creditAccountFromAsset(vault, {
+    toAccountId: targetAccountId,
+    amount: Math.min(netProceeds, costBasis),
     note: holding.ticker,
     date,
   }, now)
+
+  if (realized > 0) {
+    upsertTransaction(vault, {
+      amount: realized,
+      direction: 'income',
+      category: 'stock_sale',
+      accountId: null,
+      toAccountId: targetAccountId,
+      note: holding.ticker,
+      date,
+    }, now)
+  }
 
   return holding
 }
@@ -396,6 +457,31 @@ export function closeDeposit(vault, { depositId, payoutAmount, date }, now = new
   }, now)
 
   return deposit
+}
+
+// Adds `amount` to an open deposit's principal, optionally debiting an account (the
+// mirror of the create-time funding path). No-ops on a missing/deleted/closed deposit
+// or a non-positive amount. Top-ups are additive-only: unlike removeDeposit, this does
+// not stash a transaction id for refund — undoing a single top-up is out of scope
+// (YAGNI), and removeDeposit still only unwinds the original creation funding.
+export function addDepositContribution(vault, { depositId, amount, date, fromAccountId }, now = new Date().toISOString()) {
+  const existing = vault.deposits[depositId]
+  if (!existing || existing.deleted || existing.closed) return
+  if (!(amount > 0)) return
+
+  const principal = Number.isFinite(existing.principal) ? existing.principal : 0
+  const updated = upsertDeposit(vault, { id: depositId, principal: principal + amount }, now)
+
+  if (fromAccountId) {
+    transferBetweenAccountOrAsset(vault, {
+      fromAccountId,
+      amount,
+      date,
+      note: `Вклад: ${existing.name}`,
+    }, now)
+  }
+
+  return updated
 }
 
 // Non-deleted transactions with date in [fromISO, toISO] (inclusive), sorted ascending.

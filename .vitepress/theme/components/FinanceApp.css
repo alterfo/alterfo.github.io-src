@@ -393,6 +393,18 @@
   color: var(--ds-text-strong);
   border-color: var(--ds-accent);
 }
+.fin-period-selector input[type="month"] {
+  padding: 7px 14px;
+  font-size: 13px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-void);
+  color: var(--ds-text);
+  color-scheme: dark;
+}
+.fin-period-selector input[type="month"]:hover {
+  border-color: var(--ds-accent-light);
+}
 
 .fin-analytics {
   display: grid;

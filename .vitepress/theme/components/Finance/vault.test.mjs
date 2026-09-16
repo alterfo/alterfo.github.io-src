@@ -11,6 +11,7 @@ import {
   removeHolding,
   discardHolding,
   upsertDeposit,
+  addDepositContribution,
   removeDeposit,
   openDeposits,
   closeDeposit,
@@ -23,6 +24,7 @@ import {
   migrateVaultV1toV2,
   migrateAccountBalances,
   migrateVault,
+  adjustAccountBalance,
 } from './vault.js'
 import { accountBalance } from './stats.js'
 
@@ -655,6 +657,76 @@ describe('upsertDeposit', () => {
   })
 })
 
+describe('addDepositContribution', () => {
+  it('increases principal and creates no transaction when fromAccountId is omitted', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, t1)
+
+    const result = addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-02' }, t2)
+
+    assert.equal(result.id, d.id)
+    assert.equal(result.principal, 60000)
+    assert.equal(v.deposits[d.id].principal, 60000)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('with fromAccountId debits the account and preserves the deposit note', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const t2 = '2026-08-02T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 100000 }, t1)
+    const d = upsertDeposit(v, { name: 'Мой вклад', principal: 50000 }, t1)
+
+    addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-02', fromAccountId: 'acc1' }, t2)
+
+    assert.equal(v.deposits[d.id].principal, 60000)
+    const transfers = Object.values(v.transactions).filter(t => t.direction === 'transfer')
+    assert.equal(transfers.length, 1)
+    assert.equal(transfers[0].accountId, 'acc1')
+    assert.equal(transfers[0].toAccountId, null)
+    assert.equal(transfers[0].amount, 10000)
+    assert.ok(transfers[0].note.includes('Мой вклад'))
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 90000)
+  })
+
+  it('is a no-op for a closed deposit', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, t1)
+    closeDeposit(v, { depositId: d.id, payoutAmount: 52000, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
+    const transferCountBefore = Object.values(v.transactions).filter(t => t.direction === 'transfer').length
+
+    const result = addDepositContribution(v, { depositId: d.id, amount: 10000, date: '2026-08-16', fromAccountId: 'acc1' }, '2026-08-16T10:00:00.000Z')
+
+    assert.equal(result, undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
+    assert.equal(Object.values(v.transactions).filter(t => t.direction === 'transfer').length, transferCountBefore)
+  })
+
+  it('is a no-op for a non-positive or non-finite amount', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T10:00:00.000Z')
+
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: 0 }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: -100 }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: Number.NaN }, '2026-08-02T10:00:00.000Z'), undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('is a no-op for an unknown or deleted depositId', () => {
+    const v = emptyVault()
+    const d = upsertDeposit(v, { name: 'Вклад', principal: 50000 }, '2026-08-01T10:00:00.000Z')
+    removeDeposit(v, d.id, '2026-08-02T10:00:00.000Z')
+
+    assert.equal(addDepositContribution(v, { depositId: 'nope', amount: 1000 }, '2026-08-03T10:00:00.000Z'), undefined)
+    assert.equal(addDepositContribution(v, { depositId: d.id, amount: 1000 }, '2026-08-03T10:00:00.000Z'), undefined)
+    assert.equal(v.deposits[d.id].principal, 50000)
+  })
+})
+
 describe('removeDeposit', () => {
   it('tombstones (deleted:true) and bumps updatedAt', () => {
     const v = emptyVault()
@@ -776,10 +848,16 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
     assert.equal(txs.length, 1)
-    assert.equal(txs[0].amount, 2970)
+    assert.equal(txs[0].amount, 470)
     assert.equal(txs[0].direction, 'income')
-    assert.equal(txs[0].accountId, 'acc1')
+    assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, 'acc1')
     assert.equal(txs[0].note, 'SBER')
+
+    const transfer = Object.values(v.transactions).find(t => !t.deleted && t.direction === 'transfer')
+    assert.equal(transfer.amount, 2500)
+    assert.equal(transfer.accountId, null)
+    assert.equal(transfer.toAccountId, 'acc1')
   })
 
   it('partial sell reduces qty and creates an income transaction', () => {
@@ -798,7 +876,7 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
     assert.equal(txs.length, 1)
-    assert.equal(txs[0].amount, 2380)
+    assert.equal(txs[0].amount, 380)
   })
 
   it('oversell is rejected (returns undefined)', () => {
@@ -822,7 +900,7 @@ describe('sellHolding', () => {
     sellHolding(v, { holdingId, qty: 5, sellPrice: 200, commission: 150, date: '2026-08-15' }, '2026-08-15T10:00:00.000Z')
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
-    assert.equal(txs[0].amount, 850)
+    assert.equal(txs[0].amount, 350)
   })
 
   it('is a no-op for an unknown holdingId', () => {
@@ -839,6 +917,7 @@ describe('sellHolding', () => {
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
     assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, null)
   })
 
   it('an explicit toAccountId overrides settings.defaultAccountId', () => {
@@ -848,7 +927,51 @@ describe('sellHolding', () => {
     sellHolding(v, { holdingId, qty: 5, sellPrice: 300, commission: 0, date: '2026-08-15', toAccountId: 'acc-chosen' }, '2026-08-15T10:00:00.000Z')
 
     const txs = Object.values(v.transactions).filter(t => t.category === 'stock_sale')
-    assert.equal(txs[0].accountId, 'acc-chosen')
+    assert.equal(txs[0].accountId, null)
+    assert.equal(txs[0].toAccountId, 'acc-chosen')
+  })
+
+  it('books zero income on a loss and credits the account exactly netProceeds', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 200, commission: 30, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 0)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 1970)
+  })
+
+  it('books only the realized gain on a profit while the account still receives netProceeds', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 300, commission: 30, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 1)
+    assert.equal(income[0].amount, 470)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 2970)
+  })
+
+  it('books no income at breakeven, only the capital-return transfer', () => {
+    const v = emptyVault()
+    const t1 = '2026-08-01T10:00:00.000Z'
+    upsertAccount(v, { id: 'acc1', name: 'Счет', openingBalance: 0 }, t1)
+    const holdingId = upsertHolding(v, { ticker: 'SBER', qty: 10, purchasePrice: 250 }, t1).id
+
+    sellHolding(v, { holdingId, qty: 10, sellPrice: 250, commission: 0, date: '2026-08-15', toAccountId: 'acc1' }, '2026-08-15T10:00:00.000Z')
+
+    const income = Object.values(v.transactions).filter(t => !t.deleted && t.category === 'stock_sale')
+    assert.equal(income.length, 0)
+    const transfers = Object.values(v.transactions).filter(t => !t.deleted && t.direction === 'transfer')
+    assert.equal(transfers.length, 1)
+    assert.equal(transfers[0].amount, 2500)
+    assert.equal(accountBalance(v.accounts.acc1, Object.values(v.transactions)), 2500)
   })
 })
 
@@ -880,6 +1003,56 @@ describe('transferBetweenAccounts', () => {
     assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: 0, date: '2026-08-01' }), undefined)
     assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: -5, date: '2026-08-01' }), undefined)
     assert.equal(Object.keys(v.transactions).length, 0)
+  })
+})
+
+describe('adjustAccountBalance', () => {
+  it('books an income transaction with category adjustment on a positive delta', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const tx = adjustAccountBalance(v, { accountId: 'acc1', delta: 250, note: 'Ручная корректировка баланса' }, '2026-08-02T10:00:00.000Z')
+    assert.equal(tx.direction, 'income')
+    assert.equal(tx.category, 'adjustment')
+    assert.equal(tx.accountId, 'acc1')
+    assert.equal(tx.amount, 250)
+    assert.equal(tx.note, 'Ручная корректировка баланса')
+  })
+
+  it('books an expense transaction with category adjustment on a negative delta', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const tx = adjustAccountBalance(v, { accountId: 'acc1', delta: -300 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(tx.direction, 'expense')
+    assert.equal(tx.category, 'adjustment')
+    assert.equal(tx.amount, 300)
+  })
+
+  it('never resets openingBalance/openingBalanceAsOf', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    adjustAccountBalance(v, { accountId: 'acc1', delta: 250 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(v.accounts.acc1.openingBalance, 1000)
+    assert.equal(v.accounts.acc1.openingBalanceAsOf, '2026-08-01T10:00:00.000Z')
+  })
+
+  it('is a no-op on a zero delta, a missing account, or a deleted account', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(adjustAccountBalance(v, { accountId: 'acc1', delta: 0 }), undefined)
+    assert.equal(adjustAccountBalance(v, { accountId: 'missing', delta: 100 }), undefined)
+    removeAccount(v, 'acc1', '2026-08-02T10:00:00.000Z')
+    assert.equal(adjustAccountBalance(v, { accountId: 'acc1', delta: 100 }), undefined)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('feeds accountBalance back to exactly the reconciled number', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const current = accountBalance(v.accounts.acc1, Object.values(v.transactions))
+    const delta = 1500 - current
+    adjustAccountBalance(v, { accountId: 'acc1', delta }, '2026-08-02T10:00:00.000Z')
+    const reconciled = accountBalance(v.accounts.acc1, Object.values(v.transactions))
+    assert.equal(reconciled, 1500)
   })
 })
 

@@ -2,7 +2,7 @@
 
 ## Design system «Spiral»
 
-**Cool graphite + jewel-tone accents** palette shared by the home page and all six apps.
+**Cool graphite + jewel-tone accents** palette shared by the home page and all eight client-side apps.
 History: cosmic-violet-home / slate-apps split (generic "AI-generated site", see
 `[[feedback-no-generic-claude-ui]]`) → warm-ink earth tones (terracotta/ochre/olive —
 2026-07-12, first pass) → **current** cool graphite + jewel tones (2026-07-12, same day,
@@ -18,7 +18,7 @@ second pass — the warm-ink version read as literal "autumn/fallen-leaves", not
 unrelated brand hue — journal indigo `#5555dd`, planner blue `#2563eb`, decisions teal
 `#0d9488`, piano indigo `#4040aa`, idef0 blue `#3b82f6`, openpose cyan `#4fc3f7` — all
 retired in favor of `PROJECT_COLORS[sphere]`). Each app's root class (`.journal-root`,
-`.planner-root`, `.dj-root`, `.piano-app`, `.idef0-root`, `.op-root`) declares its own
+`.planner-root`, `.dj-root`, `.piano-app`, `.idef0-root`, `.op-root`, `.cg-root`) declares its own
 scoped `--ds-accent` / `--ds-accent-light` / `--ds-accent-hover` / `--ds-accent-bg`
 (tints computed from the sphere hex — see the comment above each declaration) — these
 are per-app, NOT global tokens; each app's CSS file owns its own values.
@@ -89,24 +89,25 @@ Self-hosted per `[[no-cdn-rule]]` — no Google Fonts `<link>` at runtime:
 ### Palette mirrors — change a color in BOTH
 
 CSS can't be imported as JS values:
-- `theme/styles/vars.css` — `--ds-*` CSS custom properties (8 spectrum colors incl. `--ds-teal: #2d5654` 7th/decisions, `--ds-yellow: #9098a8` 8th/music)
-- `theme/components/spectrum.js` — JS mirror: `SPECTRUM` (8 hex), `CANVAS_PALETTE` (8 rgba prefixes), `PROJECT_COLORS` (project → hex)
+- `theme/styles/vars.css` — `--ds-*` CSS custom properties (10 spectrum colors incl. `--ds-teal: #2d5654` 7th/decisions, `--ds-yellow: #9098a8` 8th/music, `--ds-indigo: #4a3868` 9th/finance, `--ds-turquoise: #3b7a85` 10th/games)
+- `theme/components/spectrum.js` — JS mirror: `SPECTRUM` (10 hex), `CANVAS_PALETTE` (10 rgba prefixes), `PROJECT_COLORS` (project → hex)
 
 Unit-tested in `spectrum.test.mjs`. `WebGPUParticles.js`'s `COLORS` array is an
-**independent** normalized-RGB mirror of the same 8 jewel-tone hues — not test-guarded,
+**independent** normalized-RGB mirror of the same 10 jewel-tone hues — not test-guarded,
 edit by hand if the spectrum changes.
 
-### Spectrum semantics (8 spheres = 8 particle colors, jewel/gallery tones)
+### Spectrum semantics (10 spheres = 10 particle colors, jewel/gallery tones)
 
 `--ds-violet` `#7a3348` бордо/wine (AR), `--ds-cyan` `#a8874a` бронза/bronze
 (blog/openpose), `--ds-green` `#3f5946` хвоя/pine (idef0), `--ds-pink` `#8a5568`
 мальва/mauve (journal), `--ds-amber` `#4a6178` сталь/steel-blue (piano), `--ds-orange`
 `#6b5a48` каштан/chestnut (github/planner), `--ds-teal` `#2d5654` антрацит-тил/deep-teal
-(decisions), `--ds-yellow` `#9098a8` графит/graphite (music).
+(decisions), `--ds-yellow` `#9098a8` графит/graphite (music), `--ds-indigo` `#4a3868`
+индиго/indigo (finance), `--ds-turquoise` `#3b7a85` бирюза/turquoise (games).
 
 ### LifeCircle «колесо жизни»
 
-`theme/components/LifeCircle.vue` — donut wheel of 8 spheres, outer radius encodes readiness. `buildSegments` is generalized to `n = defs.length`: `span = 360/n`, 4° gap between spheres. Spheres/readiness: Дневник 9, IDEF0 8, AR 5, Piano 4, OpenPose 4, Планировщик 4, Решения 4, Музыка 3.
+`theme/components/LifeCircle.vue` — donut wheel of 10 spheres, outer radius encodes readiness. `buildSegments` is generalized to `n = defs.length`: `span = 360/n`, 4° gap between spheres. Spheres/readiness: Дневник 9, IDEF0 8, AR 5, Piano 4, OpenPose 4, Планировщик 4, Решения 4, Музыка 3, Финансы 2, Пазлы 2.
 
 Pure helpers in `lifecircle.js` (`deg2rad`, `arcPath`, `labelXY`, `fillRadius`, `buildSegments`, `centerMark`) — all unit-tested in `lifecircle.test.mjs`.
 
@@ -114,9 +115,9 @@ Pure helpers in `lifecircle.js` (`deg2rad`, `arcPath`, `labelXY`, `fillRadius`, 
 
 ### HomeMark.vue
 
-Mini replica of the LifeCircle wheel (8 sphere arcs). Used as home link in every app top bar. `active` prop highlights the current app's sphere. `360/n` rotate on hover set via `--home-rot`. Registered globally in `index.mts`. Must stay in sync with: `LifeCircle.vue` SEGMENTS, `public/home-wheel.svg`, and the static SVG in `ar-engine/web/index.html`.
+Mini replica of the LifeCircle wheel (10 sphere arcs). Used as home link in every app top bar. `active` prop highlights the current app's sphere. `360/n` rotate on hover set via `--home-rot`. Registered globally in `index.mts`. Must stay in sync with: `LifeCircle.vue` SEGMENTS, `public/home-wheel.svg`, and the static SVG in `ar-engine/web/index.html`.
 
-**Regression guard**: `lifecircle-mirrors.test.mjs` parses all four sources (`LifeCircle.vue` SEGMENTS is the source of truth, the other three are compared against it) and asserts the 8 spheres agree on id/color/order. Run it after touching any one mirror.
+**Regression guard**: `lifecircle-mirrors.test.mjs` parses all four sources (`LifeCircle.vue` SEGMENTS is the source of truth, the other three are compared against it) and asserts the 10 spheres agree on id/color/order. Run it after touching any one mirror.
 
 ### Connecting particles
 
@@ -193,4 +194,4 @@ These bugs pass `npm run build` green — TS not typechecked (esbuild strips typ
 - **Prefetch crashes on SVG anchors**: `SVGAElement` has no `.pathname` → `pathToFile(undefined)` throws. `LifeCircle.vue` polyfills `pathname`/`hostname` in `onMounted` — keep that.
 - **`Layout.vue` site-header height**: comes ONLY from `initHeader()` setting `style.height`. One canvas = one context type (WebGPU vs 2d). `webgpuInit` is single-flight. `boundEl` tracks canvas recreation. `WebGPUParticles.reseed()` on every SPA page change.
 - **`WebGPUParticles.js` is a dynamic `import()`**, not a static one — `Layout.vue` only calls it (and only then pulls in the shader/pipeline code) when `gpuAvailable()` (`!!navigator.gpu`) is true. `ConnectingParticles` (2D fallback) stays a static import. The branch decisions around this — single-flight init, the `init`/`field-2d`/`reseed-render`/`noop` action table, the canvas-recreation guard — are extracted as pure helpers into `headerLifecycle.js` (`shouldStartInit`, `headerAction`, `shouldResetForNewCanvas`), unit-tested in `headerLifecycle.test.mjs`, and kept as a separate module from `WebGPUParticles.js` so `Layout.vue` can import them statically without re-pulling the GPU class into the eager entry chunk.
-- **Lazy chunks still get a build-time preload *hint*, scoped per page** — Vite's default `modulePreload` walks every dynamic `import()` reachable from the shared SPA entry and would otherwise tag the five app-root chunks + `WebGPUParticles.js` as eager `<link rel="modulepreload">` on **every** page (incl. the home page, which renders none of them) regardless of route or `gpuAvailable()`. `shouldPreloadLink` in `seo.js` (wired via `shouldPreload` in `config.mts`) demotes each lazy chunk to a low-priority `<link rel="prefetch">` everywhere except the one page that actually renders it; `WebGPUParticles` has no dedicated page so it is always prefetch-tier, never eager. This does not eliminate the fetch entirely (prefetch still runs on browser idle) — it removes the eager/critical-path cost, which is what the chunk split is for.
+- **Lazy chunks still get a build-time preload *hint*, scoped per page** — Vite's default `modulePreload` walks every dynamic `import()` reachable from the shared SPA entry and would otherwise tag the eight app-root chunks + `WebGPUParticles.js` as eager `<link rel="modulepreload">` on **every** page (incl. the home page, which renders none of them) regardless of route or `gpuAvailable()`. `shouldPreloadLink` in `seo.js` (wired via `shouldPreload` in `config.mts`) demotes each lazy chunk to a low-priority `<link rel="prefetch">` everywhere except the one page that actually renders it; `WebGPUParticles` has no dedicated page so it is always prefetch-tier, never eager. This does not eliminate the fetch entirely (prefetch still runs on browser idle) — it removes the eager/critical-path cost, which is what the chunk split is for.

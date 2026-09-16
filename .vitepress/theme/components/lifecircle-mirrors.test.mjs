@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-// Guards the four hand-maintained mirrors of the «колесо жизни» 8 spheres
+// Guards the four hand-maintained mirrors of the «колесо жизни» 10 spheres
 // (order/id/color must agree — see .vitepress/CLAUDE.md "HomeMark.vue" and
 // "Palette mirrors" sections). None of the three mirrors import SEGMENTS —
 // LifeCircle.vue is the documented source of truth and the others are kept
@@ -47,8 +47,8 @@ const spheres = parseIdColorList(homeMarkSource, 'SPHERES')
 const wheelSvgColors = parseSvgFillColors(wheelSvgSource)
 const arIndexColors = parseSvgFillColors(arIndexSource)
 
-test('LifeCircle.vue SEGMENTS has 9 spheres', () => {
-  assert.equal(segments.length, 9)
+test('LifeCircle.vue SEGMENTS has 10 spheres', () => {
+  assert.equal(segments.length, 10)
 })
 
 test('HomeMark.vue SPHERES mirrors LifeCircle.vue SEGMENTS (id + color + order)', () => {

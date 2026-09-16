@@ -113,6 +113,7 @@ export default defineConfig({
               { text: 'Планировщик', link: '/planner' },
               { text: 'Журнал решений', link: '/decision-journal' },
               { text: 'Финансы', link: '/finance' },
+              { text: 'Пазлы', link: '/casual-games' },
             ],
           },
           {

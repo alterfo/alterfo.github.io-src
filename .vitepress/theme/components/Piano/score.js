@@ -126,6 +126,106 @@ const C_MAJOR_SCALE = {
   ],
 }
 
+// Dyad drill: intervals from C4, widening 2nd→9th then narrowing back.
+// Each note.midi is a 2-element array — the trainer/keyboard/renderer already
+// treat any note.midi array as a chord generically (see trainer.js notesMatch,
+// keyboard.js keyColor, musicxml.js noteXML), so this just exercises that path
+// with a dedicated, reachable-from-the-picker exercise.
+const DYADS_C = {
+  id: 'dyads-c',
+  title: 'Двузвучия: интервалы от До',
+  composer: '',
+  tempo: 66,
+  key: { root: 'C', mode: 'major' },
+  timeSignature: [4, 4],
+  modulations: [],
+  phrases: [
+    {
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { midi: [60, 62], duration: 'q', hand: 'right' }, // 2nd
+          { midi: [60, 64], duration: 'q', hand: 'right' }, // 3rd
+          { midi: [60, 65], duration: 'q', hand: 'right' }, // 4th
+          { midi: [60, 67], duration: 'q', hand: 'right' }, // 5th
+        ]},
+        { id: 'm2', notes: [
+          { midi: [60, 69], duration: 'q', hand: 'right' }, // 6th
+          { midi: [60, 71], duration: 'q', hand: 'right' }, // 7th
+          { midi: [60, 72], duration: 'q', hand: 'right' }, // 8ve
+          { midi: [60, 74], duration: 'q', hand: 'right' }, // 9th
+        ]},
+      ],
+    },
+    {
+      id: 'p2',
+      measures: [
+        { id: 'm3', notes: [
+          { midi: [60, 74], duration: 'q', hand: 'right' }, // 9th
+          { midi: [60, 72], duration: 'q', hand: 'right' }, // 8ve
+          { midi: [60, 71], duration: 'q', hand: 'right' }, // 7th
+          { midi: [60, 69], duration: 'q', hand: 'right' }, // 6th
+        ]},
+        { id: 'm4', notes: [
+          { midi: [60, 67], duration: 'q', hand: 'right' }, // 5th
+          { midi: [60, 65], duration: 'q', hand: 'right' }, // 4th
+          { midi: [60, 64], duration: 'q', hand: 'right' }, // 3rd
+          { midi: [60, 62], duration: 'q', hand: 'right' }, // 2nd
+        ]},
+      ],
+    },
+  ],
+}
+
+// Triad drill: root-position triads on every degree of the C major scale
+// (I ii iii IV V vi vii° I), ascending then descending — same shape as
+// C_MAJOR_SCALE but each scale degree is a 3-note chord instead of a single note.
+const TRIADS_C_MAJOR = {
+  id: 'triads-c-major',
+  title: 'Трезвучия До мажор',
+  composer: '',
+  tempo: 60,
+  key: { root: 'C', mode: 'major' },
+  timeSignature: [4, 4],
+  modulations: [],
+  phrases: [
+    {
+      id: 'p1',
+      measures: [
+        { id: 'm1', notes: [
+          { midi: [60, 64, 67], duration: 'q', hand: 'right' }, // I:   C E G
+          { midi: [62, 65, 69], duration: 'q', hand: 'right' }, // ii:  D F A
+          { midi: [64, 67, 71], duration: 'q', hand: 'right' }, // iii: E G B
+          { midi: [65, 69, 72], duration: 'q', hand: 'right' }, // IV:  F A C
+        ]},
+        { id: 'm2', notes: [
+          { midi: [67, 71, 74], duration: 'q', hand: 'right' }, // V:    G B D
+          { midi: [69, 72, 76], duration: 'q', hand: 'right' }, // vi:   A C E
+          { midi: [71, 74, 77], duration: 'q', hand: 'right' }, // vii°: B D F
+          { midi: [72, 76, 79], duration: 'q', hand: 'right' }, // I:    C E G (8ve)
+        ]},
+      ],
+    },
+    {
+      id: 'p2',
+      measures: [
+        { id: 'm3', notes: [
+          { midi: [72, 76, 79], duration: 'q', hand: 'right' }, // I:    C E G (8ve)
+          { midi: [71, 74, 77], duration: 'q', hand: 'right' }, // vii°: B D F
+          { midi: [69, 72, 76], duration: 'q', hand: 'right' }, // vi:   A C E
+          { midi: [67, 71, 74], duration: 'q', hand: 'right' }, // V:    G B D
+        ]},
+        { id: 'm4', notes: [
+          { midi: [65, 69, 72], duration: 'q', hand: 'right' }, // IV:  F A C
+          { midi: [64, 67, 71], duration: 'q', hand: 'right' }, // iii: E G B
+          { midi: [62, 65, 69], duration: 'q', hand: 'right' }, // ii:  D F A
+          { midi: [60, 64, 67], duration: 'q', hand: 'right' }, // I:   C E G
+        ]},
+      ],
+    },
+  ],
+}
+
 const TWINKLE = {
   id: 'twinkle',
   title: 'Twinkle Twinkle',
@@ -666,7 +766,7 @@ const CLAIR_DE_LUNE = {
   ],
 }
 
-const SCORES = [C_MAJOR_SCALE, TWINKLE, MINUET_G, ODE_TO_JOY, RACHMANINOFF_PRELUDE_D, CLAIR_DE_LUNE]
+const SCORES = [C_MAJOR_SCALE, DYADS_C, TRIADS_C_MAJOR, TWINKLE, MINUET_G, ODE_TO_JOY, RACHMANINOFF_PRELUDE_D, CLAIR_DE_LUNE]
 
 export function listScores() {
   return SCORES.map(s => ({ id: s.id, title: s.title, composer: s.composer, key: s.key, tempo: s.tempo }))

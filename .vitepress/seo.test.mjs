@@ -113,6 +113,14 @@ test('jsonLdFor: music.md → MusicGroup with albums and sameAs', () => {
   assert.equal(ld.album[1].datePublished, '2026')
 })
 
+test('casual-games.md is a registered tool page (GameApplication)', () => {
+  assert.equal(TOOL_CATEGORY['casual-games.md'], 'GameApplication')
+  assert.equal(sitemapPriority('casual-games.md'), '0.8')
+  const ld = jsonLdFor('casual-games.md', 'Пазлы', 'd', SITE_URL + '/casual-games')
+  assert.equal(ld['@type'], 'SoftwareApplication')
+  assert.equal(ld.applicationCategory, 'GameApplication')
+})
+
 test('music.md is not in TOOL_CATEGORY — it is a content page, not SoftwareApplication', () => {
   assert.ok(!('music.md' in TOOL_CATEGORY), 'music.md must not be in TOOL_CATEGORY')
 })
@@ -195,6 +203,8 @@ test('shouldPreloadLink: each tool app root chunk stays eager only on its own pa
     ['OpenPoseEditor', 'openpose.md'],
     ['PlannerEditor', 'planner.md'],
     ['DecisionJournal', 'decision-journal.md'],
+    ['FinanceApp', 'finance.md'],
+    ['CasualGames', 'casual-games.md'],
   ]
   for (const [chunk, page] of cases) {
     assert.equal(shouldPreloadLink(`assets/chunks/${chunk}.hash.js`, page), true, `${chunk} eager on ${page}`)

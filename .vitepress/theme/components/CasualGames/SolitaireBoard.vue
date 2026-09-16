@@ -1,0 +1,552 @@
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { mulberry32 } from './rng.js'
+import {
+  SUITS,
+  RANK_LABELS,
+  SUIT_LABELS,
+  SUIT_TITLES,
+  isRed,
+  deal,
+  legalMoves,
+  movesEqual,
+  applyMove,
+  hint,
+  explainHint,
+  isUselessTableauMove,
+  isWon,
+  canAutoComplete,
+  solveRemaining,
+  score,
+} from './solitaire.js'
+
+const emit = defineEmits(['update'])
+
+const game = ref(null)
+const history = ref([])
+const selected = ref(null)
+const hintMessage = ref('')
+const autoCompleting = ref(false)
+let dragPayload = null
+
+const currentScore = computed(() => (game.value ? score(game.value) : 0))
+const canUndo = computed(() => history.value.length > 0)
+const won = computed(() => (game.value ? isWon(game.value) : false))
+const locked = computed(() => !game.value || won.value || autoCompleting.value)
+
+function newGame() {
+  game.value = deal(mulberry32(Date.now() >>> 0))
+  history.value = []
+  selected.value = null
+  hintMessage.value = ''
+  autoCompleting.value = false
+  dragPayload = null
+  sync()
+}
+
+function sync() {
+  emit('update', {
+    score: currentScore.value,
+    canUndo: canUndo.value,
+    won: won.value,
+  })
+  maybeAutoComplete()
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function maybeAutoComplete() {
+  if (!game.value || won.value || autoCompleting.value) return
+  if (!canAutoComplete(game.value)) return
+  autoComplete()
+}
+
+async function autoComplete() {
+  if (!game.value || won.value || autoCompleting.value) return
+  const moves = solveRemaining(game.value)
+  if (!moves || moves.length === 0) return
+  autoCompleting.value = true
+  hintMessage.value = 'Автозавершение…'
+  selected.value = null
+  for (const move of moves) {
+    game.value = applyMove(game.value, move)
+    emit('update', { score: currentScore.value, canUndo: canUndo.value, won: won.value })
+    await wait(90)
+  }
+  hintMessage.value = ''
+  autoCompleting.value = false
+  sync()
+}
+
+function commit(move) {
+  if (locked.value || !move) return
+  const legal = legalMoves(game.value).some((candidate) => movesEqual(candidate, move))
+  if (!legal) return
+  const previous = game.value
+  const next = applyMove(game.value, move)
+  history.value.push(previous)
+  game.value = next
+  selected.value = null
+  dragPayload = null
+  sync()
+}
+
+function undo() {
+  if (locked.value || history.value.length === 0) return
+  game.value = history.value.pop()
+  selected.value = null
+  hintMessage.value = ''
+  dragPayload = null
+  sync()
+}
+
+function requestHint() {
+  if (locked.value) return
+  const move = hint(game.value)
+  hintMessage.value = move ? explainHint(game.value, move) : 'Доступных ходов нет.'
+  commit(move)
+}
+
+function draw() {
+  if (locked.value) return
+  hintMessage.value = ''
+  commit({ type: 'draw' })
+}
+
+function runCountFrom(pile, start) {
+  if (!pile[start] || !pile[start].faceUp) return 0
+  let count = 1
+  for (let index = start; index < pile.length - 1; index += 1) {
+    const lower = pile[index]
+    const upper = pile[index + 1]
+    if (!lower.faceUp || !upper.faceUp) return 0
+    if (upper.rank !== lower.rank - 1) return 0
+    if (isRed(upper.suit) === isRed(lower.suit)) return 0
+    count += 1
+  }
+  return count
+}
+
+function selectWaste() {
+  if (locked.value) return
+  hintMessage.value = ''
+  if (selected.value && selected.value.source === 'waste') {
+    selected.value = null
+    return
+  }
+  selected.value = { source: 'waste', from: -1, count: 1 }
+}
+
+function selectTableau(pileIndex, cardIndex) {
+  if (locked.value) return
+  hintMessage.value = ''
+  if (selected.value) {
+    playToTableau(pileIndex)
+    return
+  }
+  const pile = game.value.tableau[pileIndex]
+  const count = runCountFrom(pile, cardIndex)
+  if (count > 0) selected.value = { source: 'tableau', from: pileIndex, count }
+}
+
+function playToTableau(pileIndex) {
+  if (locked.value || !selected.value) return
+  hintMessage.value = ''
+  const target = selected.value.source === 'tableau' ? selected.value.from : pileIndex
+  if (selected.value.source === 'tableau' && selected.value.from === pileIndex) {
+    selected.value = null
+    return
+  }
+  const move = selected.value.source === 'waste'
+    ? { type: 'wasteToTableau', to: pileIndex }
+    : { type: 'tableauToTableau', from: selected.value.from, to: pileIndex, count: selected.value.count }
+  const legal = legalMoves(game.value).some((candidate) => movesEqual(candidate, move))
+  if (legal) commit(move)
+  else selected.value = null
+}
+
+function playToFoundation(suit) {
+  if (locked.value || !selected.value) return
+  hintMessage.value = ''
+  const move = selected.value.source === 'waste'
+    ? { type: 'wasteToFoundation', toSuit: suit }
+    : { type: 'tableauToFoundation', from: selected.value.from, toSuit: suit }
+  const legal = legalMoves(game.value).some((candidate) => movesEqual(candidate, move))
+  if (legal) commit(move)
+  else selected.value = null
+}
+
+function autoPlay(source, from, cardIndex) {
+  if (locked.value) return
+  if (source === 'waste') {
+    if (game.value.waste.length === 0) return
+    const topCard = game.value.waste[game.value.waste.length - 1]
+    if (!topCard.faceUp) return
+    const moves = legalMoves(game.value)
+    const move = moves.find((candidate) => candidate.type === 'wasteToFoundation')
+      || moves.find((candidate) => candidate.type === 'wasteToTableau')
+    commit(move)
+    return
+  }
+  if (source === 'tableau') {
+    const pile = game.value.tableau[from]
+    if (!pile || cardIndex !== pile.length - 1) return
+    const topCard = pile[pile.length - 1]
+    if (!topCard.faceUp) return
+    const moves = legalMoves(game.value)
+    const move = moves.find((candidate) => candidate.type === 'tableauToFoundation' && candidate.from === from)
+      || moves.find((candidate) =>
+        candidate.type === 'tableauToTableau'
+        && candidate.from === from
+        && candidate.count === 1
+        && !isUselessTableauMove(game.value, candidate),
+      )
+    commit(move)
+  }
+}
+
+function startDrag(event, source, from, count) {
+  dragPayload = { source, from, count }
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', JSON.stringify(dragPayload))
+  }
+}
+
+function dropOnTableau(event, pileIndex) {
+  const payload = readDragPayload(event)
+  if (!payload) return
+  if (payload.source === 'waste') selected.value = payload
+  else selected.value = payload
+  playToTableau(pileIndex)
+}
+
+function dropOnFoundation(event, suit) {
+  const payload = readDragPayload(event)
+  if (!payload) return
+  selected.value = payload
+  playToFoundation(suit)
+}
+
+function readDragPayload(event) {
+  if (dragPayload) return dragPayload
+  if (!event.dataTransfer) return null
+  try {
+    return JSON.parse(event.dataTransfer.getData('text/plain'))
+  } catch {
+    return null
+  }
+}
+
+function endDrag() {
+  dragPayload = null
+}
+
+function rankLabel(card) {
+  return RANK_LABELS[card.rank] || card.rank
+}
+
+function suitLabel(card) {
+  return SUIT_LABELS[card.suit] || card.suit
+}
+
+function suitTitle(card) {
+  return SUIT_TITLES[card.suit] || card.suit
+}
+
+function isSelected(pileIndex, cardIndex) {
+  if (!selected.value || selected.value.source !== 'tableau') return false
+  if (selected.value.from !== pileIndex) return false
+  const pile = game.value.tableau[pileIndex]
+  return cardIndex >= pile.length - selected.value.count
+}
+
+onMounted(() => {
+  newGame()
+})
+
+function cloneGame(state) {
+  if (!state) return null
+  return JSON.parse(JSON.stringify(state))
+}
+
+function getState() {
+  if (!game.value) return null
+  return {
+    won: won.value,
+    score: currentScore.value,
+    game: cloneGame(game.value),
+    history: history.value.map(cloneGame),
+  }
+}
+
+function restoreState(state) {
+  if (!state || !state.game) return
+  game.value = cloneGame(state.game)
+  history.value = (state.history || []).map(cloneGame)
+  selected.value = null
+  dragPayload = null
+  sync()
+}
+
+defineExpose({
+  newGame,
+  undo,
+  requestHint,
+  getState,
+  restoreState,
+})
+</script>
+
+<template>
+  <div class="solitaire">
+    <div v-if="game" class="solitaire-table" :class="{ 'auto-completing': autoCompleting }">
+      <div class="solitaire-top">
+        <button
+          type="button"
+          class="solitaire-stock"
+          :class="{ empty: game.stock.length === 0 }"
+          :aria-label="game.stock.length ? 'Сток' : 'Пересдать'"
+          @click="draw"
+        >
+          <span v-if="game.stock.length" class="card card-back">♠</span>
+          <span v-else class="card card-empty">↺</span>
+        </button>
+
+        <button
+          type="button"
+          class="solitaire-waste"
+          :class="{ empty: game.waste.length === 0 }"
+          aria-label="Сброс"
+          :draggable="game.waste.length > 0"
+          @click="selectWaste"
+          @dblclick="autoPlay('waste')"
+          @dragstart="startDrag($event, 'waste', -1, 1)"
+          @dragend="endDrag"
+        >
+          <span v-if="game.waste.length" class="card" :class="{ red: isRed(game.waste[game.waste.length - 1].suit) }">
+            <span class="card-rank">{{ rankLabel(game.waste[game.waste.length - 1]) }}</span>
+            <span class="card-suit">{{ suitLabel(game.waste[game.waste.length - 1]) }}</span>
+          </span>
+          <span v-else class="card card-empty"></span>
+        </button>
+
+        <div class="solitaire-foundations">
+          <button
+            v-for="suit in SUITS"
+            :key="suit"
+            type="button"
+            class="solitaire-foundation"
+            :class="{ empty: game.foundations[suit].length === 0, drop: !!selected }"
+            :aria-label="`База ${suit}`"
+            @click="playToFoundation(suit)"
+            @dragover.prevent
+            @drop.prevent="dropOnFoundation($event, suit)"
+          >
+            <span v-if="game.foundations[suit].length" class="card" :class="{ red: isRed(suit) }">
+              <span class="card-rank">{{ rankLabel(game.foundations[suit][game.foundations[suit].length - 1]) }}</span>
+              <span class="card-suit">{{ suitLabel(game.foundations[suit][game.foundations[suit].length - 1]) }}</span>
+            </span>
+            <span v-else class="card card-empty"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="solitaire-tableau">
+        <div
+          v-for="(pile, pileIndex) in game.tableau"
+          :key="pileIndex"
+          class="solitaire-pile"
+          @dragover.prevent
+          @drop.prevent="dropOnTableau($event, pileIndex)"
+        >
+          <button
+            v-if="pile.length === 0"
+            type="button"
+            class="solitaire-pile-empty"
+            aria-label="Пустая колонка"
+            @click="playToTableau(pileIndex)"
+          ></button>
+          <button
+            v-for="(card, cardIndex) in pile"
+            :key="`${pileIndex}-${cardIndex}`"
+            type="button"
+            class="card"
+            :class="{
+              'card-face-down': !card.faceUp,
+              red: card.faceUp && isRed(card.suit),
+              selected: isSelected(pileIndex, cardIndex),
+            }"
+            :draggable="card.faceUp"
+            :aria-label="card.faceUp ? `${rankLabel(card)} ${suitTitle(card)}` : 'Закрытая карта'"
+            @click="selectTableau(pileIndex, cardIndex)"
+            @dblclick="autoPlay('tableau', pileIndex, cardIndex)"
+            @dragstart="startDrag($event, 'tableau', pileIndex, runCountFrom(pile, cardIndex))"
+            @dragend="endDrag"
+          >
+            <template v-if="card.faceUp">
+              <span class="card-rank">{{ rankLabel(card) }}</span>
+              <span class="card-suit">{{ suitLabel(card) }}</span>
+            </template>
+            <span v-else class="card-back-symbol">♠</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p v-if="won" class="solitaire-win">Победа</p>
+    <p v-else-if="hintMessage" class="solitaire-hint">{{ hintMessage }}</p>
+  </div>
+</template>
+
+<style scoped>
+.solitaire {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 0;
+}
+
+.solitaire-table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(100%, 760px);
+}
+
+.solitaire-table.auto-completing {
+  pointer-events: none;
+}
+
+.solitaire-table.auto-completing .card {
+  transition: transform 90ms ease, opacity 90ms ease;
+}
+
+.solitaire-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.solitaire-stock,
+.solitaire-waste,
+.solitaire-foundation,
+.solitaire-pile-empty {
+  width: 56px;
+  height: 78px;
+  padding: 0;
+  background: transparent;
+  border: 1px dashed var(--ds-border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.solitaire-foundations {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.solitaire-tableau {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(56px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.solitaire-pile {
+  min-height: 78px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 56px;
+  height: 78px;
+  padding: 6px 7px;
+  font-family: var(--ds-font-body);
+  color: var(--ds-text-strong);
+  background: var(--ds-surface-solid);
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: var(--ds-shadow-card);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.solitaire-pile .card {
+  margin-top: -54px;
+}
+
+.solitaire-pile .card:first-child {
+  margin-top: 0;
+}
+
+.solitaire-pile .card.card-face-down {
+  color: var(--ds-accent-light);
+  background: linear-gradient(145deg, #2c2730, #17191d);
+}
+
+.solitaire-pile .card.selected {
+  outline: 2px solid var(--ds-accent-light);
+  outline-offset: 1px;
+}
+
+.card.red {
+  color: var(--ds-danger);
+}
+
+.card-rank {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card-suit {
+  align-self: flex-end;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.card-back-symbol {
+  align-self: center;
+  margin: auto;
+  font-size: 22px;
+  opacity: .65;
+}
+
+.card-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ds-text-muted);
+  border-color: transparent;
+}
+
+.solitaire-pile-empty {
+  display: block;
+  border-color: var(--ds-border);
+}
+
+.solitaire-win {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ds-accent-light);
+}
+
+.solitaire-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+</style>

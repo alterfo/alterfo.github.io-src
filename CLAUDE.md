@@ -2,14 +2,15 @@
 
 ## Project overview
 
-VitePress-based personal site with seven fully client-side apps and one content page:
+VitePress-based personal site with eight fully client-side apps and one content page:
 - `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
 - `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day, file-based sync)
 - `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
 - `/openpose` — OpenPose pose editor (MediaPipe BlazePose WASM, drag-edit skeletons, ControlNet PNG + JSON export)
 - `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, encrypted `.planner` export/import)
 - `/decision-journal` — encrypted decision journal with calibration (Brier score + confidence-bucket table)
-- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, on-demand MOEX ISS price refresh, encrypted `.finance` export/import)
+- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, deposit top-ups, on-demand MOEX ISS price refresh, local investment recommendations, encrypted `.finance` export/import)
+- `/casual-games` — casual puzzle collection (Queens, Tango, Zip, Klondike solitaire; seeded level generation, hints, scoring, local IndexedDB persistence)
 - `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
 
 Plus two **external apps served as subpaths** (not in-tree client apps, copied into `dist/<subpath>/` at deploy, mirroring each other):
@@ -30,12 +31,13 @@ Plus two **external apps served as subpaths** (not in-tree client apps, copied i
 | `.vitepress/theme/components/PlannerEditor.vue` | Planner root (`defineAsyncComponent`); modules in `Planner/` |
 | `.vitepress/theme/components/DecisionJournal.vue` | Decisions root (`defineAsyncComponent`); modules in `Decisions/` |
 | `.vitepress/theme/components/FinanceApp.vue` | Finance root (`defineAsyncComponent`); modules in `Finance/` |
+| `.vitepress/theme/components/CasualGames.vue` | Casual games root (`defineAsyncComponent`); modules in `CasualGames/` |
 | `.vitepress/theme/components/MusicAlbums.vue` | Music page component |
 | `.vitepress/theme/components/spectrum.js` | Design system JS mirror (palette, CANVAS_PALETTE, PROJECT_COLORS) |
 | `posts.data.ts` | VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts excerpt |
 | `blog.md` | Blog listing page at `/blog` — uses `<BlogList :posts="posts" />` |
 
-All seven app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`, `FinanceApp`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
+All eight app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`, `FinanceApp`, `CasualGames`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
 
 For detailed docs on each app, see `CLAUDE.md` in the relevant module subfolder.
 For design system, SEO, typography, and VitePress gotchas, see `.vitepress/CLAUDE.md`.
@@ -58,6 +60,7 @@ node --test .vitepress/theme/components/OpenPose/*.test.mjs
 node --test .vitepress/theme/components/Planner/store.test.mjs
 node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs
 node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs .vitepress/theme/components/Finance/components.render.test.mjs
+node --test .vitepress/theme/components/CasualGames/*.test.mjs
 node --test .vitepress/theme/components/music.test.mjs
 node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs
 node --test .vitepress/seo.test.mjs
@@ -79,4 +82,3 @@ node --test .vitepress/theme/components/onboarding.test.mjs
 ## Code intelligence — GitNexus
 
 Repo is GitNexus-indexed; prefer `mcp__gitnexus__*` over grep. Before editing a symbol: `impact({target, direction:"upstream"})`. Before committing: `detect_changes({scope:"compare", base_ref:"master"})`. Explore with `query`/`context`; rename via `rename` (not find-replace). Refresh: `node .gitnexus/run.cjs analyze`. Full rules: `.claude/skills/gitnexus/*/SKILL.md` and `AGENTS.md` (Claude Code does not load AGENTS.md, so the detail there is token-free in-session).
-

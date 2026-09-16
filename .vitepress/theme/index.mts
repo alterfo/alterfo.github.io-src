@@ -14,6 +14,7 @@ const OpenPoseEditor = defineAsyncComponent(() => import('./components/OpenPoseE
 const PlannerEditor = defineAsyncComponent(() => import('./components/PlannerEditor.vue'))
 const DecisionJournal = defineAsyncComponent(() => import('./components/DecisionJournal.vue'))
 const FinanceApp = defineAsyncComponent(() => import('./components/FinanceApp.vue'))
+const CasualGames = defineAsyncComponent(() => import('./components/CasualGames.vue'))
 
 export default {
   extends: DefaultTheme,
@@ -26,6 +27,7 @@ export default {
     app.component('PlannerEditor', PlannerEditor)
     app.component('DecisionJournal', DecisionJournal)
     app.component('FinanceApp', FinanceApp)
+    app.component('CasualGames', CasualGames)
     app.component('MusicAlbums', MusicAlbums)
     app.component('HomeMark', HomeMark)
     app.component('AppHeader', AppHeader)

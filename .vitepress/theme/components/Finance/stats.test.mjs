@@ -17,6 +17,7 @@ import {
   netForRange,
   periodRange,
   monthlyTrend,
+  lastTransaction,
 } from './stats.js'
 
 function account({ id = 'acc', openingBalance = 0, openingBalanceAsOf = '1970-01-01T00:00:00.000Z', deleted = false } = {}) {
@@ -215,6 +216,14 @@ describe('expenseByCategory', () => {
     const result = expenseByCategory([transaction({ amount: NaN, direction: 'expense', category: 'food', date: '2026-08-01' })], '2026-08-01', '2026-08-31')
     assert.equal(result.food, 0)
   })
+
+  it('ignores adjustment transactions (a manual balance correction is not a real expense)', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 5000, direction: 'expense', category: 'adjustment', date: '2026-08-10' }),
+    ]
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
+  })
 })
 
 describe('incomeByCategory', () => {
@@ -254,6 +263,14 @@ describe('incomeByCategory', () => {
     const transactions = [
       transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
       { ...transaction({ amount: 5000, category: 'transfer', date: '2026-08-10' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' },
+    ]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
+  })
+
+  it('ignores adjustment transactions (a manual balance correction is not real income)', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      transaction({ amount: 5000, direction: 'income', category: 'adjustment', date: '2026-08-10' }),
     ]
     assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
   })
@@ -635,5 +652,40 @@ describe('monthlyTrend', () => {
     ]
     const result = monthlyTrend(transactions, 1, '2026-08-15T10:00:00Z')
     assert.deepEqual(result[0], { month: '2026-08', income: 1000, expense: 0, net: 1000 })
+  })
+})
+
+describe('lastTransaction', () => {
+  it('returns null for an empty transaction list', () => {
+    assert.equal(lastTransaction([], 'expense'), null)
+  })
+
+  it('returns the only matching expense', () => {
+    const tx = transaction({ amount: 120, direction: 'expense', category: 'food', createdAt: '2026-08-05T10:00:00.000Z' })
+    assert.equal(lastTransaction([tx], 'expense'), tx)
+  })
+
+  it('picks the transaction with the latest createdAt across multiple matches', () => {
+    const first = transaction({ amount: 10, direction: 'expense', category: 'food', createdAt: '2026-08-01T10:00:00.000Z' })
+    const last = transaction({ amount: 20, direction: 'expense', category: 'food', createdAt: '2026-08-01T18:00:00.000Z' })
+    assert.equal(lastTransaction([first, last], 'expense'), last)
+  })
+
+  it('uses createdAt, not date, to break same-date ties', () => {
+    const early = transaction({ amount: 10, direction: 'expense', category: 'food', date: '2026-08-01', createdAt: '2026-08-01T09:00:00.000Z' })
+    const late = transaction({ amount: 20, direction: 'expense', category: 'food', date: '2026-08-01', createdAt: '2026-08-01T21:00:00.000Z' })
+    assert.equal(lastTransaction([early, late], 'expense'), late)
+  })
+
+  it('ignores other directions and deleted transactions', () => {
+    const income = transaction({ amount: 100, direction: 'income', category: 'salary', createdAt: '2026-08-02T10:00:00.000Z' })
+    const deleted = transaction({ amount: 200, direction: 'expense', category: 'food', createdAt: '2026-08-03T10:00:00.000Z', deleted: true })
+    assert.equal(lastTransaction([income, deleted], 'expense'), null)
+  })
+
+  it('ignores adjustment transactions (a manual balance correction is not an entered expense)', () => {
+    const real = transaction({ amount: 120, direction: 'expense', category: 'food', createdAt: '2026-08-01T10:00:00.000Z' })
+    const adjustment = transaction({ amount: 300, direction: 'expense', category: 'adjustment', createdAt: '2026-08-02T10:00:00.000Z' })
+    assert.equal(lastTransaction([real, adjustment], 'expense'), real)
   })
 })

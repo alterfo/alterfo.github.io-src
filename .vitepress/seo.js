@@ -25,6 +25,9 @@ export const SITE_HEAD = [
   ['link', { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon.png' }],
   ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
   ['meta', { name: 'theme-color', content: THEME_COLOR }],
+  // Google Search Console ownership verification — do not remove without checking
+  // Search Console first, removing it drops site verification.
+  ['meta', { name: 'google-site-verification', content: '2_Fb2XwDwWWj4hDQX-P5joNEDLaeIVO2X1DFzRNnRlk' }],
 ]
 
 // Static sub-apps served from dist/<subpath>/ that VitePress doesn't know about
@@ -66,6 +69,7 @@ export const TOOL_CATEGORY = {
   'openpose.md': 'DesignApplication',
   'decision-journal.md': 'BusinessApplication',
   'finance.md': 'FinanceApplication',
+  'casual-games.md': 'GameApplication',
 }
 
 // Build the per-page JSON-LD object (or null if the page type has none).
@@ -136,10 +140,11 @@ export function sitemapPriority(rel) {
 }
 
 // Lazy app-root chunk basename -> the one page (relativePath) that actually
-// renders it. These six are reached via dynamic import() (defineAsyncComponent
+// renders it. These eight are reached via dynamic import() (defineAsyncComponent
 // in theme/index.mts, or Layout.vue's gpuAvailable()-gated WebGPUParticles
 // import) from every page's shared client entry, so without this VitePress
-// would tag all six as an eager <link rel="modulepreload"> on every single
+// would tag all eight app-root chunks + WebGPUParticles as an eager
+// <link rel="modulepreload"> on every single
 // page (incl. the home page, which renders none of them) - defeating the
 // lazy-load payload win documented in CLAUDE.md. WebGPUParticles has no
 // dedicated page (header animation, runtime-gated) so it's never eager.
@@ -150,8 +155,10 @@ const LAZY_CHUNK_PAGE = {
   OpenPoseEditor: 'openpose.md',
   PlannerEditor: 'planner.md',
   DecisionJournal: 'decision-journal.md',
+  FinanceApp: 'finance.md',
+  CasualGames: 'casual-games.md',
 }
-const LAZY_CHUNK_RE = /\/(IDEF0Editor|Journal|Piano|OpenPoseEditor|PlannerEditor|DecisionJournal|WebGPUParticles)\.[^/]+\.js$/
+const LAZY_CHUNK_RE = /\/(IDEF0Editor|Journal|Piano|OpenPoseEditor|PlannerEditor|DecisionJournal|FinanceApp|CasualGames|WebGPUParticles)\.[^/]+\.js$/
 
 // VitePress's shouldPreload(link, page) hook (config.mts): false demotes a link
 // from an eager <link rel="modulepreload"> to a low-priority <link rel="prefetch">

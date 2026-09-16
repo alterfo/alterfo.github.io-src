@@ -7,7 +7,7 @@
   <div class="app-shell">
     <div class="app-bar" :style="{ borderBottomColor: accentBorder }">
       <HomeMark :active="sphere" />
-      <strong class="app-title" :style="{ color: accent }">{{ title }}</strong>
+      <h1 class="app-title" :style="{ color: accent }">{{ title }}</h1>
     </div>
     <div class="app-body">
       <ClientOnly>
@@ -53,6 +53,7 @@ const accentBorder = computed(() => `${accent.value}4d`)
 }
 
 .app-title {
+  margin: 0;
   font-size: 14px;
   font-family: var(--ds-font-body);
   font-weight: 600;
