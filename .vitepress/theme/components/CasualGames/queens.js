@@ -58,6 +58,25 @@ export function validate(puzzle, queens) {
   return conflicts
 }
 
+export function eliminatedCells(puzzle, row, col) {
+  const size = puzzle.size
+  const region = regionAt(puzzle, row, col)
+  const cells = []
+  for (let r = 0; r < size; r += 1) {
+    for (let c = 0; c < size; c += 1) {
+      if (r === row && c === col) continue
+      const sameRow = r === row
+      const sameCol = c === col
+      const sameRegion = regionAt(puzzle, r, c) === region
+      const adjacent = Math.abs(r - row) <= 1 && Math.abs(c - col) <= 1
+      if (sameRow || sameCol || sameRegion || adjacent) {
+        cells.push({ row: r, col: c })
+      }
+    }
+  }
+  return cells
+}
+
 export function isSolved(puzzle, queens) {
   if (queens.length !== puzzle.size) return false
   if (queens.some((row) => row < 0)) return false
@@ -71,6 +90,28 @@ export function hint(puzzle, queens) {
     }
   }
   return null
+}
+
+export function explainHint(puzzle, queens, move) {
+  if (!move) return null
+  const { row, col } = move
+  const region = regionAt(puzzle, row, col)
+  const eliminatedByOthers = new Set()
+  queens.forEach((otherRow, otherCol) => {
+    if (otherRow < 0 || otherCol === col) return
+    for (const cell of eliminatedCells(puzzle, otherRow, otherCol)) {
+      eliminatedByOthers.add(`${cell.row}:${cell.col}`)
+    }
+  })
+  let free = 0
+  for (let r = 0; r < puzzle.size; r += 1) {
+    if (r === row) continue
+    if (!eliminatedByOthers.has(`${r}:${col}`)) free += 1
+  }
+  if (free === 0) {
+    return `В столбце ${col + 1} все остальные строки уже исключены другими королевами — ставьте в строку ${row + 1}.`
+  }
+  return `В строке ${row + 1}, столбце ${col + 1} (регион ${region + 1}) можно поставить королеву без конфликтов по строке, столбцу, региону и соседним клеткам.`
 }
 
 function generateQueenLayout(size, rng) {

@@ -3,35 +3,43 @@ import { computed, onMounted, ref } from 'vue'
 import { mulberry32 } from './rng.js'
 import {
   SUITS,
+  RANK_LABELS,
+  SUIT_LABELS,
+  SUIT_TITLES,
   isRed,
   deal,
   legalMoves,
   movesEqual,
   applyMove,
   hint,
+  explainHint,
+  isUselessTableauMove,
   isWon,
+  canAutoComplete,
+  solveRemaining,
   score,
 } from './solitaire.js'
 
 const emit = defineEmits(['update'])
 
-const RANK_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
-const SUIT_LABELS = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' }
-const SUIT_TITLES = { clubs: 'Трефы', diamonds: 'Бубны', hearts: 'Червы', spades: 'Пики' }
-
 const game = ref(null)
 const history = ref([])
 const selected = ref(null)
+const hintMessage = ref('')
+const autoCompleting = ref(false)
 let dragPayload = null
 
 const currentScore = computed(() => (game.value ? score(game.value) : 0))
 const canUndo = computed(() => history.value.length > 0)
 const won = computed(() => (game.value ? isWon(game.value) : false))
+const locked = computed(() => !game.value || won.value || autoCompleting.value)
 
 function newGame() {
   game.value = deal(mulberry32(Date.now() >>> 0))
   history.value = []
   selected.value = null
+  hintMessage.value = ''
+  autoCompleting.value = false
   dragPayload = null
   sync()
 }
@@ -42,10 +50,38 @@ function sync() {
     canUndo: canUndo.value,
     won: won.value,
   })
+  maybeAutoComplete()
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function maybeAutoComplete() {
+  if (!game.value || won.value || autoCompleting.value) return
+  if (!canAutoComplete(game.value)) return
+  autoComplete()
+}
+
+async function autoComplete() {
+  if (!game.value || won.value || autoCompleting.value) return
+  const moves = solveRemaining(game.value)
+  if (!moves || moves.length === 0) return
+  autoCompleting.value = true
+  hintMessage.value = 'Автозавершение…'
+  selected.value = null
+  for (const move of moves) {
+    game.value = applyMove(game.value, move)
+    emit('update', { score: currentScore.value, canUndo: canUndo.value, won: won.value })
+    await wait(90)
+  }
+  hintMessage.value = ''
+  autoCompleting.value = false
+  sync()
 }
 
 function commit(move) {
-  if (!game.value || !move) return
+  if (locked.value || !move) return
   const legal = legalMoves(game.value).some((candidate) => movesEqual(candidate, move))
   if (!legal) return
   const previous = game.value
@@ -58,19 +94,24 @@ function commit(move) {
 }
 
 function undo() {
-  if (!game.value || history.value.length === 0 || won.value) return
+  if (locked.value || history.value.length === 0) return
   game.value = history.value.pop()
   selected.value = null
+  hintMessage.value = ''
   dragPayload = null
   sync()
 }
 
 function requestHint() {
-  if (!game.value || won.value) return
-  commit(hint(game.value))
+  if (locked.value) return
+  const move = hint(game.value)
+  hintMessage.value = move ? explainHint(game.value, move) : 'Доступных ходов нет.'
+  commit(move)
 }
 
 function draw() {
+  if (locked.value) return
+  hintMessage.value = ''
   commit({ type: 'draw' })
 }
 
@@ -89,7 +130,8 @@ function runCountFrom(pile, start) {
 }
 
 function selectWaste() {
-  if (!game.value || won.value) return
+  if (locked.value) return
+  hintMessage.value = ''
   if (selected.value && selected.value.source === 'waste') {
     selected.value = null
     return
@@ -98,7 +140,8 @@ function selectWaste() {
 }
 
 function selectTableau(pileIndex, cardIndex) {
-  if (!game.value || won.value) return
+  if (locked.value) return
+  hintMessage.value = ''
   if (selected.value) {
     playToTableau(pileIndex)
     return
@@ -109,7 +152,8 @@ function selectTableau(pileIndex, cardIndex) {
 }
 
 function playToTableau(pileIndex) {
-  if (!game.value || !selected.value || won.value) return
+  if (locked.value || !selected.value) return
+  hintMessage.value = ''
   const target = selected.value.source === 'tableau' ? selected.value.from : pileIndex
   if (selected.value.source === 'tableau' && selected.value.from === pileIndex) {
     selected.value = null
@@ -124,7 +168,8 @@ function playToTableau(pileIndex) {
 }
 
 function playToFoundation(suit) {
-  if (!game.value || !selected.value || won.value) return
+  if (locked.value || !selected.value) return
+  hintMessage.value = ''
   const move = selected.value.source === 'waste'
     ? { type: 'wasteToFoundation', toSuit: suit }
     : { type: 'tableauToFoundation', from: selected.value.from, toSuit: suit }
@@ -133,15 +178,15 @@ function playToFoundation(suit) {
   else selected.value = null
 }
 
-function autoFoundation(source, from, cardIndex) {
-  if (!game.value || won.value) return
+function autoPlay(source, from, cardIndex) {
+  if (locked.value) return
   if (source === 'waste') {
     if (game.value.waste.length === 0) return
     const topCard = game.value.waste[game.value.waste.length - 1]
     if (!topCard.faceUp) return
-    const move = legalMoves(game.value).find((candidate) =>
-      candidate.type === 'wasteToFoundation' && candidate.toSuit === topCard.suit,
-    )
+    const moves = legalMoves(game.value)
+    const move = moves.find((candidate) => candidate.type === 'wasteToFoundation')
+      || moves.find((candidate) => candidate.type === 'wasteToTableau')
     commit(move)
     return
   }
@@ -150,9 +195,14 @@ function autoFoundation(source, from, cardIndex) {
     if (!pile || cardIndex !== pile.length - 1) return
     const topCard = pile[pile.length - 1]
     if (!topCard.faceUp) return
-    const move = legalMoves(game.value).find((candidate) =>
-      candidate.type === 'tableauToFoundation' && candidate.from === from,
-    )
+    const moves = legalMoves(game.value)
+    const move = moves.find((candidate) => candidate.type === 'tableauToFoundation' && candidate.from === from)
+      || moves.find((candidate) =>
+        candidate.type === 'tableauToTableau'
+        && candidate.from === from
+        && candidate.count === 1
+        && !isUselessTableauMove(game.value, candidate),
+      )
     commit(move)
   }
 }
@@ -252,7 +302,7 @@ defineExpose({
 
 <template>
   <div class="solitaire">
-    <div v-if="game" class="solitaire-table">
+    <div v-if="game" class="solitaire-table" :class="{ 'auto-completing': autoCompleting }">
       <div class="solitaire-top">
         <button
           type="button"
@@ -270,8 +320,11 @@ defineExpose({
           class="solitaire-waste"
           :class="{ empty: game.waste.length === 0 }"
           aria-label="Сброс"
+          :draggable="game.waste.length > 0"
           @click="selectWaste"
-          @dblclick="autoFoundation('waste')"
+          @dblclick="autoPlay('waste')"
+          @dragstart="startDrag($event, 'waste', -1, 1)"
+          @dragend="endDrag"
         >
           <span v-if="game.waste.length" class="card" :class="{ red: isRed(game.waste[game.waste.length - 1].suit) }">
             <span class="card-rank">{{ rankLabel(game.waste[game.waste.length - 1]) }}</span>
@@ -329,7 +382,7 @@ defineExpose({
             :draggable="card.faceUp"
             :aria-label="card.faceUp ? `${rankLabel(card)} ${suitTitle(card)}` : 'Закрытая карта'"
             @click="selectTableau(pileIndex, cardIndex)"
-            @dblclick="autoFoundation('tableau', pileIndex, cardIndex)"
+            @dblclick="autoPlay('tableau', pileIndex, cardIndex)"
             @dragstart="startDrag($event, 'tableau', pileIndex, runCountFrom(pile, cardIndex))"
             @dragend="endDrag"
           >
@@ -344,6 +397,7 @@ defineExpose({
     </div>
 
     <p v-if="won" class="solitaire-win">Победа</p>
+    <p v-else-if="hintMessage" class="solitaire-hint">{{ hintMessage }}</p>
   </div>
 </template>
 
@@ -362,6 +416,14 @@ defineExpose({
   flex-direction: column;
   gap: 16px;
   width: min(100%, 760px);
+}
+
+.solitaire-table.auto-completing {
+  pointer-events: none;
+}
+
+.solitaire-table.auto-completing .card {
+  transition: transform 90ms ease, opacity 90ms ease;
 }
 
 .solitaire-top {
@@ -440,7 +502,7 @@ defineExpose({
 }
 
 .card.red {
-  color: var(--ds-accent-light);
+  color: var(--ds-danger);
 }
 
 .card-rank {
@@ -479,5 +541,12 @@ defineExpose({
   margin: 0;
   font-size: 16px;
   color: var(--ds-accent-light);
+}
+
+.solitaire-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-muted);
+  text-align: center;
 }
 </style>

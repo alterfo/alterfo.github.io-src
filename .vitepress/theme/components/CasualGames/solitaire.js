@@ -1,6 +1,9 @@
 import { shuffle } from './rng.js'
 
 export const SUITS = ['clubs', 'diamonds', 'hearts', 'spades']
+export const RANK_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+export const SUIT_LABELS = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' }
+export const SUIT_TITLES = { clubs: 'Трефы', diamonds: 'Бубны', hearts: 'Червы', spades: 'Пики' }
 
 const RED_SUITS = new Set(['hearts', 'diamonds'])
 
@@ -167,19 +170,134 @@ export function autoMoveToFoundation(state) {
   return moves.find((move) => move.type === 'tableauToFoundation') || moves.find((move) => move.type === 'wasteToFoundation') || null
 }
 
+export function isUselessTableauMove(state, move) {
+  if (!move || move.type !== 'tableauToTableau') return false
+  const source = state.tableau[move.from]
+  const target = state.tableau[move.to]
+  if (!source || !target) return false
+  const count = move.count
+  if (count === source.length && target.length === 0) return true
+  const belowIndex = source.length - count - 1
+  if (belowIndex >= 0) {
+    const below = source[belowIndex]
+    const runBase = source[source.length - count]
+    if (below.faceUp && runBase.rank === below.rank - 1 && isRed(runBase.suit) !== isRed(below.suit)) {
+      return true
+    }
+  }
+  return false
+}
+
 export function hint(state) {
   const moves = legalMoves(state)
   return moves.find((move) => move.type === 'wasteToFoundation')
     || moves.find((move) => move.type === 'tableauToFoundation')
     || moves.find((move) => move.type === 'wasteToTableau')
-    || moves.find((move) => move.type === 'tableauToTableau')
+    || moves.find((move) => move.type === 'tableauToTableau' && !isUselessTableauMove(state, move))
     || moves.find((move) => move.type === 'draw')
     || null
+}
+
+function cardLabel(card) {
+  return `${RANK_LABELS[card.rank] || card.rank}${SUIT_LABELS[card.suit] || ''}`
+}
+
+export function explainHint(state, move) {
+  if (!move) return null
+  if (move.type === 'draw') {
+    return state.stock.length > 0
+      ? 'На столе больше нет доступных ходов — откройте следующую карту из стока.'
+      : 'Сток пуст — пересдайте карты из сброса, чтобы открыть новые ходы.'
+  }
+  if (move.type === 'wasteToFoundation') {
+    const source = top(state.waste)
+    return `${cardLabel(source)} — следующая по рангу карта для базы «${SUIT_TITLES[move.toSuit]}», переложите её туда.`
+  }
+  if (move.type === 'tableauToFoundation') {
+    const source = top(state.tableau[move.from])
+    return `${cardLabel(source)} из колонки ${move.from + 1} — следующая по рангу карта для базы «${SUIT_TITLES[move.toSuit]}», переложите её туда.`
+  }
+  if (move.type === 'wasteToTableau') {
+    const source = top(state.waste)
+    const targetCard = top(state.tableau[move.to])
+    return targetCard
+      ? `${cardLabel(source)} можно положить на ${cardLabel(targetCard)} в колонке ${move.to + 1} — ранг на 1 меньше и цвет другой.`
+      : `${cardLabel(source)} можно положить в пустую колонку ${move.to + 1}.`
+  }
+  if (move.type === 'tableauToTableau') {
+    const sourcePile = state.tableau[move.from]
+    const sourceCard = sourcePile[sourcePile.length - move.count]
+    const targetCard = top(state.tableau[move.to])
+    return targetCard
+      ? `${cardLabel(sourceCard)} из колонки ${move.from + 1} можно переложить на ${cardLabel(targetCard)} в колонку ${move.to + 1} — ранг на 1 меньше и цвет другой.`
+      : `${cardLabel(sourceCard)} из колонки ${move.from + 1} можно переложить в пустую колонку ${move.to + 1}.`
+  }
+  return null
 }
 
 export function isWon(state) {
   assertState(state)
   return SUITS.every((suit) => state.foundations[suit].length === 13)
+}
+
+export function canAutoComplete(state) {
+  assertState(state)
+  if (isWon(state)) return false
+  return state.tableau.every((pile) => pile.every((card) => card.faceUp))
+}
+
+const AUTO_SOLVE_MAX_STATES = 20000
+const AUTO_SOLVE_MAX_DEPTH = 300
+
+export function solveRemaining(state, options = {}) {
+  assertState(state)
+  if (isWon(state)) return []
+  const maxStates = options.maxStates || AUTO_SOLVE_MAX_STATES
+  const maxDepth = options.maxDepth || AUTO_SOLVE_MAX_DEPTH
+  const visited = new Set()
+  let explored = 0
+
+  function moveRank(s, move) {
+    if (move.type === 'wasteToFoundation' || move.type === 'tableauToFoundation') return 0
+    if (move.type === 'wasteToTableau') return 1
+    if (move.type === 'tableauToTableau') return isUselessTableauMove(s, move) ? 3 : 1
+    return 2
+  }
+
+  function orderedMoves(s) {
+    return legalMoves(s)
+      .slice()
+      .sort((a, b) => moveRank(s, a) - moveRank(s, b))
+  }
+
+  function stateKey(s) {
+    const cardKey = (card) => `${card.suit[0]}${card.rank}`
+    const stockKey = s.stock.map(cardKey).join(',')
+    const wasteKey = s.waste.map(cardKey).join(',')
+    const foundationKey = SUITS.map((suit) => s.foundations[suit].length).join(',')
+    const tableauKey = s.tableau
+      .map((pile) => pile.map((card) => (card.faceUp ? cardKey(card) : '#')).join(','))
+      .join('|')
+    return `${stockKey}/${wasteKey}/${foundationKey}/${tableauKey}`
+  }
+
+  function dfs(s, path) {
+    if (isWon(s)) return path
+    if (path.length >= maxDepth) return null
+    explored += 1
+    if (explored > maxStates) return null
+    const key = stateKey(s)
+    if (visited.has(key)) return null
+    visited.add(key)
+    for (const move of orderedMoves(s)) {
+      const next = applyMove(s, move)
+      const result = dfs(next, path.concat(move))
+      if (result) return result
+    }
+    return null
+  }
+
+  return dfs(state, [])
 }
 
 export function score(state) {

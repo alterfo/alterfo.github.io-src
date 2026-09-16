@@ -124,6 +124,84 @@ export function hint(puzzle, board) {
   return null
 }
 
+function symbol(value) {
+  return value === SUN ? '☀' : '🌙'
+}
+
+export function explainHint(puzzle, board, move) {
+  if (!move) return null
+  const { index, value } = move
+  const size = puzzle.size
+  const row = Math.floor(index / size)
+  const col = index % size
+
+  for (const constraint of puzzle.constraints) {
+    if (constraint.a !== index && constraint.b !== index) continue
+    const other = constraint.a === index ? constraint.b : constraint.a
+    const otherValue = board[other]
+    if (otherValue === EMPTY) continue
+    if (constraint.op === EQUAL) {
+      return `Клетка связана знаком «=» с соседней, где уже стоит ${symbol(otherValue)} — значит здесь тоже ${symbol(value)}.`
+    }
+    return `Клетка связана знаком «×» с соседней, где уже стоит ${symbol(otherValue)} — значит здесь должно быть ${symbol(value)}.`
+  }
+
+  function two(a, b) {
+    return a !== EMPTY && a === b
+  }
+  const at = (r, c) => (r >= 0 && r < size && c >= 0 && c < size ? board[r * size + c] : EMPTY)
+  const left2 = at(row, col - 2)
+  const left1 = at(row, col - 1)
+  const right1 = at(row, col + 1)
+  const right2 = at(row, col + 2)
+  const up2 = at(row - 2, col)
+  const up1 = at(row - 1, col)
+  const down1 = at(row + 1, col)
+  const down2 = at(row + 2, col)
+  if (two(left2, left1) && left1 !== value) {
+    return `Слева уже два ${symbol(left1)} подряд — третий поставить нельзя, значит здесь ${symbol(value)}.`
+  }
+  if (two(right1, right2) && right1 !== value) {
+    return `Справа уже два ${symbol(right1)} подряд — третий поставить нельзя, значит здесь ${symbol(value)}.`
+  }
+  if (two(up2, up1) && up1 !== value) {
+    return `Сверху уже два ${symbol(up1)} подряд — третий поставить нельзя, значит здесь ${symbol(value)}.`
+  }
+  if (two(down1, down2) && down1 !== value) {
+    return `Снизу уже два ${symbol(down1)} подряд — третий поставить нельзя, значит здесь ${symbol(value)}.`
+  }
+
+  const half = size / 2
+  let rowSun = 0
+  let rowMoon = 0
+  for (let c = 0; c < size; c += 1) {
+    const v = board[row * size + c]
+    if (v === SUN) rowSun += 1
+    else if (v === MOON) rowMoon += 1
+  }
+  if (value === SUN && rowMoon === half) {
+    return `В строке ${row + 1} уже ${half} лун — оставшиеся клетки должны быть солнцами.`
+  }
+  if (value === MOON && rowSun === half) {
+    return `В строке ${row + 1} уже ${half} солнц — оставшиеся клетки должны быть лунами.`
+  }
+  let colSun = 0
+  let colMoon = 0
+  for (let r = 0; r < size; r += 1) {
+    const v = board[r * size + col]
+    if (v === SUN) colSun += 1
+    else if (v === MOON) colMoon += 1
+  }
+  if (value === SUN && colMoon === half) {
+    return `В столбце ${col + 1} уже ${half} лун — оставшиеся клетки должны быть солнцами.`
+  }
+  if (value === MOON && colSun === half) {
+    return `В столбце ${col + 1} уже ${half} солнц — оставшиеся клетки должны быть лунами.`
+  }
+
+  return `Эта клетка однозначно определяется правилами Tango — поставьте ${symbol(value)}.`
+}
+
 function generateFullGrid(size, rng) {
   const grid = new Array(size * size).fill(EMPTY)
   place(0)

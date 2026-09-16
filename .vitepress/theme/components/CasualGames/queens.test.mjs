@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mulberry32 } from './rng.js'
-import { generate, regionAt, validate, isSolved, hint } from './queens.js'
+import { generate, regionAt, validate, isSolved, hint, eliminatedCells, explainHint } from './queens.js'
 import { queensScore, scorePuzzle } from './scoring.js'
 
 function connectedSize(regions, size, color) {
@@ -127,6 +127,69 @@ test('hint returns the first mismatching solution cell and null when solved', ()
   queens[1] = puzzle.solution[1]
   assert.deepEqual(hint(puzzle, queens), { col: 2, row: puzzle.solution[2] })
   assert.equal(hint(puzzle, puzzle.solution.slice()), null)
+})
+
+test('eliminatedCells marks row, column, region, and adjacent cells', () => {
+  const size = 4
+  const regions = Uint8Array.from([
+    0, 0, 1, 1,
+    0, 0, 1, 1,
+    2, 2, 3, 3,
+    2, 2, 3, 3,
+  ])
+  const puzzle = { size, solution: [0, 1, 2, 3], regions }
+  const cells = eliminatedCells(puzzle, 0, 0)
+  const key = (row, col) => `${row}:${col}`
+  const set = new Set(cells.map((cell) => key(cell.row, cell.col)))
+  assert.ok(set.has(key(0, 1)), 'same row')
+  assert.ok(set.has(key(0, 2)), 'same row')
+  assert.ok(set.has(key(0, 3)), 'same row')
+  assert.ok(set.has(key(1, 0)), 'same column')
+  assert.ok(set.has(key(2, 0)), 'same column')
+  assert.ok(set.has(key(3, 0)), 'same column')
+  assert.ok(set.has(key(1, 1)), 'same region and adjacent')
+  assert.ok(!set.has(key(3, 3)), 'unrelated cell stays clear')
+  assert.ok(!set.has(key(0, 0)), 'own cell excluded')
+})
+
+test('eliminatedCells stays in bounds for a corner queen', () => {
+  const size = 4
+  const regions = Uint8Array.from([
+    0, 0, 1, 1,
+    0, 0, 1, 1,
+    2, 2, 3, 3,
+    2, 2, 3, 3,
+  ])
+  const puzzle = { size, solution: [0, 1, 2, 3], regions }
+  const cells = eliminatedCells(puzzle, 3, 3)
+  assert.ok(cells.every((cell) => cell.row >= 0 && cell.row < size && cell.col >= 0 && cell.col < size))
+  assert.ok(cells.every((cell) => !(cell.row === 3 && cell.col === 3)))
+})
+
+test('explainHint returns null when there is no move', () => {
+  const puzzle = generate(6, mulberry32(29))
+  assert.equal(explainHint(puzzle, puzzle.solution.slice(), null), null)
+})
+
+test('explainHint names row, column and region for an early move', () => {
+  const puzzle = generate(6, mulberry32(29))
+  const queens = new Array(puzzle.size).fill(-1)
+  const move = hint(puzzle, queens)
+  const message = explainHint(puzzle, queens, move)
+  assert.match(message, new RegExp(`строке ${move.row + 1}`))
+  assert.match(message, new RegExp(`столбце ${move.col + 1}`))
+})
+
+test('explainHint calls out forced placement when every other row is eliminated', () => {
+  const puzzle = generate(8, mulberry32(41))
+  const queens = new Array(puzzle.size).fill(-1)
+  for (let col = 0; col < puzzle.size; col += 1) {
+    if (col === puzzle.size - 1) continue
+    queens[col] = puzzle.solution[col]
+  }
+  const move = hint(puzzle, queens)
+  const message = explainHint(puzzle, queens, move)
+  assert.match(message, /исключены/)
 })
 
 test('queens scoring rewards larger boards and penalizes hints and time', () => {

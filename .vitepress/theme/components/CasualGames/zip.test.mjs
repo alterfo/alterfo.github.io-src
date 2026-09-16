@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mulberry32 } from './rng.js'
-import { generate, validatePath, isSolved, hint, countSolutions, SIZE, EMPTY } from './zip.js'
+import { generate, validatePath, isSolved, hint, countSolutions, explainHint, SIZE, EMPTY } from './zip.js'
 
 const TOTAL = SIZE * SIZE
 
@@ -157,4 +157,29 @@ test('countSolutions respects the limit and validates its input', () => {
   assert.equal(countSolutions(puzzle, 2), 1)
   assert.throws(() => countSolutions(null), TypeError)
   assert.throws(() => countSolutions({ size: SIZE, waypoints: 'nope' }), TypeError)
+})
+
+test('explainHint returns null when there is no move', () => {
+  const puzzle = { size: 3, waypoints: [1, 0, 0, 0, 0, 0, 0, 0, 2] }
+  assert.equal(explainHint(puzzle, [], null), null)
+})
+
+test('explainHint tells the player to start at waypoint 1 when the path is empty', () => {
+  const puzzle = { size: 3, waypoints: [1, 0, 0, 0, 0, 0, 0, 0, 2] }
+  const message = explainHint(puzzle, [], { from: 0, to: 0 })
+  assert.match(message, /1/)
+})
+
+test('explainHint names the next numbered waypoint', () => {
+  const puzzle = { size: 3, waypoints: [1, 0, 0, 0, 0, 0, 0, 0, 2] }
+  const message = explainHint(puzzle, [0], { from: 0, to: 8 })
+  assert.match(message, /номером 2/)
+})
+
+test('explainHint gives a generic continuation reason for unnumbered cells', () => {
+  const puzzle = { size: 3, waypoints: [1, 0, 0, 0, 0, 0, 0, 0, 2] }
+  const message = explainHint(puzzle, [0], { from: 0, to: 1 })
+  assert.equal(typeof message, 'string')
+  assert.ok(message.length > 0)
+  assert.doesNotMatch(message, /номером/)
 })

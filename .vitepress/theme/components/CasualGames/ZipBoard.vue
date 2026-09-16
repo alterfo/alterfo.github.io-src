@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { mulberry32 } from './rng.js'
-import { generate, validatePath, isSolved, hint } from './zip.js'
+import { generate, validatePath, isSolved, hint, explainHint } from './zip.js'
 import { scorePuzzle, formatClock } from './scoring.js'
 
 const emit = defineEmits(['before-new-game'])
@@ -11,6 +11,7 @@ const path = ref([])
 const hints = ref(0)
 const elapsedSeconds = ref(0)
 const solved = ref(false)
+const hintMessage = ref('')
 
 let startedAt = 0
 let timer = null
@@ -82,16 +83,24 @@ function areAdjacent(a, b) {
 
 function append(cell) {
   if (!puzzle.value || solved.value) return
+  hintMessage.value = ''
   const current = path.value
   if (current.length === 0) {
     if (cell !== startCell.value) return
     path.value = [cell]
-  } else {
-    const last = current[current.length - 1]
-    if (current.includes(endCell.value) && current.length < totalCells.value) return
-    if (cell === last || current.includes(cell) || !areAdjacent(last, cell)) return
-    path.value = [...current, cell]
+    solved.value = isSolved(puzzle.value, path.value)
+    return
   }
+  const last = current[current.length - 1]
+  if (cell === last) return
+  if (current.length >= 2 && cell === current[current.length - 2]) {
+    path.value = current.slice(0, -1)
+    solved.value = isSolved(puzzle.value, path.value)
+    return
+  }
+  if (current.includes(endCell.value) && current.length < totalCells.value) return
+  if (current.includes(cell) || !areAdjacent(last, cell)) return
+  path.value = [...current, cell]
   solved.value = isSolved(puzzle.value, path.value)
 }
 
@@ -114,15 +123,11 @@ function endDrag() {
   window.removeEventListener('pointercancel', endDrag)
 }
 
-function undoLast() {
-  if (!puzzle.value || path.value.length === 0 || solved.value) return
-  path.value = path.value.slice(0, -1)
-}
-
 function requestHint() {
   if (!puzzle.value || solved.value) return
   const move = hint(puzzle.value, path.value)
   if (!move) return
+  hintMessage.value = explainHint(puzzle.value, path.value, move)
   const solution = puzzle.value.solution
   if (path.value.length === 0 || path.value[path.value.length - 1] === move.from) {
     const next = path.value.length === 0 ? [move.from] : path.value.slice()
@@ -140,6 +145,7 @@ function newGame() {
   const rng = mulberry32(Date.now() >>> 0)
   puzzle.value = generate(rng)
   path.value = []
+  hintMessage.value = ''
   hints.value = 0
   elapsedSeconds.value = 0
   solved.value = false
@@ -223,7 +229,6 @@ defineExpose({ getState, restoreState })
       <span class="zip-score">Счёт: {{ score }}</span>
       <span class="zip-clock">Время: {{ formatClock(elapsedSeconds) }}</span>
       <button type="button" class="zip-btn" @click="newGame">Новая</button>
-      <button type="button" class="zip-btn" @click="undoLast" :disabled="solved || path.length === 0">Отмена</button>
       <button type="button" class="zip-btn" @click="requestHint" :disabled="solved">Подсказка</button>
     </div>
 
@@ -283,6 +288,8 @@ defineExpose({ getState, restoreState })
 
     <p v-if="solved" class="zip-win">Победа</p>
     <p v-else-if="path.length > 0 && path[path.length - 1] === endCell" class="zip-incomplete">Путь дошёл до финиша, но остались пустые клетки.</p>
+    <p v-else-if="hintMessage" class="zip-hint">{{ hintMessage }}</p>
+    <p v-else class="zip-tip">Ведите мышью от точки 1. Чтобы стереть часть пути, потяните назад.</p>
   </div>
 </template>
 
@@ -389,5 +396,13 @@ defineExpose({ getState, restoreState })
   margin: 0;
   font-size: 14px;
   color: var(--ds-text-muted);
+}
+
+.zip-hint,
+.zip-tip {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-muted);
+  text-align: center;
 }
 </style>

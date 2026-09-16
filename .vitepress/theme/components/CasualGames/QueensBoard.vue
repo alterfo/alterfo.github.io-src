@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { SPECTRUM } from '../spectrum.js'
 import { mulberry32 } from './rng.js'
-import { generate, regionAt, validate, isSolved, hint } from './queens.js'
+import { generate, regionAt, validate, isSolved, hint, eliminatedCells, explainHint } from './queens.js'
 import { queensScore, formatClock } from './scoring.js'
 
 const emit = defineEmits(['before-new-game'])
@@ -11,9 +11,12 @@ const DEFAULT_SIZE = 8
 
 const puzzle = ref(null)
 const queens = ref([])
+const manualMarks = ref(new Set())
+const painting = ref(null)
 const hints = ref(0)
 const elapsedSeconds = ref(0)
 const solved = ref(false)
+const hintMessage = ref('')
 
 let startedAt = 0
 let timer = null
@@ -28,6 +31,27 @@ const conflictKeys = computed(() => {
   return keys
 })
 
+const autoMarks = computed(() => {
+  const marks = new Set()
+  if (!puzzle.value) return marks
+  queens.value.forEach((row, col) => {
+    if (row < 0) return
+    for (const cell of eliminatedCells(puzzle.value, row, col)) {
+      marks.add(`${cell.row}:${cell.col}`)
+    }
+  })
+  return marks
+})
+
+const displayMarks = computed(() => {
+  const marks = new Set(autoMarks.value)
+  for (const key of manualMarks.value) marks.add(key)
+  queens.value.forEach((row, col) => {
+    if (row >= 0) marks.delete(`${row}:${col}`)
+  })
+  return marks
+})
+
 const score = computed(() => (puzzle.value ? queensScore(puzzle.value.size, hints.value, elapsedSeconds.value) : 0))
 
 function regionColor(color) {
@@ -38,17 +62,48 @@ function queenAt(row, col) {
   return queens.value[col] === row
 }
 
+function markedAt(row, col) {
+  return displayMarks.value.has(`${row}:${col}`)
+}
+
 function toggle(row, col) {
   if (!puzzle.value || solved.value) return
+  hintMessage.value = ''
   queens.value = queens.value.slice()
   queens.value[col] = queens.value[col] === row ? -1 : row
   solved.value = isSolved(puzzle.value, queens.value)
+}
+
+function setMark(row, col, shouldMark) {
+  if (queenAt(row, col)) return
+  const key = `${row}:${col}`
+  const next = new Set(manualMarks.value)
+  if (shouldMark) next.add(key)
+  else next.delete(key)
+  manualMarks.value = next
+}
+
+function onRightDown(row, col) {
+  if (!puzzle.value || solved.value || queenAt(row, col)) return
+  const isMarked = displayMarks.value.has(`${row}:${col}`)
+  painting.value = isMarked ? 'unmark' : 'mark'
+  setMark(row, col, !isMarked)
+}
+
+function onCellEnter(row, col) {
+  if (painting.value === null) return
+  setMark(row, col, painting.value === 'mark')
+}
+
+function stopPainting() {
+  painting.value = null
 }
 
 function requestHint() {
   if (!puzzle.value || solved.value) return
   const move = hint(puzzle.value, queens.value)
   if (!move) return
+  hintMessage.value = explainHint(puzzle.value, queens.value, move)
   queens.value = queens.value.slice()
   queens.value[move.col] = move.row
   hints.value += 1
@@ -60,6 +115,8 @@ function newGame() {
   const rng = mulberry32(Date.now() >>> 0)
   puzzle.value = generate(DEFAULT_SIZE, rng)
   queens.value = new Array(puzzle.value.size).fill(-1)
+  manualMarks.value = new Set()
+  hintMessage.value = ''
   hints.value = 0
   elapsedSeconds.value = 0
   solved.value = false
@@ -74,10 +131,12 @@ function tick() {
 onMounted(() => {
   newGame()
   timer = setInterval(tick, 1000)
+  window.addEventListener('mouseup', stopPainting)
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  window.removeEventListener('mouseup', stopPainting)
 })
 
 function getState() {
@@ -93,6 +152,7 @@ function getState() {
       regions: Array.from(puzzle.value.regions),
     },
     queens: [...queens.value],
+    marks: Array.from(manualMarks.value),
   }
 }
 
@@ -107,6 +167,7 @@ function restoreState(state) {
   queens.value = new Array(size).fill(-1).map((_, index) =>
     Number.isInteger(state.queens?.[index]) ? state.queens[index] : -1,
   )
+  manualMarks.value = new Set(Array.isArray(state.marks) ? state.marks : [])
   hints.value = Math.max(0, Number(state.hints) || 0)
   elapsedSeconds.value = Math.max(0, Number(state.elapsedSeconds) || 0)
   solved.value = Boolean(state.won)
@@ -144,6 +205,9 @@ defineExpose({ getState, restoreState })
             stroke-width="0.045"
             class="queens-cell"
             @click="toggle(row - 1, col - 1)"
+            @mousedown.right.prevent="onRightDown(row - 1, col - 1)"
+            @mouseenter="onCellEnter(row - 1, col - 1)"
+            @contextmenu.prevent
           />
           <text
             v-if="queenAt(row - 1, col - 1)"
@@ -153,11 +217,20 @@ defineExpose({ getState, restoreState })
             class="queens-queen"
             @click="toggle(row - 1, col - 1)"
           >♛</text>
+          <text
+            v-else-if="markedAt(row - 1, col - 1)"
+            :x="col - 0.5"
+            :y="row - 0.28"
+            text-anchor="middle"
+            class="queens-mark"
+            @click="toggle(row - 1, col - 1)"
+          >✕</text>
         </g>
       </g>
     </svg>
 
     <p v-if="solved" class="queens-win">Победа</p>
+    <p v-else-if="hintMessage" class="queens-hint">{{ hintMessage }}</p>
   </div>
 </template>
 
@@ -238,9 +311,22 @@ defineExpose({ getState, restoreState })
   pointer-events: none;
 }
 
+.queens-mark {
+  fill: var(--ds-text-dim);
+  font-size: .5px;
+  pointer-events: none;
+}
+
 .queens-win {
   margin: 0;
   font-size: 16px;
   color: var(--ds-accent-light);
+}
+
+.queens-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-muted);
+  text-align: center;
 }
 </style>

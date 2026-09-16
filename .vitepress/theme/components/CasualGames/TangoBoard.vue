@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { mulberry32 } from './rng.js'
-import { generate, validate, isSolved, hint, MOON, SUN, EMPTY } from './tango.js'
+import { generate, validate, isSolved, hint, explainHint, MOON, SUN, EMPTY } from './tango.js'
 import { scorePuzzle, formatClock } from './scoring.js'
 
 const emit = defineEmits(['before-new-game'])
@@ -11,6 +11,7 @@ const board = ref([])
 const hints = ref(0)
 const elapsedSeconds = ref(0)
 const solved = ref(false)
+const hintMessage = ref('')
 
 let startedAt = 0
 let timer = null
@@ -86,20 +87,29 @@ function isGiven(row, col) {
   return puzzle.value.givens[row * puzzle.value.size + col] !== EMPTY
 }
 
-function cycle(row, col) {
+function setValue(row, col, value) {
   if (!puzzle.value || solved.value) return
-  const index = row * puzzle.value.size + col
   if (isGiven(row, col)) return
+  hintMessage.value = ''
+  const index = row * puzzle.value.size + col
   board.value = board.value.slice()
-  const value = board.value[index]
-  board.value[index] = value === EMPTY ? SUN : value === SUN ? MOON : EMPTY
+  board.value[index] = board.value[index] === value ? EMPTY : value
   solved.value = isSolved(puzzle.value, board.value)
+}
+
+function onLeftClick(row, col) {
+  setValue(row, col, SUN)
+}
+
+function onRightClick(row, col) {
+  setValue(row, col, MOON)
 }
 
 function requestHint() {
   if (!puzzle.value || solved.value) return
   const move = hint(puzzle.value, board.value)
   if (!move) return
+  hintMessage.value = explainHint(puzzle.value, board.value, move)
   board.value = board.value.slice()
   board.value[move.index] = move.value
   hints.value += 1
@@ -111,6 +121,7 @@ function newGame() {
   const rng = mulberry32(Date.now() >>> 0)
   puzzle.value = generate(rng)
   board.value = puzzle.value.givens.slice()
+  hintMessage.value = ''
   hints.value = 0
   elapsedSeconds.value = 0
   solved.value = false
@@ -194,14 +205,15 @@ defineExpose({ getState, restoreState })
             stroke-width="0.03"
             class="tango-cell"
             :class="{ 'tango-cell-given': isGiven(row - 1, col - 1) }"
-            @click="cycle(row - 1, col - 1)"
+            @click="onLeftClick(row - 1, col - 1)"
+            @mousedown.right.prevent="onRightClick(row - 1, col - 1)"
+            @contextmenu.prevent
           />
           <text
             :x="col - 0.5"
             :y="row - 0.32"
             text-anchor="middle"
             class="tango-glyph"
-            @click="cycle(row - 1, col - 1)"
           >{{ cellValue(row - 1, col - 1) }}</text>
         </g>
       </g>
@@ -219,6 +231,7 @@ defineExpose({ getState, restoreState })
     </svg>
 
     <p v-if="solved" class="tango-win">Победа</p>
+    <p v-else-if="hintMessage" class="tango-hint">{{ hintMessage }}</p>
   </div>
 </template>
 
@@ -319,5 +332,12 @@ defineExpose({ getState, restoreState })
   margin: 0;
   font-size: 16px;
   color: var(--ds-accent-light);
+}
+
+.tango-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ds-text-muted);
+  text-align: center;
 }
 </style>

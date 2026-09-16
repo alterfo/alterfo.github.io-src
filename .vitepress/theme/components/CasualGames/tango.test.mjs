@@ -7,6 +7,7 @@ import {
   isSolved,
   hint,
   countSolutions,
+  explainHint,
   MOON,
   SUN,
   EMPTY,
@@ -215,6 +216,47 @@ test('hint returns the first differing cell and null when solved', () => {
 test('hint rejects a board of the wrong length', () => {
   const puzzle = generate(mulberry32(29))
   assert.throws(() => hint(puzzle, []), RangeError)
+})
+
+test('explainHint returns null when there is no move', () => {
+  const puzzle = { size: 4, constraints: [] }
+  assert.equal(explainHint(puzzle, new Array(16).fill(EMPTY), null), null)
+})
+
+test('explainHint cites an = or x constraint when the neighbour is already filled', () => {
+  const puzzle = { size: 4, constraints: [{ a: 0, b: 1, op: EQUAL }] }
+  const board = new Array(16).fill(EMPTY)
+  board[0] = SUN
+  const message = explainHint(puzzle, board, { index: 1, value: SUN })
+  assert.match(message, /«=»/)
+  assert.match(message, /☀/)
+})
+
+test('explainHint cites a two-in-a-row run when it forces the opposite value', () => {
+  const puzzle = { size: 4, constraints: [] }
+  const board = new Array(16).fill(EMPTY)
+  board[0] = SUN
+  board[1] = SUN
+  const message = explainHint(puzzle, board, { index: 2, value: MOON })
+  assert.match(message, /подряд/)
+})
+
+test('explainHint cites row/column balance when half the cells are already filled', () => {
+  const puzzle = { size: 4, constraints: [] }
+  const board = new Array(16).fill(EMPTY)
+  board[0] = SUN
+  board[1] = MOON
+  board[2] = SUN
+  const message = explainHint(puzzle, board, { index: 3, value: MOON })
+  assert.match(message, /уже 2/)
+})
+
+test('explainHint falls back to a generic rule statement', () => {
+  const puzzle = { size: 4, constraints: [] }
+  const board = new Array(16).fill(EMPTY)
+  const message = explainHint(puzzle, board, { index: 5, value: SUN })
+  assert.equal(typeof message, 'string')
+  assert.ok(message.length > 0)
 })
 
 test('countSolutions respects the limit and enumerates solutions', () => {

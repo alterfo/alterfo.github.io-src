@@ -133,6 +133,18 @@ export function hint(puzzle, path) {
   return null
 }
 
+export function explainHint(puzzle, path, move) {
+  if (!move) return null
+  if (path.length === 0) {
+    return `Начните путь с клетки, помеченной цифрой 1 — это старт маршрута.`
+  }
+  const num = puzzle.waypoints[move.to]
+  if (num > 0) {
+    return `Ведите путь в клетку с номером ${num} — следующая пронумерованная точка по порядку.`
+  }
+  return `Из текущей клетки путь можно продолжить только в эту соседнюю клетку — остальные соседи ведут в тупик или уже пройдены.`
+}
+
 function endpoints(puzzle) {
   let start = -1
   let end = -1
