@@ -138,9 +138,9 @@ describe('getActiveKey / modulations', () => {
 })
 
 describe('loadScore / listScores', () => {
-  it('listScores returns 6 entries', () => {
+  it('listScores returns 8 entries', () => {
     const list = listScores()
-    assert.equal(list.length, 6)
+    assert.equal(list.length, 8)
   })
 
   it('listScores entries have id, title, composer, key, tempo', () => {
@@ -174,6 +174,32 @@ describe('loadScore / listScores', () => {
     assert.equal(s.key.root, 'G')
   })
 
+  it('loadScore("dyads-c") is entirely 2-note chords', () => {
+    const s = loadScore('dyads-c')
+    assert.equal(s.key.root, 'C')
+    for (const phrase of s.phrases) {
+      for (const measure of phrase.measures) {
+        for (const note of measure.notes) {
+          assert.ok(Array.isArray(note.midi) && note.midi.length === 2,
+            `${measure.id}: expected a 2-note dyad, got ${JSON.stringify(note.midi)}`)
+        }
+      }
+    }
+  })
+
+  it('loadScore("triads-c-major") is entirely 3-note chords', () => {
+    const s = loadScore('triads-c-major')
+    assert.equal(s.key.root, 'C')
+    for (const phrase of s.phrases) {
+      for (const measure of phrase.measures) {
+        for (const note of measure.notes) {
+          assert.ok(Array.isArray(note.midi) && note.midi.length === 3,
+            `${measure.id}: expected a 3-note triad, got ${JSON.stringify(note.midi)}`)
+        }
+      }
+    }
+  })
+
   it('loadScore with unknown id falls back to first score', () => {
     const s = loadScore('does-not-exist')
     assert.equal(s.id, 'c-major-scale')
@@ -201,7 +227,7 @@ describe('loadScore / listScores', () => {
 
   it('all built-in notes have valid duration codes', () => {
     const validDurations = new Set(['w', 'w.', 'h', 'h.', 'q', 'q.', '8', '8.', '16', '8t'])
-    for (const score of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune'].map(loadScore)) {
+    for (const score of ['c-major-scale', 'dyads-c', 'triads-c-major', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune'].map(loadScore)) {
       for (const phrase of score.phrases) {
         for (const measure of phrase.measures) {
           for (const note of measure.notes) {
@@ -213,7 +239,7 @@ describe('loadScore / listScores', () => {
   })
 
   it('all built-in notes beats sum to the measure length per hand', () => {
-    for (const id of ['c-major-scale', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune']) {
+    for (const id of ['c-major-scale', 'dyads-c', 'triads-c-major', 'twinkle', 'minuet-g', 'ode-to-joy', 'rachmaninoff-prelude-d', 'clair-de-lune']) {
       const score = loadScore(id)
       // DURATION_BEATS counts in quarter-note beats, so a bar holds
       // beats × (4 / beatType) quarters — 4 for 4/4, 3 for 3/4, 4.5 for 9/8.
