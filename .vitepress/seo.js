@@ -25,6 +25,9 @@ export const SITE_HEAD = [
   ['link', { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon.png' }],
   ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
   ['meta', { name: 'theme-color', content: THEME_COLOR }],
+  // Google Search Console ownership verification — do not remove without checking
+  // Search Console first, removing it drops site verification.
+  ['meta', { name: 'google-site-verification', content: '2_Fb2XwDwWWj4hDQX-P5joNEDLaeIVO2X1DFzRNnRlk' }],
 ]
 
 // Static sub-apps served from dist/<subpath>/ that VitePress doesn't know about
