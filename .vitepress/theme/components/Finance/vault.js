@@ -151,6 +151,30 @@ export function upsertExpense(vault, expense, now = new Date().toISOString()) {
   return upsertTransaction(vault, { ...expense, direction: 'expense' }, now)
 }
 
+// Editing the balance cell in the accounts table books the difference as an
+// 'adjustment' transaction instead of resetting the openingBalance baseline — keeps
+// stats.js's derived-balance model intact (see "Account balance is derived, not
+// stored" in CLAUDE.md) and leaves an audit-trail entry instead of a silent
+// reconciliation. `delta` (newBalance - accountBalance(account, transactions)) is
+// computed by the caller, since vault.js has no dependency on stats.js. Positive
+// delta books an income leg, negative books an expense leg; category 'adjustment' is
+// excluded from expenseByCategory/incomeByCategory/lastTransaction so it never
+// pollutes real income/expense stats. No-op on a missing/deleted account or a zero delta.
+export function adjustAccountBalance(vault, { accountId, delta, date, note }, now = new Date().toISOString()) {
+  const account = vault.accounts[accountId]
+  if (!account || account.deleted) return
+  if (!Number.isFinite(delta) || delta === 0) return
+
+  return upsertTransaction(vault, {
+    amount: Math.abs(delta),
+    direction: delta > 0 ? 'income' : 'expense',
+    category: 'adjustment',
+    accountId,
+    note: note || '',
+    date: date || todayISO(),
+  }, now)
+}
+
 // Create or edit an account. Same partial-edit semantics as upsertExpense.
 // `openingBalance` is a reconciliation point, not a running total: writing it always
 // resets `openingBalanceAsOf` to `now`, so `stats.js`'s `accountBalance` derives the

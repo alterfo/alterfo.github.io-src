@@ -216,6 +216,14 @@ describe('expenseByCategory', () => {
     const result = expenseByCategory([transaction({ amount: NaN, direction: 'expense', category: 'food', date: '2026-08-01' })], '2026-08-01', '2026-08-31')
     assert.equal(result.food, 0)
   })
+
+  it('ignores adjustment transactions (a manual balance correction is not a real expense)', () => {
+    const transactions = [
+      transaction({ amount: 300, direction: 'expense', category: 'food', date: '2026-08-05' }),
+      transaction({ amount: 5000, direction: 'expense', category: 'adjustment', date: '2026-08-10' }),
+    ]
+    assert.deepEqual(expenseByCategory(transactions, '2026-08-01', '2026-08-31'), { food: 300 })
+  })
 })
 
 describe('incomeByCategory', () => {
@@ -255,6 +263,14 @@ describe('incomeByCategory', () => {
     const transactions = [
       transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
       { ...transaction({ amount: 5000, category: 'transfer', date: '2026-08-10' }), direction: 'transfer', accountId: 'a', toAccountId: 'b' },
+    ]
+    assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
+  })
+
+  it('ignores adjustment transactions (a manual balance correction is not real income)', () => {
+    const transactions = [
+      transaction({ amount: 1000, direction: 'income', category: 'salary', date: '2026-08-05' }),
+      transaction({ amount: 5000, direction: 'income', category: 'adjustment', date: '2026-08-10' }),
     ]
     assert.deepEqual(incomeByCategory(transactions, '2026-08-01', '2026-08-31'), { salary: 1000 })
   })
@@ -665,5 +681,11 @@ describe('lastTransaction', () => {
     const income = transaction({ amount: 100, direction: 'income', category: 'salary', createdAt: '2026-08-02T10:00:00.000Z' })
     const deleted = transaction({ amount: 200, direction: 'expense', category: 'food', createdAt: '2026-08-03T10:00:00.000Z', deleted: true })
     assert.equal(lastTransaction([income, deleted], 'expense'), null)
+  })
+
+  it('ignores adjustment transactions (a manual balance correction is not an entered expense)', () => {
+    const real = transaction({ amount: 120, direction: 'expense', category: 'food', createdAt: '2026-08-01T10:00:00.000Z' })
+    const adjustment = transaction({ amount: 300, direction: 'expense', category: 'adjustment', createdAt: '2026-08-02T10:00:00.000Z' })
+    assert.equal(lastTransaction([real, adjustment], 'expense'), real)
   })
 })

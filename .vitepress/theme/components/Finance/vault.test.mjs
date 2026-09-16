@@ -24,6 +24,7 @@ import {
   migrateVaultV1toV2,
   migrateAccountBalances,
   migrateVault,
+  adjustAccountBalance,
 } from './vault.js'
 import { accountBalance } from './stats.js'
 
@@ -1002,6 +1003,56 @@ describe('transferBetweenAccounts', () => {
     assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: 0, date: '2026-08-01' }), undefined)
     assert.equal(transferBetweenAccounts(v, { fromAccountId: 'acc1', toAccountId: 'acc2', amount: -5, date: '2026-08-01' }), undefined)
     assert.equal(Object.keys(v.transactions).length, 0)
+  })
+})
+
+describe('adjustAccountBalance', () => {
+  it('books an income transaction with category adjustment on a positive delta', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const tx = adjustAccountBalance(v, { accountId: 'acc1', delta: 250, note: 'Ручная корректировка баланса' }, '2026-08-02T10:00:00.000Z')
+    assert.equal(tx.direction, 'income')
+    assert.equal(tx.category, 'adjustment')
+    assert.equal(tx.accountId, 'acc1')
+    assert.equal(tx.amount, 250)
+    assert.equal(tx.note, 'Ручная корректировка баланса')
+  })
+
+  it('books an expense transaction with category adjustment on a negative delta', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const tx = adjustAccountBalance(v, { accountId: 'acc1', delta: -300 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(tx.direction, 'expense')
+    assert.equal(tx.category, 'adjustment')
+    assert.equal(tx.amount, 300)
+  })
+
+  it('never resets openingBalance/openingBalanceAsOf', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    adjustAccountBalance(v, { accountId: 'acc1', delta: 250 }, '2026-08-02T10:00:00.000Z')
+    assert.equal(v.accounts.acc1.openingBalance, 1000)
+    assert.equal(v.accounts.acc1.openingBalanceAsOf, '2026-08-01T10:00:00.000Z')
+  })
+
+  it('is a no-op on a zero delta, a missing account, or a deleted account', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    assert.equal(adjustAccountBalance(v, { accountId: 'acc1', delta: 0 }), undefined)
+    assert.equal(adjustAccountBalance(v, { accountId: 'missing', delta: 100 }), undefined)
+    removeAccount(v, 'acc1', '2026-08-02T10:00:00.000Z')
+    assert.equal(adjustAccountBalance(v, { accountId: 'acc1', delta: 100 }), undefined)
+    assert.equal(Object.keys(v.transactions).length, 0)
+  })
+
+  it('feeds accountBalance back to exactly the reconciled number', () => {
+    const v = emptyVault()
+    upsertAccount(v, { id: 'acc1', name: 'Карта', openingBalance: 1000 }, '2026-08-01T10:00:00.000Z')
+    const current = accountBalance(v.accounts.acc1, Object.values(v.transactions))
+    const delta = 1500 - current
+    adjustAccountBalance(v, { accountId: 'acc1', delta }, '2026-08-02T10:00:00.000Z')
+    const reconciled = accountBalance(v.accounts.acc1, Object.values(v.transactions))
+    assert.equal(reconciled, 1500)
   })
 })
 

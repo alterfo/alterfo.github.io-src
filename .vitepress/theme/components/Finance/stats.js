@@ -49,7 +49,7 @@ export function totalBalance(accounts, transactions) {
 }
 
 export function expenseByCategory(transactions, fromISO, toISO) {
-  const live = (transactions || []).filter((t) => isLive(t) && t.direction === 'expense' && t.date >= fromISO && t.date <= toISO)
+  const live = (transactions || []).filter((t) => isLive(t) && t.direction === 'expense' && t.category !== 'adjustment' && t.date >= fromISO && t.date <= toISO)
   const byCategory = {}
   for (const t of live) {
     const amount = Number.isFinite(t.amount) ? t.amount : 0
@@ -59,7 +59,7 @@ export function expenseByCategory(transactions, fromISO, toISO) {
 }
 
 export function incomeByCategory(transactions, fromISO, toISO) {
-  const live = (transactions || []).filter((t) => isLive(t) && t.direction === 'income' && t.date >= fromISO && t.date <= toISO)
+  const live = (transactions || []).filter((t) => isLive(t) && t.direction === 'income' && t.category !== 'adjustment' && t.date >= fromISO && t.date <= toISO)
   const byCategory = {}
   for (const t of live) {
     const amount = Number.isFinite(t.amount) ? t.amount : 0
@@ -69,7 +69,7 @@ export function incomeByCategory(transactions, fromISO, toISO) {
 }
 
 export function lastTransaction(transactions, direction) {
-  const matches = (transactions || []).filter((t) => isLive(t) && t.direction === direction)
+  const matches = (transactions || []).filter((t) => isLive(t) && t.direction === direction && t.category !== 'adjustment')
   if (!matches.length) return null
   return matches.reduce((latest, t) => ((t.createdAt || '') > (latest.createdAt || '') ? t : latest), matches[0])
 }

@@ -20,7 +20,7 @@ import {
   removeTransaction, removeAccount, discardHolding,
   upsertSettings, transactionsInRange, openAccounts, openHoldings, mergeVaults,
   migrateVault, upsertDeposit, openDeposits, closeDeposit, sellHolding,
-  removeDeposit, transferBetweenAccounts, addDepositContribution,
+  removeDeposit, transferBetweenAccounts, addDepositContribution, adjustAccountBalance,
 } from './Finance/vault.js'
 import {
   totalBalance, accountBalance, transactionsForAccount, expenseByCategory, incomeByCategory, portfolioValue, portfolioGainLoss,
@@ -114,6 +114,7 @@ function acctBalance(account) {
 
 function categoryLabel(id) {
   if (id === 'transfer') return 'Перевод'
+  if (id === 'adjustment') return 'Корректировка'
   const expenseCat = EXPENSE_CATEGORIES.find(c => c.id === id)
   if (expenseCat) return expenseCat.label
   const incomeCat = INCOME_CATEGORIES.find(c => c.id === id)
@@ -437,15 +438,19 @@ function onAccountNameChange(id, e) {
   }
   upsertAccount(vault.value, { id, name: val })
 }
-// Manually editing the balance cell is a reconciliation: it resets the account's
-// opening-balance baseline to now (see upsertAccount in vault.js), not an increment.
+// Manually editing the balance cell books the difference as an 'adjustment'
+// transaction (see adjustAccountBalance in vault.js) rather than silently resetting
+// the account's opening-balance baseline, so there's an audit-trail entry for
+// "where did this change come from".
 function onAccountBalanceChange(id, e) {
   const val = Number(e.target.value)
   if (!Number.isFinite(val)) {
     e.target.value = acctBalance(vault.value.accounts[id])
     return
   }
-  upsertAccount(vault.value, { id, openingBalance: val })
+  const current = acctBalance(vault.value.accounts[id])
+  const delta = val - current
+  adjustAccountBalance(vault.value, { accountId: id, delta, note: 'Ручная корректировка баланса' })
 }
 function deleteAccount(id) {
   if (!confirm('Удалить этот счёт?')) return
