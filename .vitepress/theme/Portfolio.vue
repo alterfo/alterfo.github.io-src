@@ -120,11 +120,11 @@ const musicSkills = [
 ]
 
 const codeSkills = [
-  'Fullstack TypeScript/Go · 10+ лет',
+  'Fullstack TypeScript/Go/Python · 10+ лет',
   'Vue · React · Angular · Node.js · Nest.js',
-  'AI · RAG · Агентные флоу · OpenAI API',
+  'AI-агенты · RAG · LLM-инференс · агентные флоу',
   'Kubernetes · Docker · Kafka · Монорепо',
-  'Тимлид: найм, рост сеньоров, техдолг → 0',
+  'Архитектура систем и управление разработкой: тимлид, найм, рост сеньоров, техдолг → 0',
 ]
 
 // ── Particles ───────────────────────────────────────────────────
