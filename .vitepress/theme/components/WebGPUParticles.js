@@ -1,21 +1,21 @@
 // WebGPU Particles System
 // Shaders loaded from external .wgsl files
 
-// Cool-graphite + jewel-tone palette — normalized-RGB mirror of the SPECTRUM
-// hexes in spectrum.js (independent array, not test-guarded — keep in sync
-// by hand; this was missed during the 2026-07-12 warm-ink → cool-graphite
-// palette swap, still had the old warm values until now).
+// «Paper & Ink» palette — normalized-RGB mirror of the SPECTRUM hexes in
+// spectrum.js (independent array, not test-guarded — keep in sync by hand;
+// this was missed during the 2026-07-12 warm-ink → cool-graphite swap, so
+// double-check this file whenever the palette changes again).
 const COLORS = [
-  [0.478, 0.200, 0.282],   // Бордо (AR)
-  [0.659, 0.529, 0.290],   // Бронза (blog)
-  [0.247, 0.349, 0.275],   // Хвоя (idef0)
-  [0.541, 0.333, 0.408],   // Мальва (journal)
-  [0.290, 0.380, 0.471],   // Сталь (piano)
-  [0.420, 0.353, 0.282],   // Каштан (github)
-  [0.176, 0.337, 0.329],   // Антрацит-тил (decisions)
-  [0.565, 0.596, 0.659],   // Графит (music)
-  [0.290, 0.220, 0.408],   // Индиго (finance)
-  [0.231, 0.478, 0.522],   // Бирюза (games)
+  [0.490, 0.188, 0.278],   // Бордо (AR)
+  [0.502, 0.400, 0.204],   // Бронза (blog)
+  [0.243, 0.353, 0.275],   // Хвоя (idef0)
+  [0.549, 0.325, 0.404],   // Мальва (journal)
+  [0.282, 0.380, 0.478],   // Сталь (piano)
+  [0.424, 0.353, 0.278],   // Каштан (github)
+  [0.169, 0.345, 0.333],   // Антрацит-тил (decisions)
+  [0.380, 0.420, 0.498],   // Графит (music)
+  [0.290, 0.212, 0.416],   // Индиго (finance)
+  [0.204, 0.451, 0.494],   // Бирюза (games)
 ];
 
 // Shader sources loaded at init
@@ -161,15 +161,23 @@ export class WebGPUParticles {
         entryPoint: 'fsLine',
         targets: [{
           format: format,
+          // Standard alpha-over (not additive) — the old additive blend pushed
+          // colors toward white on the dark «Spiral» ground; on the light «Paper &
+          // Ink» ground that washes lines to near-invisible. NOT a true multiply
+          // blend either: `alpha` here carries a real per-line distance fade
+          // (vsLine's `distAlpha² * 0.8`) that a src-factor-only multiply
+          // (srcFactor:'dst', dstFactor:'zero') would silently discard — far,
+          // faint lines would render as strong as near ones. Alpha-over is the
+          // blend mode that both respects that fade AND stays visible on light.
           blend: {
             color: {
               srcFactor: 'src-alpha',
-              dstFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
               operation: 'add',
             },
             alpha: {
-              srcFactor: 'src-alpha',
-              dstFactor: 'one',
+              srcFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
               operation: 'add',
             },
           },
@@ -193,15 +201,17 @@ export class WebGPUParticles {
         entryPoint: 'fsPoint',
         targets: [{
           format: format,
+          // Alpha-over, not additive — see the matching comment on the line
+          // pipeline's blend state above for why.
           blend: {
             color: {
               srcFactor: 'src-alpha',
-              dstFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
               operation: 'add',
             },
             alpha: {
-              srcFactor: 'src-alpha',
-              dstFactor: 'one',
+              srcFactor: 'one',
+              dstFactor: 'one-minus-src-alpha',
               operation: 'add',
             },
           },
@@ -283,7 +293,7 @@ export class WebGPUParticles {
     const renderPass = commandEncoder.beginRenderPass({
       colorAttachments: [{
         view: textureView,
-        clearValue: { r: 0.078, g: 0.086, b: 0.102, a: 1.0 }, // --ds-void #14161a
+        clearValue: { r: 0.965, g: 0.949, b: 0.918, a: 1.0 }, // --ds-void #f6f2ea
         loadOp: 'clear',
         storeOp: 'store',
       }],

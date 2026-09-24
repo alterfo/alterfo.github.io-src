@@ -9,9 +9,9 @@ import { ALBUMS, ARTIST } from './theme/components/music.js'
 export const SITE_URL = 'https://alterfo.github.io'
 export const AUTHOR = 'Oleg Sidorkin'
 
-// Mirrors --ds-void in theme/styles/vars.css (page background; site is dark-only,
-// see appearance: 'force-dark' in config.mts) — used for the mobile chrome theme-color.
-export const THEME_COLOR = '#14161a'
+// Mirrors --ds-void in theme/styles/vars.css (page background; site is light-only,
+// see appearance: 'force-light' in config.mts) — used for the mobile chrome theme-color.
+export const THEME_COLOR = '#f6f2ea'
 
 // Site-wide <head> tags (favicon family + theme-color), static across all pages so
 // they live here as plain data rather than in transformPageData (which is per-page).

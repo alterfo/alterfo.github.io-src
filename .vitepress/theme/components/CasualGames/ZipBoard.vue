@@ -162,14 +162,14 @@ function waypointAt(index) {
 }
 
 function cellFill(index) {
-  if (conflictKeys.value.has(index)) return '#3a1a1a'
+  if (conflictKeys.value.has(index)) return '#feeaea'
   if (pathSet.value.has(index)) return 'var(--ds-accent-bg)'
-  if (waypoints.value[index] > 0) return '#262a30'
-  return '#1e2126'
+  if (waypoints.value[index] > 0) return '#efe8db'
+  return '#ffffff'
 }
 
 function cellStroke(index) {
-  return conflictKeys.value.has(index) ? '#f87171' : '#2a2f36'
+  return conflictKeys.value.has(index) ? '#d70b0b' : '#9c9b98'
 }
 
 function cellCenter(index) {
@@ -379,7 +379,7 @@ defineExpose({ getState, restoreState })
 }
 
 .zip-waypoint {
-  fill: #f7f6f3;
+  fill: #131210;
   font-size: .32px;
   font-family: var(--ds-font-body);
   font-weight: 600;

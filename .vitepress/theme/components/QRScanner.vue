@@ -60,20 +60,20 @@ defineExpose({ stop })
   height: 260px;
   object-fit: cover;
   border-radius: 6px;
-  border: 1px solid var(--ds-border, #3a3d42);
+  border: 1px solid var(--ds-border, rgba(34, 32, 27, 0.12));
 }
 
 .qr-scan-btn {
   padding: 8px 18px;
   border-radius: 6px;
-  border: 1px solid var(--ds-border, #52565c);
-  background: var(--ds-surface-solid, #1e2126);
-  color: var(--ds-text, #e6e4e0);
+  border: 1px solid var(--ds-border, rgba(34, 32, 27, 0.12));
+  background: var(--ds-surface-solid, #ffffff);
+  color: var(--ds-text, #22201b);
   cursor: pointer;
   font-size: 0.9rem;
 }
 
-.qr-scan-btn:hover { background: var(--ds-raised, #262a30); }
-.qr-scan-stop { border-color: var(--ds-danger, #f87171); color: var(--ds-danger, #f87171); }
-.qr-scanner-unsupported { color: var(--ds-text-muted, #a8a6a0); font-size: 0.85rem; text-align: center; }
+.qr-scan-btn:hover { background: var(--ds-raised, #efe8db); }
+.qr-scan-stop { border-color: var(--ds-danger, #d70b0b); color: var(--ds-danger, #d70b0b); }
+.qr-scanner-unsupported { color: var(--ds-text-muted, rgba(34, 32, 27, 0.6)); font-size: 0.85rem; text-align: center; }
 </style>

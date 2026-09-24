@@ -1,10 +1,10 @@
 .idef0-root {
   /* accent = «хвоя» (idef0 sphere), см. spectrum.js PROJECT_COLORS.idef0.
      Раньше свой бренд-синий жил отдельно от цвета сферы — теперь унифицировано. */
-  --ds-accent: #3f5946;
-  --ds-accent-light: #829387;
-  --ds-accent-hover: #344939;
-  --ds-accent-bg: rgba(63, 89, 70, 0.18);
+  --ds-accent: #3e5a46;
+  --ds-accent-light: #597c63;
+  --ds-accent-hover: #334a39;
+  --ds-accent-bg: rgba(62, 90, 70, 0.18);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -75,10 +75,14 @@
 .zoom-btn:hover { background: var(--ds-border); }
 .zoom-pct { font-size: 11px; color: var(--ds-text-muted); padding: 0 5px; min-width: 36px; text-align: center; }
 
-/* Drag hint */
+/* Drag hint — a deliberately dark chip regardless of page theme (floats over
+   the IDEF0 canvas, which stays its own light "paper" surface either way), so
+   its text is a hardcoded light color, not --ds-text-strong (that token is
+   dark ink on the light «Paper & Ink» theme — using it here would put dark
+   text on a dark chip and make the hint invisible). */
 .drag-hint {
   position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(36, 31, 27, 0.87); color: var(--ds-text-strong); font-size: 12px;
+  background: rgba(36, 31, 27, 0.87); color: #f7f6f3; font-size: 12px;
   padding: 5px 14px; border-radius: var(--ds-radius); pointer-events: none;
   white-space: nowrap;
 }
@@ -93,7 +97,7 @@
   width: 100%; padding: 6px 9px; border: 1px solid var(--ds-border-strong); border-radius: 6px;
   font-size: 13px; color: var(--ds-text); background: var(--ds-void); box-sizing: border-box; font-family: inherit;
 }
-.prop-input:focus, .prop-textarea:focus { outline: none; border-color: var(--ds-accent); box-shadow: 0 0 0 2px rgba(63, 89, 70, 0.33); }
+.prop-input:focus, .prop-textarea:focus { outline: none; border-color: var(--ds-accent); box-shadow: 0 0 0 2px rgba(62, 90, 70, 0.33); }
 .prop-textarea { resize: vertical; line-height: 1.5; }
 
 /* Arrow sections */
@@ -112,7 +116,7 @@
 .arrow-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .arrow-name { flex: 1; border: none; background: transparent; font-size: 13px; color: var(--ds-text); padding: 1px 0; outline: none; font-family: inherit; }
 .arrow-name:focus { border-bottom: 1px solid var(--ds-accent); }
-.arrow-connected { font-size: 10px; color: #34d399; font-weight: 600; white-space: nowrap; }
+.arrow-connected { font-size: 10px; color: #1c805c; font-weight: 600; white-space: nowrap; }
 .arrow-del { background: none; border: none; cursor: pointer; color: var(--ds-text-dim); font-size: 17px; line-height: 1; padding: 0 2px; }
 .arrow-del:hover { color: var(--ds-danger); }
 

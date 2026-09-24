@@ -77,19 +77,19 @@ const GEOM = { cx: 200, cy: 200, innerR: 55, maxOuterR: 155, labelR: 170 }
 
 // 10 spheres = 10 spectrum colors. Hardcoded — they only change with a release.
 const SEGMENTS = [
-  { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#8a5568', readiness: 9 },
-  { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#3f5946', readiness: 8 },
+  { id: 'journal',   title: 'Дневник',      href: '/journal',          color: '#8c5367', readiness: 9 },
+  { id: 'idef0',     title: 'IDEF0',        href: '/idef0',            color: '#3e5a46', readiness: 8 },
   // external: /ar/ — статическое приложение вне VitePress-роутера. Любой атрибут
   // target (даже _self) заставляет роутер отдать клик браузеру (hasAttribute('target')
   // в router.js) — иначе SPA-навигация ведёт на клиентский 404.
-  { id: 'ar',        title: 'Аудио-реактив', href: '/ar/',              color: '#7a3348', readiness: 5, external: true },
-  { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#4a6178', readiness: 4 },
-  { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#a8874a', readiness: 4 },
-  { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#6b5a48', readiness: 4 },
-  { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#2d5654', readiness: 4 },
-  { id: 'music',     title: 'Музыка',       href: '/music',            color: '#9098a8', readiness: 3 },
-  { id: 'finance',   title: 'Финансы',      href: '/finance',          color: '#4a3868', readiness: 2 },
-  { id: 'games',     title: 'Пазлы',        href: '/casual-games',     color: '#3b7a85', readiness: 2 },
+  { id: 'ar',        title: 'Аудио-реактив', href: '/ar/',              color: '#7d3047', readiness: 5, external: true },
+  { id: 'piano',     title: 'Piano',        href: '/piano',            color: '#48617a', readiness: 4 },
+  { id: 'openpose',  title: 'OpenPose',     href: '/openpose',         color: '#806634', readiness: 4 },
+  { id: 'planner',   title: 'Планировщик',  href: '/planner',          color: '#6c5a47', readiness: 4 },
+  { id: 'decisions', title: 'Решения',      href: '/decision-journal', color: '#2b5855', readiness: 4 },
+  { id: 'music',     title: 'Музыка',       href: '/music',            color: '#616b7f', readiness: 3 },
+  { id: 'finance',   title: 'Финансы',      href: '/finance',          color: '#4a366a', readiness: 2 },
+  { id: 'games',     title: 'Пазлы',        href: '/casual-games',     color: '#34737e', readiness: 2 },
 ]
 
 const segments = computed(() => buildSegments(SEGMENTS, GEOM))

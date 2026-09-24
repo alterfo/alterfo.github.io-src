@@ -25,9 +25,14 @@ export default defineConfig({
   titleTemplate: ':title — Alterfo',
   description: 'Олег Сидоркин — инженер и музыкант: проекты, локальные инструменты без облака и заметки об аудио, AI и архитектуре.',
   lang: 'ru-RU',
-  // Сайт тёмный по дизайн-системе «Spiral», светлой темы нет и не планируется —
-  // прибиваем тёмную и убираем переключатель sun/moon из шапки блога.
-  appearance: 'force-dark',
+  // Сайт светлый по дизайн-системе «Paper & Ink» (2026-09-24, заменила тёмную
+  // «Spiral»), тёмной темы нет и не планируется — appearance: false полностью
+  // отключает функциональность тёмной темы (в отличие от тёмной версии,
+  // 'force-light' НЕ существует как значение — только 'dark'/'force-dark'/
+  // 'force-auto'/boolean; строка-опечатка молча деградирует до 'auto' и
+  // подхватывает системную тёмную тему). false убирает и переключатель
+  // sun/moon из шапки блога.
+  appearance: false,
   head: SITE_HEAD,
   // Demotes the lazy app-root/WebGPU chunks from modulepreload to prefetch on every
   // page except the one that actually renders them — see shouldPreloadLink in seo.js.

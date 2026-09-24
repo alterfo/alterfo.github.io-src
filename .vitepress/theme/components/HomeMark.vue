@@ -12,16 +12,16 @@ const props = defineProps({
 
 // Порядок/цвета/готовность зеркалят SEGMENTS в LifeCircle.vue — менять синхронно.
 const SPHERES = [
-  { id: 'journal',   color: '#8a5568', readiness: 9 },
-  { id: 'idef0',     color: '#3f5946', readiness: 8 },
-  { id: 'ar',        color: '#7a3348', readiness: 5 },
-  { id: 'piano',     color: '#4a6178', readiness: 4 },
-  { id: 'openpose',  color: '#a8874a', readiness: 4 },
-  { id: 'planner',   color: '#6b5a48', readiness: 4 },
-  { id: 'decisions', color: '#2d5654', readiness: 4 },
-  { id: 'music',     color: '#9098a8', readiness: 3 },
-  { id: 'finance',   color: '#4a3868', readiness: 2 },
-  { id: 'games',     color: '#3b7a85', readiness: 2 },
+  { id: 'journal',   color: '#8c5367', readiness: 9 },
+  { id: 'idef0',     color: '#3e5a46', readiness: 8 },
+  { id: 'ar',        color: '#7d3047', readiness: 5 },
+  { id: 'piano',     color: '#48617a', readiness: 4 },
+  { id: 'openpose',  color: '#806634', readiness: 4 },
+  { id: 'planner',   color: '#6c5a47', readiness: 4 },
+  { id: 'decisions', color: '#2b5855', readiness: 4 },
+  { id: 'music',     color: '#616b7f', readiness: 3 },
+  { id: 'finance',   color: '#4a366a', readiness: 2 },
+  { id: 'games',     color: '#34737e', readiness: 2 },
 ]
 
 const GEOM = { cx: 16, cy: 16, innerR: 5, maxOuterR: 15 }

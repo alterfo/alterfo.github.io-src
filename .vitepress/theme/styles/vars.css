@@ -1,58 +1,75 @@
-/* Design System «Spiral» — single source of truth for CSS tokens.
-   JS mirror lives in ../components/spectrum.js — keep hex values in sync. */
+/* Design System «Paper & Ink» — single source of truth for CSS tokens.
+   JS mirror lives in ../components/spectrum.js — keep hex values in sync.
+   Replaces the dark «Spiral» system (2026-09-24): a light editorial ground —
+   warm paper, ink text — chosen deliberately over the dark-only default,
+   per the site-direction rules in ~/.claude/design/palette.md (editorial/
+   portfolio → considered neutral, not pure white). Every neutral/spectrum/
+   danger value below was regenerated (not just re-hued) against the new
+   paper ground and checked to hit WCAG AA (≥4.5:1 body text, ≥3:1 large
+   text/UI) — see .vitepress/CLAUDE.md for the exact contrast numbers. */
 :root {
-  /* Base — холодный графит (заменяет тёплый «осенний» ink 2026-07-12: терракота/
-     охра/олива читались буквально как палая листва, не как «элитно») */
-  --ds-void: #14161a;
-  --ds-surface: rgba(20, 22, 26, 0.75);    /* фон секций поверх канваса */
-  --ds-surface-solid: #1e2126;
-  --ds-raised: #262a30;                    /* подъём / hover-поверхность */
+  /* Base — тёплая бумага вместо холодного графита */
+  --ds-void: #f6f2ea;
+  --ds-surface: rgba(246, 242, 234, 0.82);   /* фон секций поверх канваса */
+  --ds-surface-solid: #ffffff;
+  --ds-raised: #efe8db;                      /* подъём / hover-поверхность */
 
-  /* Text */
-  --ds-text: #e6e4e0;
-  --ds-text-strong: #f7f6f3;
-  --ds-text-muted: rgba(230, 228, 224, 0.55);
-  --ds-text-dim: rgba(230, 228, 224, 0.35);
+  /* Text — тёмные чернила на бумаге. Alpha-проценты НЕ скопированы 1:1 из
+     тёмной версии (см. history-комментарий выше) — контраст translucent-ink
+     не линейно переносится между "светлые чернила на тёмном" и "тёмные
+     чернила на светлом": на 0.6/0.38/0.12/0.2 контраст к --ds-surface-solid
+     проседал до 4.18 / 2.24 / 1.27 / 1.49 (не читалось — найдено 2026-09-24
+     при аудите приложений после смены темы). Пересчитано численно (Python,
+     реальная формула contrast ratio) под --ds-surface-solid #ffffff: */
+  --ds-text: #22201b;
+  --ds-text-strong: #131210;
+  --ds-text-muted: rgba(34, 32, 27, 0.65);   /* было 0.6 → контраст 4.34 (< AA 4.5); теперь 5.09 */
+  --ds-text-dim: rgba(34, 32, 27, 0.51);     /* было 0.38 → контраст 2.32; теперь 3.31 — третичный текст, не обязан быть AA body, но должен читаться */
 
   /* Borders */
-  --ds-border: rgba(230, 228, 224, 0.1);
-  --ds-border-strong: rgba(230, 228, 224, 0.18);
+  --ds-border: rgba(34, 32, 27, 0.425);      /* было 0.12 → контраст 1.27 (почти невидимо); теперь 2.61 — тихая, но видимая линия */
+  --ds-border-strong: rgba(34, 32, 27, 0.574); /* было 0.2 → контраст 1.51; теперь 4.0 — акцент/фокус/hover */
 
-  /* Danger — семантика красного остаётся отдельной, не перекрашивается */
-  --ds-danger: #f87171;
-  --ds-danger-strong: #ef4444;
-  --ds-danger-bg: #3a1a1a;
+  /* Danger — семантика красного остаётся отдельной, значения пересчитаны
+     под светлый фон (исходный светлый #f87171 нечитаем как текст на бумаге) */
+  --ds-danger: #d70b0b;
+  --ds-danger-strong: #b50505;
+  --ds-danger-bg: #feeaea;
 
-  /* Spectrum — «сферы круга жизни» / цвета проектов (10 семантических, благородные
-     тона — бордо/бронза/хвоя/мальва/сталь/каштан/антрацит-тил/графит/индиго/бирюза) */
-  --ds-violet: #7a3348;   /* AR / подпись / «я» — бордо */
-  --ds-cyan:   #a8874a;   /* blog — бронза */
-  --ds-green:  #3f5946;   /* idef0 — хвоя */
-  --ds-pink:   #8a5568;   /* journal — мальва */
-  --ds-amber:  #4a6178;   /* piano — сталь */
-  --ds-orange: #6b5a48;   /* github — каштан */
-  --ds-teal:   #2d5654;   /* decisions / журнал решений — антрацит-тил */
-  --ds-yellow: #9098a8;   /* music — графит */
-  --ds-indigo: #4a3868;   /* finance — индиго */
-  --ds-turquoise: #3b7a85;   /* games — бирюза */
+  /* Spectrum — «сферы круга жизни» / цвета проектов (10 семантических тонов,
+     углублены/пересчитаны под бумагу — тот же благородный подбор оттенков,
+     что и в тёмной версии, но с контрастом ≥4.5:1 к --ds-void) */
+  --ds-violet: #7d3047;      /* AR / подпись / «я» — бордо */
+  --ds-cyan:   #806634;      /* blog — бронза */
+  --ds-green:  #3e5a46;      /* idef0 — хвоя */
+  --ds-pink:   #8c5367;      /* journal — мальва */
+  --ds-amber:  #48617a;      /* piano — сталь */
+  --ds-orange: #6c5a47;      /* github — каштан */
+  --ds-teal:   #2b5855;      /* decisions / журнал решений — антрацит-тил */
+  --ds-yellow: #616b7f;      /* music — графит */
+  --ds-indigo: #4a366a;      /* finance — индиго */
+  --ds-turquoise: #34737e;   /* games — бирюза */
 
-  /* Typography — self-hosted variable fonts (theme/styles/fonts.css). Cormorant
-     is display-only (headings ≥18px) — high-contrast hairlines read as elite,
-     not generic, but go illegible smaller; use --ds-font-body under 18px.
-     Georgia+system-ui was the generic "AI-site" default; Fraunces/Newsreader/
-     Public Sans/Source Serif 4 were tried and rejected (Latin-only, or —
-     Source Serif 4 — a text serif with no display character at heading size). */
-  --ds-font-display: 'Cormorant', Georgia, 'Times New Roman', serif;
+  /* Typography — self-hosted variable fonts (theme/styles/fonts.css).
+     Alegreya is display-only (headings ≥18px) — a calligraphic serif with a
+     musical, rhythmic stroke, chosen to fit the site's music+code identity
+     (code carried instead by --ds-font-mono accents). Delicate smaller than
+     ~18px; use --ds-font-body under that. Manrope carries body/UI at every
+     size. Both verified for Cyrillic support before adoption — see
+     ~/.claude/design/typography.md ("verify Cyrillic subset before
+     falling in love with it"). Cormorant/Source Sans 3 (dark-system era)
+     and Playfair Display (first «Paper & Ink» pick, replaced same day)
+     retired from active use; files left in public/fonts/ pending cleanup. */
+  --ds-font-display: 'Alegreya', Georgia, 'Times New Roman', serif;
   --ds-font-mono: 'SF Mono', 'Fira Code', ui-monospace, monospace;
-  --ds-font-body: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ds-font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Spacing / radii / shadow — no glow token: a colored text-shadow blur behind
-     headings read as "gamer/crypto hero section", not elite (removed 2026-07-12,
-     see feedback-verify-visual-impact-not-just-correctness memory). Confident
-     type on a dark ground carries the effect without a halo. */
+  /* Spacing / radii / shadow — no glow token: a colored text-shadow blur
+     behind headings read as "gamer/crypto hero section", not elite.
+     Confident type on paper carries the effect without a halo. */
   --ds-radius-sm: 5px;
   --ds-radius: 8px;
   --ds-radius-lg: 14px;
-  --ds-shadow-panel: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --ds-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --ds-shadow-panel: 0 8px 40px rgba(34, 32, 27, 0.14);
+  --ds-shadow-card: 0 1px 2px rgba(34, 32, 27, 0.08);
 }

@@ -2,10 +2,10 @@
 .piano-app {
   /* accent = «сталь» (piano sphere), см. spectrum.js PROJECT_COLORS.piano.
      Раньше свой бренд-индиго жил отдельно от цвета сферы — теперь унифицировано. */
-  --ds-accent: #4a6178;
-  --ds-accent-light: #8998a7;
-  --ds-accent-hover: #3d5062;
-  --ds-accent-bg: rgba(74, 97, 120, 0.18);
+  --ds-accent: #48617a;
+  --ds-accent-light: #5c7894;
+  --ds-accent-hover: #3b5064;
+  --ds-accent-bg: rgba(72, 97, 122, 0.18);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -206,9 +206,9 @@
   color: var(--ds-text-dim);
   white-space: nowrap;
 }
-.piano-midi-status.connected { color: #4caf50; }
-.piano-midi-status.no-device { color: #ff9800; }
-.piano-midi-status.unsupported { color: #f44336; }
+.piano-midi-status.connected { color: #1c805c; }
+.piano-midi-status.no-device { color: #936a03; }
+.piano-midi-status.unsupported { color: var(--ds-danger); }
 
 /* ── Stave ───────────────────────────────────────────────────── */
 .piano-stave-wrap {
@@ -297,7 +297,7 @@
 
 .status-notes {
   font-family: monospace;
-  color: #4a9eff;
+  color: #006ce8;
   min-width: 80px;
   font-size: 0.85rem;
 }
@@ -336,7 +336,7 @@
   letter-spacing: 0.03em;
 }
 .hint-notes {
-  color: #ff7744;
+  color: #d33900;
   font-family: monospace;
   letter-spacing: 0.08em;
 }

@@ -2,10 +2,10 @@
   /* accent = «индиго» (finance sphere), см. spectrum.js PROJECT_COLORS.finance.
      light = accent + 0.35*(255-accent), hover = accent*0.822 — same formula as the
      other app roots (see .dj-root / .planner-root headers). */
-  --ds-accent: #4a3868;
-  --ds-accent-light: #897e9d;
-  --ds-accent-hover: #3d2e55;
-  --ds-accent-bg: rgba(74, 56, 104, 0.18);
+  --ds-accent: #4a366a;
+  --ds-accent-light: #8268ac;
+  --ds-accent-hover: #3d2c57;
+  --ds-accent-bg: rgba(74, 54, 106, 0.18);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -181,7 +181,7 @@
   transition: border-color .15s, background .15s;
 }
 .fin-direction-toggle:hover { border-color: var(--ds-accent-light); }
-.fin-direction-toggle.income { background: rgba(52, 211, 153, 0.1); border-color: #34d399; color: #34d399; }
+.fin-direction-toggle.income { background: #e8f2ef; border-color: #1c805c; color: #1c805c; }
 .fin-qa-amount { width: 110px; }
 .fin-qa-category { width: 140px; }
 .fin-qa-account { width: 140px; }
@@ -232,7 +232,7 @@
 }
 .fin-summary-n { font-size: 19px; font-weight: 700; color: var(--ds-text-strong); font-variant-numeric: tabular-nums; }
 .fin-summary-l { font-size: 11px; color: var(--ds-text-muted); text-transform: uppercase; letter-spacing: .03em; }
-.fin-summary-n.ok { color: #34d399; }
+.fin-summary-n.ok { color: #1c805c; }
 .fin-summary-n.bad { color: var(--ds-danger); }
 
 .fin-empty-hint {
@@ -260,17 +260,17 @@
   color: var(--ds-text);
   vertical-align: middle;
 }
-.fin-table td.ok { color: #34d399; font-variant-numeric: tabular-nums; }
+.fin-table td.ok { color: #1c805c; font-variant-numeric: tabular-nums; }
 .fin-table td.bad { color: var(--ds-danger); font-variant-numeric: tabular-nums; }
 .fin-table-num { text-align: right; font-variant-numeric: tabular-nums; }
-.fin-table-num.income { color: #34d399; }
+.fin-table-num.income { color: #1c805c; }
 .fin-table-date { color: var(--ds-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-table-note { color: var(--ds-text-muted); }
 
 .fin-price-cell { display: flex; flex-direction: column; gap: 2px; }
 .fin-price-asof { font-size: 11px; color: var(--ds-text-dim); }
 .fin-price-status { font-size: 12px; }
-.fin-price-status.ok { color: #34d399; }
+.fin-price-status.ok { color: #1c805c; }
 .fin-price-status.bad { color: var(--ds-danger); }
 
 .fin-cell-input {
@@ -434,7 +434,7 @@
   color: var(--ds-text-strong);
   font-variant-numeric: tabular-nums;
 }
-.fin-analytics-value.positive { color: #34d399; }
+.fin-analytics-value.positive { color: #1c805c; }
 .fin-analytics-value.negative { color: var(--ds-danger); }
 
 /* Category bars */

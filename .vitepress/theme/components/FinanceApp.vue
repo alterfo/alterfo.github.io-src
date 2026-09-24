@@ -1022,12 +1022,12 @@ onUnmounted(() => {
             <svg class="fin-chart-svg" viewBox="0 0 800 300" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <linearGradient id="trendIncomeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style="stop-color:#3f5946;stop-opacity:0.4" />
-                  <stop offset="100%" style="stop-color:#3f5946;stop-opacity:0.1" />
+                  <stop offset="0%" style="stop-color:#3e5a46;stop-opacity:0.4" />
+                  <stop offset="100%" style="stop-color:#3e5a46;stop-opacity:0.1" />
                 </linearGradient>
                 <linearGradient id="trendExpenseGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style="stop-color:#8a5568;stop-opacity:0.4" />
-                  <stop offset="100%" style="stop-color:#8a5568;stop-opacity:0.1" />
+                  <stop offset="0%" style="stop-color:#8c5367;stop-opacity:0.4" />
+                  <stop offset="100%" style="stop-color:#8c5367;stop-opacity:0.1" />
                 </linearGradient>
               </defs>
               <TrendChart :data="monthlyTrendData" />

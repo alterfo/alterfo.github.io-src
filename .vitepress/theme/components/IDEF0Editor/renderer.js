@@ -40,7 +40,7 @@ export function renderBox(box, isSelected = false, index = null, isError = false
     stroke = '#2563eb'
     strokeWidth = 2
   } else if (isError) {
-    stroke = '#ef4444'
+    stroke = '#b50505'
     strokeWidth = 2
   }
 

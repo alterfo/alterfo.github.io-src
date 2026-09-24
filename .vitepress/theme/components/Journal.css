@@ -3,9 +3,9 @@
 ══════════════════════════════════════════════ */
 .journal-root {
   /* accent = «мальва» (journal sphere), см. spectrum.js PROJECT_COLORS.journal */
-  --ds-accent: #8a5568;
-  --ds-accent-light: #b3919d;
-  --ds-accent-hover: #714655;
+  --ds-accent: #8c5367;
+  --ds-accent-light: #9d6378;
+  --ds-accent-hover: #734454;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -88,9 +88,9 @@
   border-radius: 6px;
   line-height: 1.4;
 }
-.pw-weak   { background: rgba(255,80,80,0.12); color: #ff8080; border: 1px solid rgba(255,80,80,0.3); }
-.pw-medium { background: rgba(255,190,50,0.12); color: #ffcc55; border: 1px solid rgba(255,190,50,0.3); }
-.pw-strong { background: rgba(80,200,100,0.12); color: #77cc77; border: 1px solid rgba(80,200,100,0.3); }
+.pw-weak   { background: #fce6e6; color: #e60000; border: 1px solid #ea2626; }
+.pw-medium { background: #f4f0e6; color: #956800; border: 1px solid #a57f26; }
+.pw-strong { background: #eaf2ea; color: #308130; border: 1px solid #4f944f; }
 
 /* ══════════════════════════════════════════════
    Layout
@@ -366,14 +366,14 @@
 }
 .save-idle { opacity: 0; }
 .save-saving { color: var(--ds-text-muted); opacity: 1; }
-.save-saved { color: #77cc77; opacity: 1; }
+.save-saved { color: #1c805c; opacity: 1; }
 
 .journal-word-count {
   font-size: 13px;
   color: var(--ds-text-muted);
   transition: color .2s;
 }
-.wc-met { color: #77cc77; font-weight: 600; }
+.wc-met { color: #1c805c; font-weight: 600; }
 
 /* Progress bar */
 .journal-progress-track {
@@ -453,7 +453,7 @@
 .journal-goal-banner {
   margin: 12px 16px 16px;
   font-size: 13px;
-  color: #77cc77;
+  color: #1c805c;
   font-weight: 500;
   text-align: right;
 }
@@ -619,7 +619,7 @@
 }
 .sync-result-line {
   font-size: 13px;
-  color: #77cc77;
+  color: #1c805c;
   margin: 8px 0 0;
 }
 .sync-block-label {

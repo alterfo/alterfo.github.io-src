@@ -200,8 +200,8 @@ defineExpose({ getState, restoreState })
             :y="row - 1"
             width="1"
             height="1"
-            :fill="conflictKeys.has(`${row - 1}:${col - 1}`) ? '#3a1a1a' : isGiven(row - 1, col - 1) ? '#262a30' : '#1e2126'"
-            :stroke="conflictKeys.has(`${row - 1}:${col - 1}`) ? '#f87171' : '#2a2f36'"
+            :fill="conflictKeys.has(`${row - 1}:${col - 1}`) ? '#feeaea' : isGiven(row - 1, col - 1) ? '#efe8db' : '#ffffff'"
+            :stroke="conflictKeys.has(`${row - 1}:${col - 1}`) ? '#d70b0b' : '#9c9b98'"
             stroke-width="0.03"
             class="tango-cell"
             :class="{ 'tango-cell-given': isGiven(row - 1, col - 1) }"
@@ -311,7 +311,7 @@ defineExpose({ getState, restoreState })
 }
 
 .tango-glyph {
-  fill: #f7f6f3;
+  fill: #131210;
   font-size: .42px;
   pointer-events: none;
 }

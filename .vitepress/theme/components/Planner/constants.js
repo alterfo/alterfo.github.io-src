@@ -10,7 +10,7 @@ export const STATUS = [
 export const PRIORITY = {
   low: { label: 'Low', color: '#6b7280' },
   medium: { label: 'Medium', color: '#f59e0b' },
-  high: { label: 'High', color: '#ef4444' },
+  high: { label: 'High', color: '#b50505' },
 }
 
 // Short, collision-resistant enough for a single-user local app.

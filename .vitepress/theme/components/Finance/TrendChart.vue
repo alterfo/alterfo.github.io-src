@@ -40,14 +40,14 @@ const fmtRub = (x) => {
         :y="150 - (item.income / maxValue) * 120"
         :width="chartData.barWidth * 0.3"
         :height="(item.income / maxValue) * 120"
-        fill="#3f5946"
+        fill="#3e5a46"
         opacity="0.6" />
       <rect
         :x="40 + i * (chartData.barWidth + 5) + chartData.barWidth * 0.3 + 2"
         :y="150 - (item.expense / maxValue) * 120"
         :width="chartData.barWidth * 0.3"
         :height="(item.expense / maxValue) * 120"
-        fill="#8a5568"
+        fill="#8c5367"
         opacity="0.6" />
       <text
         :x="40 + i * (chartData.barWidth + 5) + chartData.barWidth * 0.5"
@@ -58,9 +58,9 @@ const fmtRub = (x) => {
     </g>
 
     <g class="fin-legend" transform="translate(40, 20)">
-      <rect width="12" height="12" fill="#3f5946" opacity="0.6" />
+      <rect width="12" height="12" fill="#3e5a46" opacity="0.6" />
       <text x="16" y="10" font-size="12" fill="var(--ds-text-muted)">Доход</text>
-      <rect x="70" width="12" height="12" fill="#8a5568" opacity="0.6" />
+      <rect x="70" width="12" height="12" fill="#8c5367" opacity="0.6" />
       <text x="86" y="10" font-size="12" fill="var(--ds-text-muted)">Расход</text>
     </g>
   </g>

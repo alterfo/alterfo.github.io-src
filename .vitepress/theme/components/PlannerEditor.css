@@ -1,9 +1,9 @@
 .planner-root {
   /* accent = «каштан» (planner sphere), см. spectrum.js PROJECT_COLORS.github */
-  --ds-accent: #6b5a48;
-  --ds-accent-light: #9f9488;
-  --ds-accent-hover: #584a3b;
-  --ds-accent-bg: rgba(107, 90, 72, 0.18);
+  --ds-accent: #6c5a47;
+  --ds-accent-light: #85715c;
+  --ds-accent-hover: #594a3a;
+  --ds-accent-bg: rgba(108, 90, 71, 0.18);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -388,7 +388,7 @@
   font-variant-numeric: tabular-nums;
 }
 .planner-card-due.due-normal { background: var(--ds-border); color: var(--ds-text-muted); }
-.planner-card-due.due-today { background: #3b2f14; color: #f59e0b; }
+.planner-card-due.due-today { background: #f4f0e6; color: #936a03; }
 .planner-card-due.due-overdue { background: var(--ds-danger-bg); color: var(--ds-danger); }
 .planner-card-tag {
   font-size: 11px;

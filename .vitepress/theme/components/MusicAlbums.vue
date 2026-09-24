@@ -173,9 +173,9 @@ function togglePlayer(id) {
   gap: 0.3rem;
   padding: 0.45rem 1rem;
   border-radius: var(--ds-radius);
-  border: 1px solid #9098a8;
+  border: 1px solid #616b7f;
   background: transparent;
-  color: #9098a8;
+  color: #616b7f;
   font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;

@@ -1,8 +1,8 @@
 .cg-root {
-  --ds-accent: #3b7a85;
-  --ds-accent-light: #8fb2b8;
-  --ds-accent-hover: #2f626a;
-  --ds-accent-bg: rgba(59, 122, 133, 0.18);
+  --ds-accent: #34737e;
+  --ds-accent-light: #3e7e89;
+  --ds-accent-hover: #2b5e67;
+  --ds-accent-bg: rgba(52, 115, 126, 0.18);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -115,7 +115,7 @@
 }
 
 .cg-save-error {
-  color: #f87171;
+  color: #d70b0b;
 }
 
 .cg-saves {

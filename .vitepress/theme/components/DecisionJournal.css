@@ -1,10 +1,10 @@
 .dj-root {
   /* accent = «антрацит-тил» (decisions sphere), см. spectrum.js PROJECT_COLORS.decisions.
      Раньше свой бренд-teal жил отдельно от цвета сферы — теперь унифицировано. */
-  --ds-accent: #2d5654;
-  --ds-accent-light: #779190;
-  --ds-accent-hover: #254745;
-  --ds-accent-bg: rgba(45, 86, 84, 0.18);
+  --ds-accent: #2b5855;
+  --ds-accent-light: #427e7a;
+  --ds-accent-hover: #234846;
+  --ds-accent-bg: rgba(43, 88, 85, 0.18);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -136,7 +136,7 @@
   color: var(--ds-text-dim);
   font-weight: 600;
 }
-.dj-section-due { color: #fbbf24; }
+.dj-section-due { color: #936a03; }
 .dj-section-toggle { cursor: pointer; user-select: none; }
 .dj-section-toggle:hover { color: var(--ds-text-muted); }
 
@@ -179,7 +179,7 @@
   font-variant-numeric: tabular-nums;
 }
 .dj-outcome { font-size: 11px; }
-.dj-outcome.ok { color: #34d399; }
+.dj-outcome.ok { color: #1c805c; }
 .dj-outcome.bad { color: var(--ds-danger); }
 .dj-empty-hint {
   padding: 8px 4px;

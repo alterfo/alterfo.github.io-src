@@ -201,7 +201,7 @@ defineExpose({ getState, restoreState })
             width="1"
             height="1"
             :fill="regionColor(regionAt(puzzle, row - 1, col - 1))"
-            :stroke="conflictKeys.has(`${col - 1}:${row - 1}`) ? '#f87171' : '#1e2126'"
+            :stroke="conflictKeys.has(`${col - 1}:${row - 1}`) ? '#d70b0b' : '#ffffff'"
             stroke-width="0.045"
             class="queens-cell"
             @click="toggle(row - 1, col - 1)"
@@ -306,7 +306,7 @@ defineExpose({ getState, restoreState })
 }
 
 .queens-queen {
-  fill: #f7f6f3;
+  fill: #131210;
   font-size: .62px;
   pointer-events: none;
 }

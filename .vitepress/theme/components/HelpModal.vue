@@ -47,7 +47,7 @@ onUnmounted(() => {
 .help-modal {
   position: relative;
   background: var(--ds-surface-solid);
-  border: 1px solid rgba(122, 51, 72, 0.3);
+  border: 1px solid rgba(125, 48, 71, 0.3);
   border-radius: 12px;
   padding: 2rem;
   max-width: 560px;
@@ -55,15 +55,15 @@ onUnmounted(() => {
   max-height: 80vh;
   font-family: var(--ds-font-body);
   overflow-y: auto;
-  color: rgba(230, 228, 224, 0.9);
+  color: rgba(34, 32, 27, 0.9);
 }
 .help-modal :deep(h2) {
-  color: rgba(230, 228, 224, 0.95);
+  color: rgba(34, 32, 27, 0.95);
   margin: 0 0 1rem;
   font-size: 1.2rem;
 }
 .help-modal :deep(h3) {
-  color: rgba(230, 228, 224, 0.7);
+  color: rgba(34, 32, 27, 0.7);
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -73,10 +73,10 @@ onUnmounted(() => {
 .help-modal :deep(li) {
   font-size: 0.88rem;
   line-height: 1.6;
-  color: rgba(230, 228, 224, 0.75);
+  color: rgba(34, 32, 27, 0.75);
 }
 .help-modal :deep(strong) {
-  color: rgba(230, 228, 224, 0.95);
+  color: rgba(34, 32, 27, 0.95);
 }
 .help-modal :deep(table) {
   width: 100%;
@@ -87,15 +87,15 @@ onUnmounted(() => {
 .help-modal :deep(td),
 .help-modal :deep(th) {
   padding: 0.35rem 0.6rem;
-  border: 1px solid rgba(230, 228, 224, 0.15);
+  border: 1px solid rgba(34, 32, 27, 0.15);
   text-align: left;
 }
 .help-modal :deep(th) {
-  color: rgba(230, 228, 224, 0.5);
+  color: rgba(34, 32, 27, 0.65);
   font-weight: normal;
 }
 .help-modal :deep(code) {
-  background: rgba(122, 51, 72, 0.12);
+  background: rgba(125, 48, 71, 0.12);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   font-size: 0.82rem;
@@ -107,7 +107,7 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(230, 228, 224, 0.4);
+  color: rgba(34, 32, 27, 0.55);
   font-size: 1rem;
   line-height: 1;
   padding: 0.25rem 0.5rem;
@@ -115,6 +115,6 @@ onUnmounted(() => {
   transition: color 0.2s;
 }
 .help-close:hover {
-  color: rgba(230, 228, 224, 0.9);
+  color: rgba(34, 32, 27, 0.9);
 }
 </style>

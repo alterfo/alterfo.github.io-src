@@ -129,7 +129,7 @@ export function createField(canvas, opts = {}) {
     density = 12,
     count = null,
     connectDistance = 100,
-    bg = 'rgb(20,22,26)',
+    bg = 'rgb(246,242,234)',
     palette = CANVAS_PALETTE,
     lineWidth = 0.8,
     autoStart = true,
@@ -172,7 +172,11 @@ export function createField(canvas, opts = {}) {
     ctx.globalCompositeOperation = 'source-over'
     ctx.fillStyle = bg
     ctx.fillRect(0, 0, w, h)
-    ctx.globalCompositeOperation = 'lighter'
+    // 'lighter' (additive) reads as glow on a dark ground — on the light «Paper & Ink»
+    // ground it pushes every color toward white, washing particles out to near
+    // invisibility. 'multiply' is the light-ground analog: strokes darken/richen the
+    // paper instead of brightening it, so overlaps still read as deliberate ink build-up.
+    ctx.globalCompositeOperation = 'multiply'
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i]

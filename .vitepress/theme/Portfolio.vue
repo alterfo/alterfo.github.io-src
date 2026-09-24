@@ -27,7 +27,7 @@
 
     <div class="staff-divider" aria-hidden="true">
       <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
-        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(230,228,224,0.12)" stroke-width="1"/>
+        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(34,32,27,0.14)" stroke-width="1"/>
       </svg>
     </div>
 
@@ -185,8 +185,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem 0 0.5rem;
+  gap: 0.75rem;
+  padding: 4rem 0 2rem;
   z-index: 1;
 }
 
@@ -202,8 +202,8 @@ onBeforeUnmount(() => {
 .growth-inner {
   display: flex;
   justify-content: center;
-  padding-top: 2.25rem;
-  padding-bottom: 2.25rem;
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
   --cd-value-size: clamp(1.7rem, 5vw, 2.6rem);
 }
 
@@ -215,7 +215,7 @@ onBeforeUnmount(() => {
 
 .hero-name {
   font-family: var(--ds-font-display);
-  font-size: 1.65rem;
+  font-size: clamp(2rem, 5vw, 3.375rem);
   font-weight: 700;
   color: var(--ds-text-strong);
   margin: 0;
@@ -223,18 +223,18 @@ onBeforeUnmount(() => {
 }
 
 .hero-roles {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ds-text-muted);
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 /* ── Bio ─────────────────────────────────────────────────────── */
 .bio {
-  padding: 4rem 0 3rem;
+  padding: 8rem 0 6rem;
 }
 
 .bio-inner {
@@ -251,13 +251,13 @@ onBeforeUnmount(() => {
   margin: 0 0 1rem;
   font-size: 1rem;
   line-height: 1.75;
-  color: rgba(230, 228, 224, 0.75);
+  color: rgba(34, 32, 27, 0.75);
 }
 
 .bio-text p:last-child { margin: 0; }
 
 .bio-accent {
-  color: rgba(230, 228, 224, 0.9) !important;
+  color: rgba(34, 32, 27, 0.9) !important;
   font-style: italic;
   border-left: 2px solid color-mix(in srgb, var(--ds-violet) 60%, transparent);
   padding-left: 1rem;
@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
 
 /* ── Staff divider ───────────────────────────────────────────── */
 .staff-divider {
-  padding: 0.5rem 0;
+  padding: 1rem 0;
 }
 .staff-div-svg {
   width: 100%;
@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
 
 /* ── Projects — колесо жизни ─────────────────────────────────── */
 .life-circle-section {
-  padding: 2rem 0 3.5rem;
+  padding: 6rem 0 6rem;
 }
 
 .case-study-links {
@@ -284,8 +284,8 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
-  gap: 0.4rem 1.25rem;
-  margin: 1.75rem 0 0;
+  gap: 0.5rem 1.5rem;
+  margin: 2rem 0 0;
   font-size: 0.85rem;
 }
 
@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
 
 .section-title {
   font-family: var(--ds-font-display);
-  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
   font-weight: 700;
   color: var(--ds-text-strong);
   margin: 0 0 2rem;
@@ -324,13 +324,13 @@ onBeforeUnmount(() => {
 
 /* ── Expertise ───────────────────────────────────────────────── */
 .expertise {
-  padding: 3.5rem 0 4.5rem;
+  padding: 6rem 0 8rem;
 }
 
 .expertise-inner {
   display: grid;
   grid-template-columns: 1fr 1px 1fr;
-  gap: 0 2.5rem;
+  gap: 0 3rem;
   align-items: start;
 }
 
@@ -350,10 +350,10 @@ onBeforeUnmount(() => {
 
 .exp-heading {
   font-family: var(--ds-font-display);
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--ds-text-strong);
-  margin: 0 0 1.1rem;
+  margin: 0 0 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -385,7 +385,7 @@ onBeforeUnmount(() => {
 
 .exp-list li {
   font-size: 0.88rem;
-  color: rgba(230, 228, 224, 0.8);
+  color: rgba(34, 32, 27, 0.8);
   line-height: 1.5;
   padding-left: 1rem;
   position: relative;
@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
   content: '—';
   position: absolute;
   left: 0;
-  color: color-mix(in srgb, var(--ds-violet) 45%, transparent);
+  color: color-mix(in srgb, var(--ds-violet) 65%, transparent);
   font-size: 0.75em;
   top: 0.15em;
 }
@@ -403,10 +403,10 @@ onBeforeUnmount(() => {
 /* ── Footer ──────────────────────────────────────────────────── */
 .site-footer {
   border-top: 1px solid var(--ds-border);
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   text-align: center;
   font-size: 0.8rem;
-  color: rgba(230, 228, 224, 0.7);
+  color: rgba(34, 32, 27, 0.7);
   letter-spacing: 0.08em;
   display: flex;
   align-items: center;
@@ -415,13 +415,13 @@ onBeforeUnmount(() => {
 }
 
 .site-footer a {
-  color: rgba(230, 228, 224, 0.78);
+  color: rgba(34, 32, 27, 0.78);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .site-footer a:hover {
-  color: rgba(230, 228, 224, 0.95);
+  color: rgba(34, 32, 27, 0.95);
 }
 
 .footer-sep {
