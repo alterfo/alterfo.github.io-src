@@ -62,7 +62,7 @@
 }
 .planner-btn:hover { opacity: .85; }
 .planner-btn:disabled { opacity: .5; cursor: default; }
-.planner-btn-primary { background: var(--ds-accent); color: var(--ds-text-strong); }
+.planner-btn-primary { background: var(--ds-accent); color: var(--ds-on-accent); }
 
 .planner-error { margin-top: 14px; color: var(--ds-danger); font-size: 13px; }
 
@@ -196,7 +196,7 @@
 }
 .planner-import-input:focus { border-color: var(--ds-accent-light); }
 .planner-import-actions { display: flex; gap: 7px; }
-.planner-import-merge { background: var(--ds-accent); color: var(--ds-text-strong); }
+.planner-import-merge { background: var(--ds-accent); color: var(--ds-on-accent); }
 .planner-import-merge:hover { background: var(--ds-accent-hover); }
 .planner-import-error { margin: 4px 0 0; color: var(--ds-danger); font-size: 12px; }
 .planner-footer-actions { display: flex; gap: 8px; }
@@ -246,11 +246,11 @@
   font-size: 13px;
   color: var(--ds-text-muted);
 }
-.planner-view-toggle button.active { background: var(--ds-accent); color: var(--ds-text-strong); }
+.planner-view-toggle button.active { background: var(--ds-accent); color: var(--ds-on-accent); }
 .planner-add-task {
   padding: 7px 14px;
   background: var(--ds-accent);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   border: none;
   border-radius: 7px;
   font-size: 13px;
@@ -272,7 +272,7 @@
   color: var(--ds-text-muted);
   cursor: pointer;
 }
-.planner-tag-chip.active { background: var(--ds-accent); color: var(--ds-text-strong); border-color: var(--ds-accent); }
+.planner-tag-chip.active { background: var(--ds-accent); color: var(--ds-on-accent); border-color: var(--ds-accent); }
 
 .planner-content {
   flex: 1;

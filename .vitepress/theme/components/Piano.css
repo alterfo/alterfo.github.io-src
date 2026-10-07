@@ -60,7 +60,7 @@
 .level-btn.active,
 .tempo-btn.active {
   background: var(--ds-accent);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   border-color: var(--ds-accent-light);
 }
 
@@ -104,7 +104,7 @@
 }
 .tb-btn:hover:not(:disabled) { background: var(--ds-border-strong); color: var(--ds-text-strong); }
 .tb-btn:disabled { opacity: 0.6; cursor: default; }
-.tb-btn.primary { background: var(--ds-accent); color: var(--ds-text-strong); border-color: var(--ds-accent-light); }
+.tb-btn.primary { background: var(--ds-accent); color: var(--ds-on-accent); border-color: var(--ds-accent-light); }
 .tb-btn.primary:hover:not(:disabled) { background: var(--ds-accent-light); }
 
 /* ── Import error banner ─────────────────────────────────────── */
@@ -192,7 +192,7 @@
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.ts-btn.active { background: var(--ds-accent); color: var(--ds-text-strong); border-color: var(--ds-accent-light); }
+.ts-btn.active { background: var(--ds-accent); color: var(--ds-on-accent); border-color: var(--ds-accent-light); }
 .modal-actions {
   display: flex;
   gap: 8px;
@@ -246,7 +246,7 @@
 .complete-stats { font-size: 14px; color: var(--ds-text-muted); }
 .restart-btn {
   background: var(--ds-accent);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 24px;

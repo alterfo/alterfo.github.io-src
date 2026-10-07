@@ -64,7 +64,7 @@
 }
 .fin-btn:hover { opacity: .88; }
 .fin-btn:disabled { opacity: .5; cursor: default; }
-.fin-btn-primary { background: var(--ds-accent); color: var(--ds-text-strong); }
+.fin-btn-primary { background: var(--ds-accent); color: var(--ds-on-accent); }
 .fin-btn-ghost { background: var(--ds-border); color: var(--ds-text); }
 
 .fin-error { margin-top: 14px; color: var(--ds-danger); font-size: 13px; }
@@ -102,7 +102,7 @@
   cursor: pointer;
 }
 .fin-tab:hover { background: var(--ds-border); color: var(--ds-text-strong); }
-.fin-tab.active { background: var(--ds-accent-bg); border-color: var(--ds-accent); color: var(--ds-accent-light); }
+.fin-tab.active { background: var(--ds-accent-bg); border-color: var(--ds-accent); color: var(--ds-accent-hover); }
 
 .fin-topbar-actions { display: flex; gap: 8px; }
 .fin-btn-sm {
@@ -145,7 +145,7 @@
 }
 .fin-import-input:focus { border-color: var(--ds-accent-light); }
 .fin-import-actions { display: flex; gap: 7px; }
-.fin-import-merge { background: var(--ds-accent); color: var(--ds-text-strong); }
+.fin-import-merge { background: var(--ds-accent); color: var(--ds-on-accent); }
 .fin-import-merge:hover { background: var(--ds-accent-hover); }
 .fin-import-error { margin: 4px 16px 0; color: var(--ds-danger); font-size: 12px; }
 
@@ -390,7 +390,7 @@
 }
 .fin-period-selector button.active {
   background: var(--ds-accent);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   border-color: var(--ds-accent);
 }
 .fin-period-selector input[type="month"] {
@@ -472,7 +472,7 @@
 }
 .fin-trend-selector button.active {
   background: var(--ds-accent);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   border-color: var(--ds-accent);
 }
 

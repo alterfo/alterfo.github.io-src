@@ -326,7 +326,7 @@ defineExpose({ getState, restoreState })
   padding: 8px 16px;
   font-size: 14px;
   font-family: var(--ds-font-body);
-  color: var(--ds-text-strong);
+  color: var(--ds-on-accent);
   background: var(--ds-accent);
   border: none;
   border-radius: 8px;
