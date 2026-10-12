@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
-import { mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import matter from 'gray-matter'
 import { SITE_URL, EXTRA_URLS, SITE_HEAD, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority, shouldPreloadLink } from './seo.js'
 import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
 
@@ -179,9 +180,23 @@ export default defineConfig({
       const match = basename.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/)
       if (!match) continue
       const [, year, month, day, slug] = match
-      const dir = join(siteConfig.outDir, 'posts', year, month, day, slug)
+      // Old VuePress slugs were always lowercase; the new filename can diverge
+      // (e.g. 2020-10-05-SDLC.md) — the stub's own directory must match the
+      // incoming lowercase request on case-sensitive hosting, while the
+      // redirect target keeps the real page's actual case.
+      const dir = join(siteConfig.outDir, 'posts', year, month, day, slug.toLowerCase())
       mkdirSync(dir, { recursive: true })
       writeFileSync(join(dir, 'index.html'), redirectHtml(`/posts/${basename}`))
+
+      // Early posts also carried a flat `permalink: /slug` (old VuePress series
+      // links, e.g. /stack-1) — never wired into actual routing, just dead
+      // frontmatter. Generate the same kind of stub for those too.
+      const { data: fm } = matter(readFileSync(join(siteConfig.srcDir, 'posts', file), 'utf-8'))
+      if (typeof fm.permalink === 'string' && /^\/[\w-]+$/.test(fm.permalink)) {
+        const permalinkDir = join(siteConfig.outDir, fm.permalink.slice(1))
+        mkdirSync(permalinkDir, { recursive: true })
+        writeFileSync(join(permalinkDir, 'index.html'), redirectHtml(`/posts/${basename}`))
+      }
     }
 
     // Hand-rolled sitemap.xml from source pages (md only → redirect stubs auto-excluded).
