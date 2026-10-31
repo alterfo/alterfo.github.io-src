@@ -1,6 +1,6 @@
 ---
-description: all eight lenses across three claude agents plus an adversarial codex peer
-model: claude/opus:high
+description: all eight lenses across three codex agents plus an adversarial codex peer
+model: codex/gpt-5.6-sol:high
 agents:
   - {name: bugs+impl,    lenses: [bugs, impl],            color: cyan}
   - {name: arch+quality, lenses: [architecture, quality], color: magenta}

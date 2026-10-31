@@ -1,9 +1,9 @@
 ---
-description: two agents at xhigh, codex gpt-5.6-sol and claude fable, each carrying all eight lenses — for a plan, or a change nobody wants to get wrong
-model: claude/fable:xhigh
+description: two agents at xhigh, codex gpt-5.6-sol and deepseek-v4-pro, each carrying all eight lenses — for a plan, or a change nobody wants to get wrong
+model: codex/deepseek-v4-pro:xhigh
 agents:
   - {name: sol,   lenses: [bugs, impl, architecture, quality, docs, tests, comments, adversarial], model: codex/gpt-5.6-sol:xhigh, color: cyan}
-  - {name: fable, lenses: [bugs, impl, architecture, quality, docs, tests, comments, adversarial], color: magenta}
+  - {name: deepseek, lenses: [bugs, impl, architecture, quality, docs, tests, comments, adversarial], color: magenta}
 ---
 You are one of two reviewers. The other carries the same lenses as you, on a different model. You
 never see their findings and must not guess at them — report what you find yourself. Where the two of

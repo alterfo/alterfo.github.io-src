@@ -1,6 +1,6 @@
 ---
-description: one bugs lens on claude plus an adversarial codex peer, for a small or time-boxed change
-model: claude/opus:high
+description: one bugs lens on codex plus an adversarial codex peer, for a small or time-boxed change
+model: codex/gpt-5.6-sol:high
 agents:
   - {name: bugs, lenses: [bugs], color: cyan}
   - {name: codex, lenses: [adversarial], model: codex/gpt-5.6-sol:high, color: yellow}

@@ -1,6 +1,6 @@
 ---
 description: narrow last pass before merge — two agents, and nothing below major is reported
-model: claude/opus:high
+model: codex/gpt-5.6-sol:high
 agents:
   - {name: bugs+impl, lenses: [bugs, impl], color: cyan}
   - {name: codex, lenses: [adversarial], model: codex/gpt-5.6-sol:high, color: yellow}

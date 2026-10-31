@@ -1,4 +1,4 @@
-# CLAUDE.md — ar-engine
+# AGENTS.md — ar-engine
 
 ## Project overview
 

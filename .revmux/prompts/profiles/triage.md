@@ -1,6 +1,6 @@
 ---
 description: four-agent panel over a filed item rather than a diff — facts, thesis, antithesis and cost on codex; run it with --no-synthesis, since every argument is single-source and the drop rule eats them otherwise
-model: claude/opus:high
+model: codex/gpt-5.6-sol:high
 agents:
   - {name: facts,      lenses: [grounding, precedent], color: cyan}
   - {name: thesis,     lenses: [thesis],               color: green}

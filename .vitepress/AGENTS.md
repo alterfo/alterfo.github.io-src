@@ -2,7 +2,7 @@
 
 ## Design system «Paper & Ink»
 
-**Warm paper ground + jewel-tone accents** palette shared by the home page and all eight client-side apps. Replaces the dark «Spiral» system (2026-09-24) — a deliberate light-editorial redesign chosen from three proposed directions (see `docs/plans/20260924-design-system-redesign.md` / `completed/`), authored per the reusable, site-direction rules in `~/.claude/design/*.md` (typography.md, palette.md, spacing-grid.md, design-systems.md — global, not repo-local; imported into `~/.claude/CLAUDE.md`).
+**Warm paper ground + jewel-tone accents** palette shared by the home page and all eight client-side apps. Replaces the dark «Spiral» system (2026-09-24) — a deliberate light-editorial redesign chosen from three proposed directions (see `docs/plans/20260924-design-system-redesign.md` / `completed/`), authored per the reusable, site-direction rules in `~/.agents/design/*.md` (typography.md, palette.md, spacing-grid.md, design-systems.md — global, not repo-local; imported into `~/.agents/AGENTS.md`).
 History: cosmic-violet-home / slate-apps split (generic "AI-generated site") → warm-ink earth tones (2026-07-12, first pass) → cool graphite + jewel tones «Spiral» (2026-07-12, second pass, the dark system that shipped for ~2.5 months) → **current** «Paper & Ink» light system (2026-09-24, third pass — the redesign this section now documents):
 - Void/page bg: `--ds-void` `#f6f2ea` (warm paper, not pure white), panels/cards: `--ds-surface-solid` `#ffffff`, raised/hover: `--ds-raised` `#efe8db`, borders: `--ds-border`/`--ds-border-strong` (translucent warm-ink rgba, not solid hex)
 - Text: `--ds-text` `#22201b` / muted `--ds-text-muted` `rgba(34,32,27,0.65)` / dim `--ds-text-dim` `rgba(34,32,27,0.51)`, strong `--ds-text-strong` `#131210`. Borders: `--ds-border` `rgba(34,32,27,0.425)` / `--ds-border-strong` `rgba(34,32,27,0.574)`.
@@ -142,7 +142,7 @@ partial font was the actual bottleneck — **always verify Cyrillic before prese
 font as a candidate**, not just before adopting the final pick.
 
 All display-face candidates verified for Cyrillic support **before** being presented as
-options, per the reusable rule in `~/.claude/design/typography.md` ("verify Cyrillic
+options, per the reusable rule in `~/.agents/design/typography.md` ("verify Cyrillic
 subset before falling in love with it") — checked via
 `curl -A "<chrome-UA>" "https://fonts.googleapis.com/css2?family=…"` and confirming a
 `/* cyrillic */` block with a real `unicode-range` is present (the legacy

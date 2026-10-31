@@ -1,10 +1,10 @@
 ---
-description: every agent adversarial — bugs+impl and architecture+quality, each run once on claude and once on codex
-model: claude/opus:high
+description: every agent adversarial — bugs+impl and architecture+quality, each run once on deepseek-v4-pro and once on gpt-5.6-sol
+model: codex/deepseek-v4-pro:high
 agents:
-  - {name: bugs-claude, lenses: [bugs, impl],            color: cyan}
+  - {name: bugs-deepseek, lenses: [bugs, impl],            color: cyan}
   - {name: bugs-codex,  lenses: [bugs, impl],            model: codex/gpt-5.6-sol:high, color: bright-cyan}
-  - {name: arch-claude, lenses: [architecture, quality], color: magenta}
+  - {name: arch-deepseek, lenses: [architecture, quality], color: magenta}
   - {name: arch-codex,  lenses: [architecture, quality], model: codex/gpt-5.6-sol:high, color: bright-magenta}
 ---
 You are one reviewer on a panel, and every reviewer on it is reading against the change rather than

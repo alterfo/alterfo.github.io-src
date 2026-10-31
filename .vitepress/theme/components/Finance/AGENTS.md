@@ -231,7 +231,7 @@ the merged vault.
 - Only the ticker symbol (public market data) goes in the URL path — no analytics/tracking payload.
 - `LAST` (live trade price) is preferred; falls back to `PREVPRICE` (previous close) when `LAST` is null, which happens outside trading hours.
 - On success, the price is cached onto the holding (`lastPrice`/`priceAsOf`) via `vault.js`'s `upsertHolding` so the app has a usable last-known price offline.
-- See the matching note in root `CLAUDE.md`'s "Known deferred advisories" section — don't flag this as an accidental CDN/runtime-fetch violation.
+- See the matching note in root `AGENTS.md`'s "Known deferred advisories" section — don't flag this as an accidental CDN/runtime-fetch violation.
 
 **Recommendations stay local too.** The `~/dev/fin/finanalys` ("persfin") project was
 evaluated as a source for the investment-recommendations feature and rejected: it's a

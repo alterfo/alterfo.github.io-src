@@ -33,11 +33,101 @@ This project is indexed by GitNexus as **alterfo.github.io-src** (623 symbols, 9
 
 | Task | Read this skill file |
 |------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Understand architecture / "How does X work?" | `.opencode/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.opencode/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.opencode/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.opencode/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.opencode/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.opencode/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+---
+
+## Project guide (migrated from CLAUDE.md, 2026-10-31)
+
+
+## Project overview
+
+VitePress-based personal site with eight fully client-side apps and one content page:
+- `/idef0` — IDEF0 diagram editor (SVG + Vue 3, FIPS 183)
+- `/journal` — private encrypted daily journal (WebCrypto AES-GCM, IndexedDB, 500-words/day, file-based sync)
+- `/piano` — interactive MIDI piano teacher (Web MIDI API, VexFlow notation, IndexedDB progress)
+- `/openpose` — OpenPose pose editor (MediaPipe BlazePose WASM, drag-edit skeletons, ControlNet PNG + JSON export)
+- `/planner` — encrypted project/task planner (WebCrypto AES-GCM, IndexedDB, kanban + list, encrypted `.planner` export/import)
+- `/decision-journal` — encrypted decision journal with calibration (Brier score + confidence-bucket table)
+- `/finance` — encrypted personal finance tracker (WebCrypto AES-GCM, IndexedDB, expenses/accounts/RU-market investment portfolio, deposit top-ups, on-demand MOEX ISS price refresh, local investment recommendations, encrypted `.finance` export/import)
+- `/casual-games` — casual puzzle collection (Queens, Tango, Zip, Klondike solitaire; seeded level generation, hints, scoring, local IndexedDB persistence)
+- `/music` — music page: Alterfo albums (Яндекс.Музыка), lazy embed player
+
+Plus two **external apps served as subpaths** (not in-tree client apps, copied into `dist/<subpath>/` at deploy, mirroring each other):
+- `/ar` — Аудио-реактив (`ar-engine/`, SEO hand-maintained in `ar-engine/web/index.html`)
+- `/vacuum-rogues` — browser game (private repo `alterfo/vacuum-rogues`, Vite + PixiJS + onnxruntime-web; vendored as a git submodule at `vacuum-rogues/`, built in CI gated on the `VACUUM_ROGUES_DEPLOY_KEY` secret, placeholder until then). Its entry point is the **ship-ranger logo in the center of the LifeCircle donut** on the home page (`<a href="/vacuum-rogues/" target="_self">`).
+
+## Key entry points
+
+| Path | Role |
+|------|------|
+| `.vitepress/config.mts` | VitePress config, SEO hooks, sitemap |
+| `.vitepress/theme/index.mts` | Theme entry: global component registration |
+| `.vitepress/theme/components/crypto.js` | Shared WebCrypto substrate (PBKDF2 → AES-GCM); reused by journal, planner, decisions |
+| `.vitepress/theme/components/IDEF0Editor.vue` | IDEF0 root (`<ClientOnly>`, `defineAsyncComponent`); modules in `IDEF0Editor/` |
+| `.vitepress/theme/components/Journal.vue` | Journal root (`<ClientOnly>`, `defineAsyncComponent`); modules in `Journal/` |
+| `.vitepress/theme/components/Piano.vue` | Piano root (`defineAsyncComponent`); modules in `Piano/` |
+| `.vitepress/theme/components/OpenPoseEditor.vue` | OpenPose root (`defineAsyncComponent`); modules in `OpenPose/` |
+| `.vitepress/theme/components/PlannerEditor.vue` | Planner root (`defineAsyncComponent`); modules in `Planner/` |
+| `.vitepress/theme/components/DecisionJournal.vue` | Decisions root (`defineAsyncComponent`); modules in `Decisions/` |
+| `.vitepress/theme/components/FinanceApp.vue` | Finance root (`defineAsyncComponent`); modules in `Finance/` |
+| `.vitepress/theme/components/CasualGames.vue` | Casual games root (`defineAsyncComponent`); modules in `CasualGames/` |
+| `.vitepress/theme/components/MusicAlbums.vue` | Music page component |
+| `.vitepress/theme/components/spectrum.js` | Design system JS mirror (palette, CANVAS_PALETTE, PROJECT_COLORS) |
+| `posts.data.ts` | VitePress data loader: reads `posts/*.md`, parses frontmatter, extracts excerpt |
+| `blog.md` | Blog listing page at `/blog` — uses `<BlogList :posts="posts" />` |
+
+All eight app roots are registered in `.vitepress/theme/index.mts` via `defineAsyncComponent(() => import('...'))` — global component names (`IDEF0Editor`, `Journal`, `Piano`, `OpenPoseEditor`, `PlannerEditor`, `DecisionJournal`, `FinanceApp`, `CasualGames`) stay the same, but the editor source/deps are split into their own lazy chunk and never ship in the entry/app chunk (incl. on the home page, which never renders them). New app roots should follow the same pattern.
+
+For detailed docs on each app, see `AGENTS.md` in the relevant module subfolder.
+For design system, SEO, typography, and VitePress gotchas, see `.vitepress/AGENTS.md`.
+
+## Development
+
+```
+# Dev server (use npm, not yarn — yarn is broken)
+npm run dev
+
+# Build
+npm run build
+
+# Unit tests
+node --test .vitepress/theme/components/crypto.test.mjs
+node --test .vitepress/theme/components/Journal/*.test.mjs
+node --test .vitepress/theme/components/IDEF0Editor/model.test.mjs
+node --test .vitepress/theme/components/Piano/*.test.mjs .vitepress/theme/components/Piano/importer/*.test.mjs
+node --test .vitepress/theme/components/OpenPose/*.test.mjs
+node --test .vitepress/theme/components/Planner/store.test.mjs
+node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/theme/components/Decisions/stats.test.mjs
+node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs .vitepress/theme/components/Finance/components.render.test.mjs
+node --test .vitepress/theme/components/CasualGames/*.test.mjs
+node --test .vitepress/theme/components/music.test.mjs
+node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs
+node --test .vitepress/seo.test.mjs
+node --test .vitepress/theme/components/onboarding.test.mjs
+```
+
+- **`vitepress preview` 404s new hashed assets after rebuild** — restart preview after every build.
+- **CDP debugging**: `chrome --headless=new --remote-debugging-port=N --user-data-dir=/tmp/x about:blank`; create tab via `/json/new?url=about:blank` then `Page.navigate`; subscribe to `Runtime.exceptionThrown`; WebGPU canvases only via `Page.captureScreenshot`.
+- Plan files: `docs/plans/` (git-ignored, local only).
+- **MOEX ISS runtime-fetch exception**: every app in this repo makes zero runtime calls to external hosts, *except* `/finance`'s `Finance/prices.js`, which calls `iss.moex.com` (official Moscow Exchange ISS API) to fetch current prices for held RU-market tickers. This is a deliberate, narrow, user-approved exception — one host, no API key, user-initiated only (a "refresh prices" button, never automatic/polling), only the public ticker symbol sent. Now queries at most two boards per ticker (shares first, bonds as fallback on `unknown-ticker`) — still the same one host, no new inputs. See `Finance/AGENTS.md` for detail. Not an accidental CDN/runtime-fetch violation.
+- **Known deferred advisories** (5 GHSA IDs across 3 packages, GitHub-flagged: 1 high, 4 moderate; `vitepress`/`vite`/`esbuild`/`gray-matter` are `devDependencies` only — none of this ships in the built static site, all dev-server/dev-tooling only):
+  - GHSA-67mh-4wv8-2f99 — esbuild ≤0.24.2 dev-server CORS (moderate)
+  - GHSA-fx2h-pf6j-xcff — vite ≤6.4.2 `server.fs.deny` bypass on Windows alternate paths (**high**)
+  - GHSA-4w7w-66w2-5vf9 — vite path traversal in optimized-deps `.map` handling (moderate)
+  - GHSA-v6wh-96g9-6wx3 — `launch-editor` (vite's click-to-open-in-editor) NTLMv2 hash disclosure via UNC path on Windows (moderate)
+  - GHSA-hp3w-g68c-fv3c — `sprintf-js` DoS via unbounded precision specifiers, transitive via `argparse`←`js-yaml`←`gray-matter` (VitePress's frontmatter parser) (moderate)
+  - No non-breaking fix available for any of them. The first 4 are transitively pinned by `vitepress@1.6.4`'s `vite@5.4.21`/`esbuild@0.21.5` (re-evaluate once `vitepress@2.0.0` ships stable and bumps the vite major — still alpha as of 2026-07-12). `sprintf-js` only clears via `npm audit fix --force`, which downgrades `gray-matter` to `2.0.1` (`isSemVerMajor: true`) — deferred rather than force-installing an untested major bump to the frontmatter parser `posts.data.ts` depends on.
+  - 2026-08-20: `npm audit fix` cleared 5 additional transitive advisories (js-yaml, nanoid, postcss, tar — incl. one **critical** DoS, undici) that had crept in since this list was last written — all patch/minor bumps within existing semver ranges (`package.json` untouched, only `package-lock.json`), verified via the full test suite + `npm run build`. GitHub's Dependabot count can drift ahead of this list between sessions (it flagged 15 open alerts vs. the 4 recorded here before this pass) — if `git push` reports a vulnerability count that doesn't match this section, re-run `npm audit` before assuming it's just these 4.
+  - 2026-09-25: same pattern again — `git push` reported 5 vulnerabilities (2 high) against this section's documented 4 (1 high). `npm audit` found a new one: GHSA-2883-xcg3-v3hh, `js-yaml` 3.0.0–3.15.1 (transitive via `gray-matter`, VitePress's frontmatter parser) — CPU-exhaustion DoS via `maxTotalMergeKeys` on empty merge sources, **high**, fix available. `npm audit fix` cleared it (`package.json` untouched, only `package-lock.json`, 3-line diff); confirmed via `npm audit --json` that the remaining advisories are exactly the same 4 GHSA IDs above (`npm audit`'s summary line now says "3 vulnerabilities" because it groups vite's three GHSA IDs under one package-level entry, not because one went away) — verified via full test suite + `npm run build`.
+  - 2026-10-07: same pattern again — `git push` reported 6 vulnerabilities (2 high) against this section's documented 4 (1 high). `npm audit` found two new ones: GHSA-g2v6-rqmx-r4w6 (`@vue/server-renderer`/`vue`, XSS via missing CR in attribute-name blacklist, **high**) and GHSA-68fv-2mgg-jv7q (`source-map-js`, event-loop DoS via indexed source-map section offsets, **high**) — both fixed non-breaking by plain `npm audit fix` (bumped `vue`, `undici`, `source-map-js`, `postcss`, `nanoid`, `@jridgewell/sourcemap-codec`, `@babel/*` — `package.json` untouched, only `package-lock.json`). That run also surfaced a previously-undocumented 5th deferred advisory already present in the tree, GHSA-hp3w-g68c-fv3c (`sprintf-js`, added to the list above) — only clears via a breaking `gray-matter` downgrade, left deferred. Verified via full test suite (947 passing) + `npm run build`.
+
+## Code intelligence — GitNexus
+
+Repo is GitNexus-indexed; prefer `mcp__gitnexus__*` over grep. Before editing a symbol: `impact({target, direction:"upstream"})`. Before committing: `detect_changes({scope:"compare", base_ref:"master"})`. Explore with `query`/`context`; rename via `rename` (not find-replace). Refresh: `node .gitnexus/run.cjs analyze`. Full rules: `.opencode/skills/gitnexus/*/SKILL.md` and the repo `AGENTS.md`.
