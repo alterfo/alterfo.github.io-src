@@ -118,6 +118,9 @@ function osReducedMotion() {
 //   bg             — solid clear color, hard-repainted every frame (no
 //                    persistence — every frame is drawn from scratch)
 //   palette        — rgba( prefixes (see spectrum.js CANVAS_PALETTE)
+//   blend          — canvas composite op for dots/lines. 'multiply' for the light
+//                    «Paper & Ink» ground, 'lighter' for a dark ground (see the
+//                    ground-dependence note in frame()).
 //   lineWidth      — connection line width
 //   autoStart      — begin the rAF loop immediately (default true)
 //   getSize        — () => ({ w, h }); default reads canvas.offsetWidth/Height
@@ -131,6 +134,7 @@ export function createField(canvas, opts = {}) {
     connectDistance = 100,
     bg = 'rgb(246,242,234)',
     palette = CANVAS_PALETTE,
+    blend = 'multiply',
     lineWidth = 0.8,
     autoStart = true,
     getSize = null,
@@ -176,7 +180,9 @@ export function createField(canvas, opts = {}) {
     // ground it pushes every color toward white, washing particles out to near
     // invisibility. 'multiply' is the light-ground analog: strokes darken/richen the
     // paper instead of brightening it, so overlaps still read as deliberate ink build-up.
-    ctx.globalCompositeOperation = 'multiply'
+    // The blend mode belongs to the ground, not the palette: the home page runs a dark
+    // ground (styles/home-dark.css) and passes blend: 'lighter' explicitly.
+    ctx.globalCompositeOperation = blend
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i]

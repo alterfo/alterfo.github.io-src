@@ -27,7 +27,7 @@
 
     <div class="staff-divider" aria-hidden="true">
       <svg viewBox="0 0 900 24" preserveAspectRatio="none" class="staff-div-svg">
-        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="rgba(34,32,27,0.14)" stroke-width="1"/>
+        <line v-for="y in [4,9,14,19,24]" :key="y" x1="0" :y1="y" x2="900" :y2="y" stroke="currentColor" stroke-opacity="0.14" stroke-width="1"/>
       </svg>
     </div>
 
@@ -136,11 +136,22 @@ const onResize = () => field?.resize()
 
 onMounted(() => {
   if (canvasEl.value) {
-    field = createField(canvasEl.value, { density: 12, connectDistance: 100 })
+    // Home page is the one dark ground on an otherwise light «Paper & Ink» site.
+    // The class lives on <html> so the overrides in styles/home-dark.css reach
+    // tokens used by nested components (LifeCircle, CountDown) and the page
+    // canvas, and so overscroll/scrollbars match the dark void.
+    document.documentElement.classList.add('home-dark')
+    field = createField(canvasEl.value, {
+      density: 12,
+      connectDistance: 100,
+      bg: 'rgb(20,22,26)',
+      blend: 'lighter',
+    })
   }
   window.addEventListener('resize', onResize)
 })
 onBeforeUnmount(() => {
+  document.documentElement.classList.remove('home-dark')
   window.removeEventListener('resize', onResize)
   field?.destroy()
 })
@@ -251,13 +262,13 @@ onBeforeUnmount(() => {
   margin: 0 0 1rem;
   font-size: 1rem;
   line-height: 1.75;
-  color: rgba(34, 32, 27, 0.75);
+  color: color-mix(in srgb, var(--ds-text) 75%, transparent);
 }
 
 .bio-text p:last-child { margin: 0; }
 
 .bio-accent {
-  color: rgba(34, 32, 27, 0.9) !important;
+  color: color-mix(in srgb, var(--ds-text) 90%, transparent) !important;
   font-style: italic;
   border-left: 2px solid color-mix(in srgb, var(--ds-violet) 60%, transparent);
   padding-left: 1rem;
@@ -385,7 +396,7 @@ onBeforeUnmount(() => {
 
 .exp-list li {
   font-size: 0.88rem;
-  color: rgba(34, 32, 27, 0.8);
+  color: color-mix(in srgb, var(--ds-text) 80%, transparent);
   line-height: 1.5;
   padding-left: 1rem;
   position: relative;
@@ -406,7 +417,7 @@ onBeforeUnmount(() => {
   padding: 2rem 1.5rem;
   text-align: center;
   font-size: 0.8rem;
-  color: rgba(34, 32, 27, 0.7);
+  color: color-mix(in srgb, var(--ds-text) 70%, transparent);
   letter-spacing: 0.08em;
   display: flex;
   align-items: center;
@@ -415,13 +426,13 @@ onBeforeUnmount(() => {
 }
 
 .site-footer a {
-  color: rgba(34, 32, 27, 0.78);
+  color: color-mix(in srgb, var(--ds-text) 78%, transparent);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .site-footer a:hover {
-  color: rgba(34, 32, 27, 0.95);
+  color: color-mix(in srgb, var(--ds-text) 95%, transparent);
 }
 
 .footer-sep {
