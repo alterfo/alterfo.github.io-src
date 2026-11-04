@@ -7,7 +7,7 @@
   <div class="app-shell">
     <div class="app-bar" :style="{ borderBottomColor: accentBorder }">
       <HomeMark :active="sphere" />
-      <h1 class="app-title" :style="{ color: accent }">{{ title }}</h1>
+      <h1 class="app-title" :style="{ color: titleColor }">{{ title }}</h1>
     </div>
     <div class="app-body">
       <ClientOnly>
@@ -28,7 +28,10 @@ const props = defineProps({
   title: { type: String, required: true },
 })
 
-const accent = computed(() => PROJECT_COLORS[props.sphere] || 'var(--ds-text)')
+const accent = computed(() => PROJECT_COLORS[props.sphere] || '#e6e4e0')
+// Sphere hexes are dark fills, only 1.6-3.3:1 as text on the dark app bar —
+// mix 45% of the hue toward --ds-text so the title keeps its sphere color at AA.
+const titleColor = computed(() => `color-mix(in srgb, ${accent.value} 45%, var(--ds-text))`)
 // ~30% alpha border tint — mirrors the old rgba(sphere,.3) border-bottom.
 const accentBorder = computed(() => `${accent.value}4d`)
 </script>

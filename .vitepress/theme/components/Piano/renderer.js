@@ -31,7 +31,7 @@ async function getOSMD(container) {
     drawMetronomeMarks: false,
     drawFingerings: false,
     pageFormat: 'Endless',
-    darkMode: false,
+    darkMode: true,
     pageBackgroundColor: 'transparent',
     newSystemFromXML: false,
     newPageFromXML: false,

@@ -108,7 +108,7 @@ node --test .vitepress/theme/components/Decisions/vault.test.mjs .vitepress/them
 node --test .vitepress/theme/components/Finance/vault.test.mjs .vitepress/theme/components/Finance/stats.test.mjs .vitepress/theme/components/Finance/prices.test.mjs .vitepress/theme/components/Finance/components.render.test.mjs
 node --test .vitepress/theme/components/CasualGames/*.test.mjs
 node --test .vitepress/theme/components/music.test.mjs
-node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs
+node --test .vitepress/theme/components/spectrum.test.mjs .vitepress/theme/components/ConnectingParticles.test.mjs .vitepress/theme/components/countdown.test.mjs .vitepress/theme/components/lifecircle.test.mjs .vitepress/theme/components/lifecircle-mirrors.test.mjs .vitepress/theme/components/headerLifecycle.test.mjs .vitepress/theme/components/contrast.test.mjs
 node --test .vitepress/seo.test.mjs
 node --test .vitepress/theme/components/onboarding.test.mjs
 ```

@@ -136,22 +136,14 @@ const onResize = () => field?.resize()
 
 onMounted(() => {
   if (canvasEl.value) {
-    // Home page is the one dark ground on an otherwise light «Paper & Ink» site.
-    // The class lives on <html> so the overrides in styles/home-dark.css reach
-    // tokens used by nested components (LifeCircle, CountDown) and the page
-    // canvas, and so overscroll/scrollbars match the dark void.
-    document.documentElement.classList.add('home-dark')
     field = createField(canvasEl.value, {
       density: 12,
       connectDistance: 100,
-      bg: 'rgb(20,22,26)',
-      blend: 'lighter',
     })
   }
   window.addEventListener('resize', onResize)
 })
 onBeforeUnmount(() => {
-  document.documentElement.classList.remove('home-dark')
   window.removeEventListener('resize', onResize)
   field?.destroy()
 })
@@ -306,7 +298,7 @@ onBeforeUnmount(() => {
 }
 
 .case-study-links a {
-  color: color-mix(in srgb, var(--ds-violet) 85%, white 15%);
+  color: color-mix(in srgb, var(--ds-violet) 55%, var(--ds-text));
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: color 0.2s, border-color 0.2s;
@@ -329,7 +321,7 @@ onBeforeUnmount(() => {
 .title-mono {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-size: 0.75em;
-  color: color-mix(in srgb, var(--ds-violet) 80%, transparent);
+  color: color-mix(in srgb, var(--ds-violet) 55%, var(--ds-text));
   font-style: normal;
 }
 
@@ -372,7 +364,7 @@ onBeforeUnmount(() => {
 
 .exp-icon {
   font-size: 1.5rem;
-  color: color-mix(in srgb, var(--ds-violet) 85%, transparent);
+  color: color-mix(in srgb, var(--ds-violet) 60%, var(--ds-text));
   font-style: normal;
   font-family: 'Times New Roman', Georgia, serif;
   line-height: 1;
@@ -382,7 +374,7 @@ onBeforeUnmount(() => {
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 1rem;
   letter-spacing: -0.05em;
-  color: color-mix(in srgb, var(--ds-cyan) 85%, transparent);
+  color: color-mix(in srgb, var(--ds-cyan) 65%, var(--ds-text));
 }
 
 .exp-list {
@@ -406,7 +398,7 @@ onBeforeUnmount(() => {
   content: '—';
   position: absolute;
   left: 0;
-  color: color-mix(in srgb, var(--ds-violet) 65%, transparent);
+  color: color-mix(in srgb, var(--ds-violet) 50%, var(--ds-text-muted));
   font-size: 0.75em;
   top: 0.15em;
 }

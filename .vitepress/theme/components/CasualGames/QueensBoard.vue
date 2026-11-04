@@ -201,7 +201,7 @@ defineExpose({ getState, restoreState })
             width="1"
             height="1"
             :fill="regionColor(regionAt(puzzle, row - 1, col - 1))"
-            :stroke="conflictKeys.has(`${col - 1}:${row - 1}`) ? '#d70b0b' : '#ffffff'"
+            :stroke="conflictKeys.has(`${col - 1}:${row - 1}`) ? '#f87171' : '#1e2126'"
             stroke-width="0.045"
             class="queens-cell"
             @click="toggle(row - 1, col - 1)"
@@ -267,7 +267,7 @@ defineExpose({ getState, restoreState })
   padding: 8px 16px;
   font-size: 14px;
   font-family: var(--ds-font-body);
-  color: var(--ds-on-accent);
+  color: var(--ds-text-strong);
   background: var(--ds-accent);
   border: none;
   border-radius: 8px;
@@ -306,7 +306,7 @@ defineExpose({ getState, restoreState })
 }
 
 .queens-queen {
-  fill: #131210;
+  fill: #f7f6f3;
   font-size: .62px;
   pointer-events: none;
 }

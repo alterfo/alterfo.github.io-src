@@ -1,6 +1,16 @@
 @import './vars.css';
-@import './home-dark.css';
 @import './fonts.css';
+
+/* Dark ground site-wide: keep overscroll/scrollbars and the pre-hydration paint
+   on the same graphite as --ds-void instead of VitePress's own --vp-c-bg. */
+html {
+  color-scheme: dark;
+  background-color: var(--ds-void);
+}
+
+body {
+  background-color: var(--ds-void);
+}
 
 /* normalize.css v8.0.0 | MIT License | github.com/necolas/normalize.css */
 

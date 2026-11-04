@@ -1,69 +1,58 @@
 # VitePress config & design system
 
-## Design system «Paper & Ink»
+## Design system «Spiral»
 
-**Warm paper ground + jewel-tone accents** palette shared by the blog, posts and all eight client-side apps — the home page runs the same tokens over a dark ground (see the History line). Replaces the dark «Spiral» system (2026-09-24) — a deliberate light-editorial redesign chosen from three proposed directions (see `docs/plans/20260924-design-system-redesign.md` / `completed/`), authored per the reusable, site-direction rules in `~/.agents/design/*.md` (typography.md, palette.md, spacing-grid.md, design-systems.md — global, not repo-local; imported into `~/.agents/AGENTS.md`).
-History: cosmic-violet-home / slate-apps split (generic "AI-generated site") → warm-ink earth tones (2026-07-12, first pass) → cool graphite + jewel tones «Spiral» (2026-07-12, second pass, the dark system that shipped for ~2.5 months) → «Paper & Ink» light system (2026-09-24, third pass — the redesign this section documents) → **2026-11-02: the home page alone goes back to the dark «Spiral» ground** (`theme/styles/home-dark.css`, token override scoped to `html.home-dark`; blog, posts and all eight apps stay light — see "Light theme by default — one dark scope" below for the mechanics):
-- Void/page bg: `--ds-void` `#f6f2ea` (warm paper, not pure white), panels/cards: `--ds-surface-solid` `#ffffff`, raised/hover: `--ds-raised` `#efe8db`, borders: `--ds-border`/`--ds-border-strong` (translucent warm-ink rgba, not solid hex)
-- Text: `--ds-text` `#22201b` / muted `--ds-text-muted` `rgba(34,32,27,0.65)` / dim `--ds-text-dim` `rgba(34,32,27,0.51)`, strong `--ds-text-strong` `#131210`. Borders: `--ds-border` `rgba(34,32,27,0.425)` / `--ds-border-strong` `rgba(34,32,27,0.574)`.
-- Danger (semantic red, deliberately NOT recolored, but its *values* were regenerated for the light ground — the old `#f87171` is a light red, illegible as text on paper): `--ds-danger` `#d70b0b`, `--ds-danger-strong` `#b50505`, `--ds-danger-bg` `#feeaea` (light rose wash, flipped from the old dark-maroon badge fill)
-- Radii: `--ds-radius-sm` 5px / `--ds-radius` 8px / `--ds-radius-lg` 14px. Shadows: `--ds-shadow-panel`, `--ds-shadow-card` (now `rgba(34,32,27,…)`, not black). Pill buttons (`border-radius: 20px`/`999px`) are still deliberately avoided — a full pill/oval reads as a stock UI-kit component.
-- Two deliberate light surfaces from the dark era — IDEF0 SVG canvas (`#f8fafc` "paper") and Journal lined-paper textarea (`#222` ink) — are now very close in value to the new page void; they read as less distinct than they did against dark «Spiral». Left unchanged in this pass (out of scope), flagged as a possible follow-up.
-- Every WCAG contrast number in this file (spectrum, danger, neutrals) was computed programmatically (Python, real relative-luminance formula) against the paper ground, not eyeballed — see `palette.md`'s contrast-requirements section for the method.
+**Cool-graphite ground + jewel-tone accents**, dark-only, shared by the home page, the
+blog, posts and all eight client-side apps — restored 2026-11-04 by owner request. The
+short-lived «Paper & Ink» light system (2026-09-24 → 2026-11-02, with a home-page-only
+dark scope bolted back on 2026-11-02) is retired; its typography (Alegreya + Manrope)
+was kept, only the ground, palette and contrast values went back to «Spiral».
+History: cosmic-violet-home / slate-apps split (generic "AI-generated site") → warm-ink
+earth tones (2026-07-12, first pass) → cool graphite + jewel tones «Spiral» (2026-07-12,
+second pass) → «Paper & Ink» light system (2026-09-24, third pass) → **«Spiral» dark
+restored site-wide (2026-11-04)**:
+- Void/page bg: `--ds-void` `#14161a`, panels/cards: `--ds-surface-solid` `#1e2126`, raised/hover: `--ds-raised` `#262a30`, section surface: `--ds-surface` `rgba(20,22,26,0.75)`.
+- Text: `--ds-text` `#e6e4e0`, strong `--ds-text-strong` `#f7f6f3`, muted `rgba(230,228,224,0.65)` (6.15:1 on surface-solid), dim `rgba(230,228,224,0.55)` (4.80:1 — tertiary but still AA), borders `rgba(230,228,224,0.12)` / `rgba(230,228,224,0.28)`.
+- Danger: `--ds-danger` `#f87171` (5.84:1 on surface-solid), `--ds-danger-strong` `#ef4444`, `--ds-danger-bg` `#3a1a1a`.
+- `--ds-on-accent` `#f7f6f3` is the label color for solid accent fills; bronze (OpenPose) and graphite (music) override it to `#131210` because light ink on those fills is only 3.1:1 / 2.7:1 — see the accent section below.
+- Radii: `--ds-radius-sm` 5px / `--ds-radius` 8px / `--ds-radius-lg` 14px. Shadows: `--ds-shadow-panel`/`--ds-shadow-card` use black, not ink. Pill buttons are still deliberately avoided.
+- Two deliberate light surfaces survive inside the dark UI and are correct as-is: the IDEF0 SVG canvas (`#f8fafc` "paper") and the Journal lined-paper textarea (dark `#222` ink on a light paper texture). They are self-contained and must not follow the dark tokens.
+- Every contrast number in this file is computed with the WCAG relative-luminance formula against `--ds-surface-solid`, not eyeballed. `theme/components/contrast.test.mjs` re-derives them from the real CSS/JS sources on every test run, so a future token or palette edit that drops a text pair below AA fails the suite instead of silently shipping.
 
 **Translucent-ink alpha percentages do NOT transfer across a ground-color flip — this
-was shipped broken and caught a day later by the user, not by the redesign itself.**
-The 2026-09-24 pass regenerated the spectrum/danger/neutral *hex* values for the light
-ground, but `--ds-text-muted`/`-dim`/`--ds-border`/`-strong` kept their **old alpha
-numbers** (0.6 / 0.38 / 0.12 / 0.2) unchanged — only the underlying ink color flipped
-from light-on-dark to dark-on-light. That silently broke every consumer: at those
-alphas, `--ds-text-muted` measured 4.18–4.34:1 against the three surfaces (below the 4.5
-AA line for body text), `--ds-text-dim` 2.24–2.32:1, and both border tokens 1.26–1.51:1
-— borders in particular were reading as almost fully invisible hairlines across every
-app, since a 12%-opacity dark overlay on white removes far less relative luminance than
-the same 10%-opacity *light* overlay used to remove on near-black. **Percent opacity is
-not the right mental model for "equivalent subtlety" across a light/dark flip — contrast
-ratio is.** Found during a 2026-09-25 cross-app contrast audit (prompted by user report:
-"плохой контраст" in the apps) and fixed by numerically re-deriving each alpha against
-`--ds-surface-solid` white (worst-case of the three surfaces) for a target ratio:
-muted→0.65 (5.09:1), dim→0.51 (3.31:1, deliberately below AA body-text since it's a
-tertiary/de-emphasized tier, not meant to be as prominent as muted), border→0.425
-(2.61:1, a real but quiet hairline), border-strong→0.574 (4.0:1, for focus/hover/
-emphasis). **Any future ground-brightness flip (light↔dark) must re-derive every
-translucent-ink alpha numerically, not carry the old percentages forward** — this is the
-same class of mistake as the particle blend-mode bug above (values that are individually
-plausible but were calibrated for the opposite ground), and like that bug it doesn't
-fail a build or a test — it has to be measured or seen.
+was shipped broken twice and caught by the user, never by the redesign/build itself.**
+The 2026-09-24 light pass kept the dark-era alphas (0.6 / 0.38 / 0.12 / 0.2) while
+flipping the ink color, which dropped `--ds-text-muted` to 4.18–4.34:1, `--ds-text-dim`
+to 2.24–2.32:1 and both border tokens to 1.26–1.51:1 on white. The 2026-11-04 return to
+the dark ground re-derived them again against `--ds-surface-solid` `#1e2126` (worst case
+of void/surface/raised): muted→0.65 (`6.15:1`), dim→0.55 (`4.80:1`, tertiary but still
+AA), border→0.12 (quiet hairline), border-strong→0.28 (`2.32:1`, focus/hover). **Percent
+opacity is not the right mental model for "equivalent subtlety" across a light/dark
+flip — contrast ratio is.** Any future ground-brightness flip must re-derive every
+translucent-ink alpha numerically; like the particle blend-mode bug it fails no build
+and no test, it only shows up when measured or seen.
 
-**A second, wider bug class found in the same audit: hardcoded saturated "status" colors
-designed for a dark ground, sprinkled across every app as plain text with no
-accompanying background.** Distinct from the spectrum/danger tokens (which *were*
-recalculated), these were ad hoc per-file hex values — e.g. `#34d399` (green,
-"success"/"positive"/"income", 8+ call sites across Finance/Decisions/IDEF0),
-`#ffd479`/`#fbbf24` (amber, "loading"/"due"), `#4a9eff` (blue, Piano status notes),
-`#ff7744` (orange, Piano scale hint), `#4caf50`/`#ff9800`/`#f44336` (Piano MIDI status) —
-all light/saturated colors that read fine as text on the old dark void but measured
-1.4–3.7:1 against white (found by grepping every hardcoded `color: #hex` across
-`.vitepress/theme/components/` and batch-checking contrast, then confirming by
-screenshot which ones were **plain text on a light surface** — genuinely broken — versus
-which were **paired with their own hardcoded dark background** in the same rule or an
-adjacent one, e.g. Piano's `.key-badge`/`.mod-badge`, Journal's `.cal-chip.cal-partial`/
-`.cal-goal`, IDEF0's `.tb-btn-doc` — those are self-contained dark chips, correct
-regardless of page theme, and were deliberately left untouched). Fixed by deepening each
-distinct hue via the same HSL-lightness-search method used for the spectrum (target
-~4.8:1 against white), consolidating near-duplicate hues into one shared value per
-semantic meaning rather than one-off per file: success-green `#1c805c`, warning-amber
-`#936a03`, info-blue `#006ce8`, hint-orange `#d33900` (plus reusing `var(--ds-danger)`
-where the semantic was really "error", e.g. Piano's `.unsupported` state). **This
-project has no `--ds-success`/`--ds-warning`/`--ds-info` tokens** — these four are
-consolidated but still hardcoded per file, not tokenized; worth promoting to real `--ds-*`
-tokens in vars.css if a future pass touches this again, so this class of drift can't
-recur silently. One inverted-pair bug was also found in this sweep: IDEF0's
-`.drag-hint` had an explicitly dark chip background (`rgba(36,31,27,0.87)`) but used
-`var(--ds-text-strong)` for its text — correct in the dark era (text-strong was light),
-broken after the flip (text-strong is now dark ink, invisible on a dark chip) — fixed to
-a hardcoded light `#f7f6f3`, since this chip is deliberately dark regardless of page
-theme and must not follow the text-strong token.
+**Hardcoded saturated "status" colors were a second, wider bug class.** The 2026-11-04
+dark restore reverted them to their dark-era values (success green `#34d399`/`#77cc77`/
+`#6ee787`, warning amber `#fbbf24`/`#ffd479`/`#f59e0b`, info blue `#4a9eff`, hint orange
+`#ff7744`), which all measure 5.4–12.9:1 on `#1e2126`. Two leftovers from the light pass
+needed a nudge: Journal's `.cal-goal .cal-chip-w` (`#dd6666` → `#e88888`, 4.45→6.0:1 on
+the chip's `#3a1e1e`) and Piano's MIDI `.unsupported` state (`#f44336` → `var(--ds-danger)`,
+4.38→5.84:1). Many of these are deliberately **self-contained dark chips** —
+Piano's `.key-badge`/`.mod-badge`, Journal's `.cal-chip.cal-partial`/`.cal-goal`, IDEF0's
+`.tb-btn-doc`, Planner's `.planner-card-due.due-today` — and are correct regardless of
+page theme; do not "fix" them to follow the ink tokens. IDEF0's `.drag-hint` is the same
+shape: a hardcoded dark chip (`rgba(36,31,27,0.87)`) whose label is a hardcoded light
+`#f7f6f3`, never `--ds-text-strong` (that would be invisible in a light theme and is the
+wrong token for a chip that is dark by definition). **This project still has no
+`--ds-success`/`--ds-warning`/`--ds-info` tokens** — worth promoting if a future pass
+touches this again. The 2026-11-04 audit also caught three genuine dark-theme failures
+that no test covered: the `.app-title` in `AppHeader.vue` was painting the raw sphere hex
+(1.6–3.3:1 on the app bar — now `color-mix(… 45%, var(--ds-text))`, 5.7–9.0:1), IDEF0's
+`.nav-id` was 4.0:1 on the raised nav (`--ds-accent-light` lifted to `#9caaa0`), and
+tertiary hints using `--ds-text-dim` sat at 3.0:1 (the dim token itself was lifted to
+0.55). All visible text on every page now passes the AA threshold in an automated CDP
+audit; `contrast.test.mjs` keeps the token-level pairs honest.
 
 **Each app's accent is unified with its sphere color** (previously each app had its own
 unrelated brand hue — journal indigo `#5555dd`, planner blue `#2563eb`, decisions teal
@@ -76,16 +65,22 @@ are per-app, NOT global tokens; each app's CSS file owns its own values.
 
 **These 8 hardcoded per-app accent blocks are an unofficial fourth palette mirror** (in
 addition to vars.css / spectrum.js / WebGPUParticles.js COLORS below) — they don't
-read from `PROJECT_COLORS` at runtime, they duplicate its values by hand. Found and
-fixed during the 2026-09-24 light-theme flip: all 8 files (Journal.css, Piano.css,
-PlannerEditor.css, OpenPoseEditor.vue, CasualGames.css, DecisionJournal.css,
-FinanceApp.css, IDEF0Editor.css) had `--ds-accent`/`-hover`/`-light`/`-bg` still set to
-the old dark-ground hexes — update these by hand alongside vars.css/spectrum.js
-whenever the spectrum changes, same discipline as the other mirrors. A few other
-sphere-hex duplicates were also found hardcoded outside the token system entirely
-(FinanceApp.vue chart gradient stops, CasualGames board SVG fills, an inline IDEF0
-focus-ring `box-shadow`) — grep for the old hex values across `.vitepress/theme/` if a
-future palette change seems incomplete after updating the four official mirrors.
+read from `PROJECT_COLORS` at runtime, they duplicate its values by hand: journal
+`#8a5568`/`#b3919d`, piano `#4a6178`/`#8998a7`, idef0 `#3f5946`/`#9caaa0`, planner
+`#6b5a48`/`#9f9488`, decisions `#2d5654`/`#86a09f`, finance `#4a3868`/`#938aa8`, games
+`#3b7a85`/`#8fb2b8`, openpose `#a8874a`/`#c6b189` (`accent`/`accent-light`). The
+`accent-light` values are the dark-era ones lifted where the active-tab pair
+(`accent-light` on `accent-bg` wash over `#1e2126`) fell under 4.5:1 — decisions,
+finance and idef0 were the three that needed it; do not drop them back. Update these by
+hand alongside vars.css/spectrum.js whenever the spectrum changes, same discipline as
+the other mirrors. **Solid accent fills (`--ds-accent` backgrounds) label themselves with
+`--ds-on-accent`, never `--ds-accent-light` and never a hover that swaps the background
+to `accent-light`** (light ink on `#8998a7` is 2.4:1): hover states darken to
+`--ds-accent-hover` instead. A few sphere-hex duplicates also live outside the token
+system entirely (FinanceApp.vue chart gradient stops, CasualGames board SVG fills, an
+inline IDEF0 focus-ring `box-shadow`) — grep for the old hex values across
+`.vitepress/theme/` if a future palette change seems incomplete after updating the four
+official mirrors.
 
 ### AppHeader.vue — shared app top bar
 
@@ -175,28 +170,29 @@ Self-hosted per `[[no-cdn-rule]]` — no Google Fonts `<link>` at runtime:
 ### Palette mirrors — change a color in BOTH
 
 CSS can't be imported as JS values:
-- `theme/styles/vars.css` — `--ds-*` CSS custom properties (10 spectrum colors incl. `--ds-teal: #2b5855` 7th/decisions, `--ds-yellow: #616b7f` 8th/music, `--ds-indigo: #4a366a` 9th/finance, `--ds-turquoise: #34737e` 10th/games)
+- `theme/styles/vars.css` — `--ds-*` CSS custom properties (10 spectrum colors incl. `--ds-teal: #2d5654` 7th/decisions, `--ds-yellow: #9098a8` 8th/music, `--ds-indigo: #4a3868` 9th/finance, `--ds-turquoise: #3b7a85` 10th/games)
 - `theme/components/spectrum.js` — JS mirror: `SPECTRUM` (10 hex), `CANVAS_PALETTE` (10 rgba prefixes), `PROJECT_COLORS` (project → hex)
 
 Unit-tested in `spectrum.test.mjs`. `WebGPUParticles.js`'s `COLORS` array is an
-**independent** normalized-RGB mirror of the same 10 jewel-tone hues — not test-guarded,
-edit by hand if the spectrum changes (its `clearValue` for the canvas clear color must
-also match `--ds-void`, same as the 2D `bg` option below). **A fourth, unofficial
-mirror** also exists — see "these 8 hardcoded per-app accent blocks" above. The
-home-page dark scope (`theme/styles/home-dark.css`) redefines only the neutral tokens,
-not the spectrum — see "Light theme by default — one dark scope" below.
+**independent** normalized-RGB mirror of the same 10 jewel-tone hues — it is now
+**test-guarded by `contrast.test.mjs`** (as is its `clearValue`, which must match
+`--ds-void`, same as the 2D `bg` default). **A fourth, unofficial mirror** also exists —
+see "these 8 hardcoded per-app accent blocks" above. There is no scoped override file
+any more: the dark values live directly in `vars.css` and apply site-wide.
 
 ### Spectrum semantics (10 spheres = 10 particle colors, jewel/gallery tones)
 
-Deepened 2026-09-24 for AA contrast (≥4.5:1) against the new `#f6f2ea` paper ground —
-same 10 hues/roles as the dark «Spiral» spectrum, values regenerated via HSL-lightness
-search in Python (not eyeballed), verified with the real WCAG relative-luminance formula:
-`--ds-violet` `#7d3047` бордо/wine (AR), `--ds-cyan` `#806634` бронза/bronze
-(blog/openpose), `--ds-green` `#3e5a46` хвоя/pine (idef0), `--ds-pink` `#8c5367`
-мальва/mauve (journal), `--ds-amber` `#48617a` сталь/steel-blue (piano), `--ds-orange`
-`#6c5a47` каштан/chestnut (github/planner), `--ds-teal` `#2b5855` антрацит-тил/deep-teal
-(decisions), `--ds-yellow` `#616b7f` графит/graphite (music), `--ds-indigo` `#4a366a`
-индиго/indigo (finance), `--ds-turquoise` `#34737e` бирюза/turquoise (games).
+The dark «Spiral» values, restored 2026-11-04 (the 2026-09-24 light pass had deepened all
+ten for paper; those values are retired), same 10 hues/roles throughout:
+`--ds-violet` `#7a3348` бордо/wine (AR), `--ds-cyan` `#a8874a` бронза/bronze
+(blog/openpose), `--ds-green` `#3f5946` хвоя/pine (idef0), `--ds-pink` `#8a5568`
+мальва/mauve (journal), `--ds-amber` `#4a6178` сталь/steel-blue (piano), `--ds-orange`
+`#6b5a48` каштан/chestnut (github/planner), `--ds-teal` `#2d5654` антрацит-тил/deep-teal
+(decisions), `--ds-yellow` `#9098a8` графит/graphite (music), `--ds-indigo` `#4a3868`
+индиго/indigo (finance), `--ds-turquoise` `#3b7a85` бирюза/turquoise (games). On the
+dark ground these are **fill** colors (wheel segments, board regions, chips) and only
+1.6–5.6:1 as plain text — accent-colored text uses the lifted `accent-light`/`color-mix`
+variants described above, never the raw spectrum hex.
 
 ### LifeCircle «колесо жизни»
 
@@ -224,19 +220,19 @@ Mini replica of the LifeCircle wheel (10 sphere arcs). Used as home link in ever
 
 Don't reintroduce a repulsion force here without the user asking — it was tried and explicitly rejected as reading wrong. If tuning the gravity constants (`GRAVITY_STRENGTH`/`GRAVITY_SOFTENING`/`GRAVITY_RANGE`/`GRAVITY_MAX_SPEED`), verify with a CDP time-lapse running well past 30s, not just the first few seconds — the global-collapse failure mode only shows up after the field has had time to drift.
 
-**No persistence — hard clear + instant redraw every frame.** Every frame does a full opaque repaint to `bg` (`ctx.fillStyle = bg; ctx.fillRect(...)`, normal blend), then dots and connection lines are drawn fresh from the particles' current positions with `globalCompositeOperation = 'multiply'` on top — overlapping deposits darken/richen each other *within that one frame*, but nothing carries over into the next frame. Connection lines use a true two-color gradient (`ctx.createLinearGradient` between the two particles' own colors), not one particle's flat color for the whole line.
+**No persistence — hard clear + instant redraw every frame.** Every frame does a full opaque repaint to `bg` (`ctx.fillStyle = bg; ctx.fillRect(...)`, normal blend), then dots and connection lines are drawn fresh from the particles' current positions with `globalCompositeOperation = 'lighter'` on top — additive glow builds up *within that one frame*, but nothing carries over into the next frame. Connection lines use a true two-color gradient (`ctx.createLinearGradient` between the two particles' own colors), not one particle's flat color for the whole line.
 
-**Blend mode is ground-dependent — `'lighter'` (additive) only works on a dark ground.** Was `'lighter'` throughout the dark «Spiral» era: additive blending pushes colors toward white, which reads as *glow* on a dark background. When the site flipped to the light «Paper & Ink» ground (2026-09-24), the particle field was re-colored (new deep spectrum, new `bg`) but the blend mode was left untouched — the result was correct colors that were *functionally invisible*, because additive blending on an already-bright paper background pushes every dot and line straight toward white. Reported by the user as "почти не видно" (barely visible) and fixed the same day by switching to `'multiply'`, the light-ground analog: strokes darken the paper instead of brightening it, so overlaps still read as deliberate ink build-up rather than a wash-out. **When flipping ground brightness (dark↔light) on anything using additive/`'lighter'` blending, the blend mode itself needs re-deriving, not just the color values** — this is easy to miss because the bug doesn't throw, doesn't fail a test, and doesn't look "wrong" in isolation (each color is individually correct) — it only shows up as an overall loss of visual presence, which a code review of the diff won't catch; it has to be seen. The WebGPU header path (`WebGPUParticles.js`, used when `gpuAvailable()`) had the equivalent bug in its GPU blend state (`dstFactor:'one', operation:'add'` — additive) and got the equivalent fix, but to **alpha-over compositing** (`srcFactor:'src-alpha', dstFactor:'one-minus-src-alpha'`) rather than a literal multiply: the line shader's alpha channel carries a real per-line distance fade (`vsLine`'s `distAlpha² * 0.8`), and a source-factor-only multiply blend (`srcFactor:'dst', dstFactor:'zero'`) would silently discard that alpha, making far/faint lines render as strong as near ones. Canvas 2D's `'multiply'` doesn't have this problem — the 2D compositing model always factors in source alpha as part of every blend mode, unlike a raw GPU blend-factor pair — so the two fixes had to diverge for a real technical reason, not just a preference. **The WebGPU fix could not be visually verified in this environment** (this repo's headless Chrome has no reliable WebGPU support, a known limitation noted elsewhere in this file) — the logic was verified by hand and against the shader source, not by screenshot; treat it as unverified until checked in a real WebGPU-capable browser.
+**Blend mode is ground-dependent — `'lighter'` (additive) only works on a dark ground.** It was `'lighter'` in the dark «Spiral» era, switched to `'multiply'` for the 2026-09-24 light «Paper & Ink» ground (additive on bright paper washes every dot toward white — the field was re-colored but the blend mode was missed, so it was functionally invisible; user reported "почти не видно"), and switched back to `'lighter'` in the 2026-11-04 dark restore. The WebGPU header path had the same bug in reverse: its blend factors were alpha-over (`srcFactor:'src-alpha', dstFactor:'one-minus-src-alpha'`) for the light ground and are additive again (`srcFactor:'src-alpha', dstFactor:'one'`) on dark. **When flipping ground brightness, re-derive the blend mode itself, not just the palette** — the bug throws nothing, fails no test, and each color is individually correct; it only shows as an overall loss of glow, so it has to be seen. (Canvas 2D `'multiply'` and GPU blend factors are not interchangeable: the line shader's alpha carries a real distance fade, so the two paths need different factor pairs for the same visual intent.)
 
 **Do not reintroduce a trail/glow-persistence effect (translucent fade OR bounded position-history array) without the user asking first** — both were tried at length in the 2026-07-12 session (see project-warm-ink-redesign memory rounds 7–9) and ultimately rejected outright, not just re-tuned. If a change here needs verifying, the Chrome extension's `computer` screenshot tool waits for `document_idle`, which never fires on this page because of the continuous rAF loop — use headless Chrome via raw CDP (`Page.captureScreenshot` over the DevTools WebSocket) instead, per the CDP debugging note above.
 
-`createField(canvas, opts)` option set (see JSDoc above the function for the authoritative list): `density`, `count` (number or `() => number`, overrides `density`), `connectDistance`, `bg` (solid clear color, hard-repainted every frame — NOT a translucent fade), `palette`, `blend` (composite op for dots/lines: `'multiply'` default for the light ground, `'lighter'` on a dark ground), `lineWidth`, `autoStart` (default `true`), `getSize` (default reads `canvas.offsetWidth/Height`), `reducedMotion` (default reads the live `prefers-reduced-motion` media query via `osReducedMotion()`; when true, `start()` is a no-op and a single static frame is drawn instead of starting the rAF loop). The two call sites use different dialects of this same option set — both valid, not drift:
-- `Portfolio.vue`: `{ density: 12, connectDistance: 100, bg: 'rgb(20,22,26)', blend: 'lighter' }` — the home page is the one dark ground (see "Home page dark scope" below), so it overrides both the light defaults; fixed CSS-sized canvas, default `autoStart`/`getSize`.
-- `Layout.vue`: `{ count: () => Math.floor(height / 2.5), connectDistance: 120, bg: 'rgb(246,242,234)', autoStart: false, getSize: () => ({ w: width, h: height }) }` — header canvas is resized/animation-toggled externally, so it drives `start()`/`stop()` itself and supplies its own tracked `width`/`height` instead of reading `offsetWidth/Height`.
+`createField(canvas, opts)` option set (see JSDoc above the function for the authoritative list): `density`, `count` (number or `() => number`, overrides `density`), `connectDistance`, `bg` (solid clear color, hard-repainted every frame — NOT a translucent fade; default `'rgb(20,22,26)'`), `palette`, `blend` (composite op for dots/lines; default `'lighter'` for this dark ground), `lineWidth`, `autoStart` (default `true`), `getSize` (default reads `canvas.offsetWidth/Height`), `reducedMotion` (default reads the live `prefers-reduced-motion` media query via `osReducedMotion()`; when true, `start()` is a no-op and a single static frame is drawn instead of starting the rAF loop). Both call sites rely on the dark defaults now, so neither passes `bg` or `blend`:
+- `Portfolio.vue`: `{ density: 12, connectDistance: 100 }` — fixed CSS-sized canvas, default `autoStart`/`getSize`.
+- `Layout.vue`: `{ count: () => Math.floor(height / 2.5), connectDistance: 120, autoStart: false, getSize: () => ({ w: width, h: height }) }` — header canvas is resized/animation-toggled externally, so it drives `start()`/`stop()` itself and supplies its own tracked `width`/`height` instead of reading `offsetWidth/Height`.
 
-Both call sites get the reduced-motion gate for free (no call-site changes needed) since `reducedMotion` defaults to the live media query inside `createField` itself. `bg`'s RGB must match `--ds-void` for that surface's ground — `rgb(246,242,234)` (`#f6f2ea`) for the light pages, `rgb(20,22,26)` (`#14161a`) for the home page; update both alongside the void tokens if they change again (the `ConnectingParticles.js` default, `Portfolio.vue`, and `Layout.vue`).
+Both call sites get the reduced-motion gate for free (no call-site changes needed) since `reducedMotion` defaults to the live media query inside `createField` itself. `bg`'s RGB must match `--ds-void` (`rgb(20,22,26)` / `#14161a`) — there is exactly one ground now, so the default is the whole story; `contrast.test.mjs` asserts it against `vars.css` and against the WebGPU `clearValue`.
 
-**The WebGPU path (`WebGPUParticles.js` + `public/particles/render.wgsl`+`point.wgsl`, used for the header when `gpuAvailable()`) does NOT have the history-based trail** — it kept `loadOp: 'clear'` (hard clear every frame, zero persistence, matching its original pre-2026-07-12 behavior), deliberately, rather than porting the trail design to WebGPU. Building an equivalent required a per-particle position history in a GPU storage buffer (a compute-shader ring-buffer update + a new draw call reading it) — meaningfully more involved than the 2D canvas version and not verifiable in this environment's headless-Chrome WebGPU support, so it was left as a possible follow-up rather than risking an unverified change to the header canvas. It does share the other 2026-07-12 fixes: true particle color (no `1.5x+0.2` brightness boost, which washed dots toward white), a true per-vertex gradient on connection lines (interpolated by WGSL between the two line vertices, not a single blended-average color), and the current cool-graphite `COLORS` palette (was still on the old warm-ink normalized values until this pass — check this file specifically whenever the palette changes again, it's easy to miss since it's a hand-maintained mirror, not test-guarded).
+**The WebGPU path (`WebGPUParticles.js` + `public/particles/render.wgsl`+`point.wgsl`, used for the header when `gpuAvailable()`) does NOT have the history-based trail** — it kept `loadOp: 'clear'` (hard clear every frame, zero persistence, matching its original pre-2026-07-12 behavior), deliberately, rather than porting the trail design to WebGPU. Building an equivalent required a per-particle position history in a GPU storage buffer (a compute-shader ring-buffer update + a new draw call reading it) — meaningfully more involved than the 2D canvas version and not verifiable in this environment's headless-Chrome WebGPU support, so it was left as a possible follow-up rather than risking an unverified change to the header canvas. It does share the other 2026-07-12 fixes: true particle color (no `1.5x+0.2` brightness boost, which washed dots toward white), a true per-vertex gradient on connection lines (interpolated by WGSL between the two line vertices, not a single blended-average color), and the current cool-graphite `COLORS` palette (was still on the old warm-ink normalized values until this pass — check this file specifically whenever the palette changes again — `contrast.test.mjs` now guards its `COLORS` and `clearValue`, so drift fails the suite).
 
 `WebGPUParticles.js` has no reduced-motion awareness of its own — its `start()` always runs the rAF loop. So on a WebGPU-capable browser, the gate has to happen one level up: `Layout.vue`'s `reducedMotionPreferred()` (reuses the exported `prefersReducedMotion` pure helper) feeds into `headerAction()` in `headerLifecycle.js`, which routes reduced-motion sessions to `'field-2d'` instead of `'init'` so the WebGPU branch is never taken at all.
 
@@ -244,56 +240,42 @@ Both call sites get the reduced-motion gate for free (no call-site changes neede
 
 `CountDown.vue` — 4 progress rings. Mounted in Portfolio hero (`<CountDown :countdownDays="1000" />`). **Do not pass `startDate`** (epoch hardcoded at 23/03/2025). Pure math in `countdown.js`, tested in `countdown.test.mjs`.
 
-### Light theme by default — one dark scope (home page)
+### Dark theme, forced site-wide
 
-No theme toggle, no `prefers-color-scheme` following: `appearance: false` in `config.mts`
-disables VitePress's whole dark-mode feature (no toggle button, no `dark` class, no
-localStorage check) — this is the correct way to pin the site's own palette. **`'force-light'`
-is NOT a valid VitePress `appearance` value** (the type is `boolean | 'dark' | 'force-dark' |
-'force-auto' | object` — no light equivalent to `'force-dark'` exists because light is
-already the unconditional default). Using the string `'force-light'` doesn't error — it
-silently degrades to VitePress's `'auto'` behavior (reads `prefers-color-scheme`, writes
-`'auto'` to `localStorage`), so on a system/browser that reports a dark preference the
-site would randomly render its VitePress-default-themed pages (blog, posts — anything
-using `--vp-c-*` rather than this site's own `--ds-*` tokens) in VitePress's own dark
-mode while the custom `--ds-*` components stayed light. Caught during the 2026-09-24
-redesign by diffing `document.documentElement.className` before/after in headless
-Chrome (which itself defaults to reporting a dark OS preference) — if a future
-appearance-related change to `config.mts` needs verifying, check the live `<html>`
-class and `localStorage.getItem('vitepress-theme-appearance')` after JS runs, not just
-the static built HTML (the inline check-dark-mode script is only half the story; the
-`useDark()` runtime composable is the other half and validates the enum more strictly).
+No theme toggle, no `prefers-color-scheme` following: `appearance: 'force-dark'` in
+`config.mts` pins VitePress's own dark theme (the `--vp-c-*` tokens used by the blog,
+posts, sidebar and search) and removes the sun/moon toggle. **`'force-light'` is NOT a
+valid VitePress `appearance` value** (the type is `boolean | 'dark' | 'force-dark' |
+'force-auto' | object` — there is no light equivalent because light is the unconditional
+default); the typo silently degrades to `'auto'`, which reads the OS preference and
+writes `'auto'` to `localStorage`, producing a half-themed site. `appearance: false`
+would also be wrong here: it disables VitePress dark mode entirely, leaving the blog and
+docs pages on the default light `--vp-c-*` palette while the `--ds-*` components stay
+dark. Verify any appearance change by checking the live `<html>` class after JS runs,
+not just the static HTML (the inline check-dark-mode script is only half the story; the
+`useDark()` composable is the other half).
 
-**The home page is the one dark surface** (restored 2026-11-02 by request: the light
-«Paper & Ink» redesign had made the whole site paper-white). It is NOT VitePress dark
-mode — it is a class-scoped token override, so `appearance: false` stays and the blog,
-posts, and all eight apps remain light:
+The site's own ground is pinned in `theme/styles/index.css` (`html { color-scheme: dark;
+background-color: var(--ds-void) }` and the same on `body`) so overscroll, scrollbars and
+the pre-hydration paint match `#14161a` instead of VitePress's `--vp-c-bg`. The dark
+values live directly in `vars.css`; there is no scoped override file any more
+(`home-dark.css` and the `html.home-dark` class toggle in `Portfolio.vue` were removed
+2026-11-04 — every page is dark, so a scope would only be dead weight).
 
-- `theme/styles/home-dark.css` redefines the neutral tokens (`--ds-void` `#14161a`,
-  `--ds-surface*`, `--ds-raised`, `--ds-text*`, `--ds-border*`, danger, shadows) under
-  `html.home-dark` — the retired «Spiral» dark values, i.e. the ground the site shipped
-  before 2026-09-24. The ten spectrum accents are deliberately NOT overridden: the light
-  pass kept the same hues and only deepened three slightly, and the wheel is filled
-  shapes rather than text, so the wheel reads correctly on both grounds. The two
-  deepened hardest (bronze/openpose, graphite/music — `SEGMENTS` children 5 and 8) get
-  their dark-era values back via `--seg-color: … !important` (the per-segment color is an
-  inline custom property, so `!important` is the only way to beat it). If `SEGMENTS`
-  order ever changes, those two `nth-child` indices must move with it.
-- `Portfolio.vue` adds/removes the class on `<html>` in `onMounted`/`onBeforeUnmount`
-  (so it follows SPA navigation without a reload — no page could ever be dark without
-  the portfolio layout mounting), and passes `bg: 'rgb(20,22,26)'` + `blend: 'lighter'`
-  to `createField` (the light defaults would clear the canvas to paper and multiply the
-  particles to black on a dark ground).
-- Text colors in `Portfolio.vue` are expressed as `color-mix(in srgb, var(--ds-text) N%,
-  transparent)` rather than hardcoded `rgba(34,32,27,…)` ink, so they flip with the
-  scope; the staff-divider lines use `currentColor` + `stroke-opacity`. Accent text
-  (`.case-study-links a`, `.title-mono`) is re-mixed toward `--ds-text` inside the dark
-  scope — the paper-era wine mix is a smudge on near-black.
-- Overscroll/scrollbars: `html.home-dark { background: #14161a; color-scheme: dark }`.
-- **Known scope limits**: `public/og-source.svg`/`og.png` (social card) and the favicon
-  family stay on the paper ground — they are site-level assets, not the page. The WebGPU
-  header path is unaffected (the home page renders `Portfolio`, never `Layout`'s
-  `site-header`).
+- `Portfolio.vue` no longer touches `<html>`; it passes only `{ density: 12,
+  connectDistance: 100 }` to `createField` and relies on the dark `bg`/`blend` defaults.
+  Its text colors are `color-mix(in srgb, var(--ds-text) N%, transparent)`; accent text
+  (`.case-study-links a`, `.title-mono`, `.exp-icon`) mixes the violet/cyan hues toward
+  `--ds-text` (45–65% hue) because the raw spectrum hex is only 2.1:1 on near-black. The
+  staff-divider lines use `currentColor` + `stroke-opacity`.
+- `AppHeader.vue` renders `.app-title` as `color-mix(in srgb, <sphere hex> 45%,
+  var(--ds-text))` for the same reason; the border tint stays the raw hex at ~30% alpha.
+- **Deliberate light surfaces** (not bugs): the IDEF0 SVG canvas `#f8fafc` and the
+  Journal lined-paper textarea (`#222` ink over `paper.png`/`lines.png`) are self-contained
+  "paper" surfaces inside the dark chrome.
+- `public/og-source.svg`/`og.png`, `public/home-wheel.svg`, `favicon.png` and
+  `apple-touch-icon.png` are back on the dark ground (restored with the rest of the
+  palette) — regenerate them together with `--ds-void` if it ever changes.
 
 ---
 
@@ -311,7 +293,7 @@ All SEO is generated in `config.mts` via helpers in `seo.js` (pure ESM, unit-tes
 - **`/ar/` SEO is hand-maintained** in `ar-engine/web/index.html` — invisible to VitePress pipeline.
 - **`/vacuum-rogues/` is dormant until the game deploys** (decision: don't surface a route that 404s). What's wired now: `srcExclude: ['vacuum-rogues/**']`, the private git submodule, and a **gated** deploy step (build the game with `--base=/vacuum-rogues/` and copy its `dist/` into `.vitepress/dist/vacuum-rogues/`), guarded by the `VACUUM_ROGUES_DEPLOY_KEY` secret + `continue-on-error` so a missing/failed game build never breaks the main deploy. What's intentionally NOT wired until the game is live: **no `public/` placeholder, no nav entry, no `EXTRA_URLS` sitemap entry**. The home-page center mark is the entry point and self-activates via the `HEAD /vacuum-rogues/` probe. **Game `dist/` size**: already optimized in the game repo (was ~607 MB; heavy PNG backdrops → WebP/AVIF) — no longer a deploy blocker. When the game ships, re-add the nav + `EXTRA_URLS` entries.
 - **OG image**: `public/og-source.svg` → `public/og.png`. Regenerate via headless Chrome (macOS `sips`/`qlmanage` mis-handle non-square aspect).
-- **Favicon family / theme-color**: `SITE_HEAD` + `THEME_COLOR` in `seo.js`, wired into `config.mts`'s top-level `head` (static across all pages, unlike the per-page `transformPageData` entries above). Sourced from `public/home-wheel.svg` (the square «колесо жизни» mark, not `og-source.svg` which is the 1200×630 OG card — wrong shape for an icon): SVG favicon served directly, plus `apple-touch-icon.png` (180×180) and `favicon.png` (48×48) rasterized locally via headless Chrome over `--ds-void` (currently `#f6f2ea`, updated 2026-09-24 for the light redesign — was `#14161a`). `seo.test.mjs` asserts the icon/apple-touch-icon/theme-color entries exist and that every linked `href` resolves under `public/`. `public/og.png` is likewise a rasterized `public/og-source.svg` — that SVG hand-mirrors the Portfolio hero (name/roles font, spectrum dot colors, void gradient) so it needs its own manual edit (not test-guarded) whenever the palette/void changes; regenerate both via `chrome --headless=new --window-size=<w>,<h> --screenshot=out.png file://…/wrapper.html` (wrap the raw SVG in a bare `<html><body>` with no margin so the screenshot crops exactly to size — see the CDP debugging note above for the headless-Chrome invocation pattern this reuses).
+- **Favicon family / theme-color**: `SITE_HEAD` + `THEME_COLOR` in `seo.js`, wired into `config.mts`'s top-level `head` (static across all pages, unlike the per-page `transformPageData` entries above). Sourced from `public/home-wheel.svg` (the square «колесо жизни» mark, not `og-source.svg` which is the 1200×630 OG card — wrong shape for an icon): SVG favicon served directly, plus `apple-touch-icon.png` (180×180) and `favicon.png` (48×48) rasterized locally via headless Chrome over `--ds-void` (`#14161a`, restored 2026-11-04 with the dark ground). `seo.test.mjs` asserts the icon/apple-touch-icon/theme-color entries exist and that every linked `href` resolves under `public/`. `public/og.png` is likewise a rasterized `public/og-source.svg` — that SVG hand-mirrors the Portfolio hero (name/roles font, spectrum dot colors, void gradient) so it needs its own manual edit (not test-guarded) whenever the palette/void changes; regenerate both via `chrome --headless=new --window-size=<w>,<h> --screenshot=out.png file://…/wrapper.html` (wrap the raw SVG in a bare `<html><body>` with no margin so the screenshot crops exactly to size — see the CDP debugging note above for the headless-Chrome invocation pattern this reuses).
 
 ---
 

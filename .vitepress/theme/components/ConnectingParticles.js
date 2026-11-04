@@ -118,9 +118,9 @@ function osReducedMotion() {
 //   bg             — solid clear color, hard-repainted every frame (no
 //                    persistence — every frame is drawn from scratch)
 //   palette        — rgba( prefixes (see spectrum.js CANVAS_PALETTE)
-//   blend          — canvas composite op for dots/lines. 'multiply' for the light
-//                    «Paper & Ink» ground, 'lighter' for a dark ground (see the
-//                    ground-dependence note in frame()).
+//   blend          — canvas composite op for dots/lines. 'lighter' (additive) on
+//                    the dark «Spiral» ground — see the ground-dependence note
+//                    in frame().
 //   lineWidth      — connection line width
 //   autoStart      — begin the rAF loop immediately (default true)
 //   getSize        — () => ({ w, h }); default reads canvas.offsetWidth/Height
@@ -132,9 +132,9 @@ export function createField(canvas, opts = {}) {
     density = 12,
     count = null,
     connectDistance = 100,
-    bg = 'rgb(246,242,234)',
+    bg = 'rgb(20,22,26)',
     palette = CANVAS_PALETTE,
-    blend = 'multiply',
+    blend = 'lighter',
     lineWidth = 0.8,
     autoStart = true,
     getSize = null,
@@ -176,12 +176,10 @@ export function createField(canvas, opts = {}) {
     ctx.globalCompositeOperation = 'source-over'
     ctx.fillStyle = bg
     ctx.fillRect(0, 0, w, h)
-    // 'lighter' (additive) reads as glow on a dark ground — on the light «Paper & Ink»
-    // ground it pushes every color toward white, washing particles out to near
-    // invisibility. 'multiply' is the light-ground analog: strokes darken/richen the
-    // paper instead of brightening it, so overlaps still read as deliberate ink build-up.
-    // The blend mode belongs to the ground, not the palette: the home page runs a dark
-    // ground (styles/home-dark.css) and passes blend: 'lighter' explicitly.
+    // The site is dark-only again (2026-11-04): additive 'lighter' is the
+    // calibrated mode on this ground — it reads as glow, and overlapping
+    // deposits push toward white instead of muddying. A light ground needs the
+    // opposite mode ('multiply' darkens paper) rather than just a new palette.
     ctx.globalCompositeOperation = blend
 
     for (let i = 0; i < particles.length; i++) {

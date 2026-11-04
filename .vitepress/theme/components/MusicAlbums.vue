@@ -64,6 +64,7 @@ function togglePlayer(id) {
 
 <style scoped>
 .music-albums {
+  --ds-on-accent: #131210;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -173,9 +174,9 @@ function togglePlayer(id) {
   gap: 0.3rem;
   padding: 0.45rem 1rem;
   border-radius: var(--ds-radius);
-  border: 1px solid #616b7f;
+  border: 1px solid #9098a8;
   background: transparent;
-  color: #616b7f;
+  color: #9098a8;
   font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;

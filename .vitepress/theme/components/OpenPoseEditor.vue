@@ -421,10 +421,11 @@ onUnmounted(() => {
 .op-root {
   /* accent = «бронза» (openpose sphere), см. spectrum.js PROJECT_COLORS.blog.
      Раньше свой бренд-циан жил отдельно от цвета сферы — теперь унифицировано. */
-  --ds-accent: #806634;
-  --ds-accent-light: #8b713e;
-  --ds-accent-hover: #69542b;
-  --ds-accent-bg: rgba(128, 102, 52, 0.18);
+  --ds-accent: #a8874a;
+  --ds-accent-light: #c6b189;
+  --ds-accent-hover: #8a6f3d;
+  --ds-accent-bg: rgba(168, 135, 74, 0.18);
+  --ds-on-accent: #131210;
   position: relative;
   height: 100%;
   display: flex;
@@ -464,9 +465,9 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--ds-text-muted);
 }
-.op-status-ready { color: #1c805c; }
+.op-status-ready { color: #6ee787; }
 .op-status-error { color: var(--ds-danger); }
-.op-status-loading { color: #936a03; }
+.op-status-loading { color: #ffd479; }
 
 /* Banner */
 .op-banner {
@@ -474,7 +475,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   font-size: 12px;
 }
-.op-banner-info { background: var(--ds-surface-solid); color: #936a03; }
+.op-banner-info { background: var(--ds-surface-solid); color: #ffd479; }
 .op-banner-error { background: var(--ds-danger-bg); color: var(--ds-danger); }
 .op-error-text {
   margin: 0;
@@ -545,7 +546,7 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1;
 }
-.op-badge-done { color: #1c805c; }
+.op-badge-done { color: #6ee787; }
 .op-badge-error { color: var(--ds-danger); }
 
 /* Main canvas area */
@@ -628,7 +629,7 @@ onUnmounted(() => {
   justify-content: center;
   background: var(--ds-accent-bg);
   border: 3px dashed var(--ds-accent);
-  color: var(--ds-accent);
+  color: var(--ds-accent-light);
   font-size: 16px;
   pointer-events: none;
 }
