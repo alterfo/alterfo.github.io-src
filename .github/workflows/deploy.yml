@@ -15,15 +15,30 @@ jobs:
 
     steps:
     - uses: actions/checkout@v5
-      with:
-        # vacuum-rogues is a PRIVATE submodule (alterfo/vacuum-rogues, SSH URL in
-        # .gitmodules); the default GITHUB_TOKEN can't read another private repo. Fetch
-        # submodules ONLY when the read-only deploy-key secret exists — otherwise skip the
-        # fetch entirely so a missing key never hard-fails the main site deploy. With no key,
-        # /vacuum-rogues/ stays a 404 and the home-page center mark hides itself (HEAD probe).
-        # See docs/plans/20260621-vacuum-rogues-deploy-and-donut-logo.md for the secret setup.
-        submodules: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY != '' && 'recursive' || 'false' }}
-        ssh-key: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY }}
+
+    # vacuum-rogues is a PRIVATE submodule (alterfo/vacuum-rogues, SSH URL in .gitmodules);
+    # the default GITHUB_TOKEN can't read another private repo. It is fetched here, in its
+    # own non-fatal step, instead of via checkout's `submodules`+`ssh-key` inputs: when the
+    # read-only deploy key is missing, revoked or can't reach the pinned game commit,
+    # checkout itself fails and takes the whole site deploy down with it (that is exactly
+    # what happened on 2026-11-03/04 — three failed deploys, so the dark-theme restore never
+    # reached Pages). A dead game key must only cost /vacuum-rogues/, never the site.
+    # See docs/plans/20260621-vacuum-rogues-deploy-and-donut-logo.md for the secret setup.
+    - name: Check out vacuum-rogues submodule (optional)
+      continue-on-error: true
+      env:
+        VR_DEPLOY_KEY: ${{ secrets.VACUUM_ROGUES_DEPLOY_KEY }}
+      run: |
+        if [ -z "$VR_DEPLOY_KEY" ]; then
+          echo "No VACUUM_ROGUES_DEPLOY_KEY — /vacuum-rogues/ stays a 404"
+          exit 0
+        fi
+        mkdir -p ~/.ssh
+        printf '%s\n' "$VR_DEPLOY_KEY" > ~/.ssh/vr_key
+        chmod 600 ~/.ssh/vr_key
+        export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/vr_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+        git submodule update --init --recursive \
+          || echo "Warning: vacuum-rogues submodule unavailable — the site deploys without the game"
 
     - name: Setup emsdk
       uses: mymindstorm/setup-emsdk@v14
