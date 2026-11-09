@@ -37,7 +37,8 @@ jobs:
         printf '%s\n' "$VR_DEPLOY_KEY" > ~/.ssh/vr_key
         chmod 600 ~/.ssh/vr_key
         export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/vr_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-        git submodule update --init --recursive \
+        git submodule update --init --remote vacuum-rogues \
+          || git submodule update --init vacuum-rogues \
           || echo "Warning: vacuum-rogues submodule unavailable — the site deploys without the game"
 
     - name: Setup emsdk
