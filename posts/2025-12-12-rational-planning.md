@@ -1,4 +1,5 @@
 ---
+site: creative
 title: Планы на 2026 год
 date: 2025-12-12
 ---

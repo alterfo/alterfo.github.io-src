@@ -88,6 +88,30 @@ All eight app roots are registered in `.vitepress/theme/index.mts` via `defineAs
 For detailed docs on each app, see `AGENTS.md` in the relevant module subfolder.
 For design system, SEO, typography, and VitePress gotchas, see `.vitepress/AGENTS.md`.
 
+## Two sites, one source tree
+
+`SITE=creative|pro` selects which site a build produces. Default is `creative`.
+
+| | `creative` | `pro` |
+|---|---|---|
+| Domain | `alterfo.ru` (canonical base still `alterfo.github.io` until cutover) | `oleg-sidorkin.ru` |
+| Content | music, blog, games, Аудио-реактив, piano, openpose | engineering apps, case studies, `/audit`, notes |
+| Registry | `.vitepress/sites.js` | same |
+
+Every content page declares its owner in frontmatter: `site: creative`, `site: pro`, or
+`site: shared` (allowed only for `index.md`, listed in `SHARED_PAGES`). A page without a valid
+`site` fails the build with its path. Pages owned by the other site are excluded via `srcExclude`,
+and the sitemap is built from the pages that actually shipped.
+
+```
+SITE=pro npm run dev          # or npm run dev:pro
+SITE=pro npm run build        # or npm run build:pro
+node --test .vitepress/sites.test.mjs .vitepress/seo.test.mjs
+```
+
+Cross-site links must be absolute (`https://oleg-sidorkin.ru/...`); a relative link to a page the
+current site does not own is a dead link and fails the build.
+
 ## Development
 
 ```

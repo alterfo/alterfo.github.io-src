@@ -1,4 +1,5 @@
 ---
+site: creative
 title: "О фрустрации"
 date: 2022-10-16
 ---

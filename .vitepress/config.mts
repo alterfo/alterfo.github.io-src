@@ -1,9 +1,14 @@
 import { defineConfig } from 'vitepress'
-import { mkdirSync, writeFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import matter from 'gray-matter'
-import { SITE_URL, EXTRA_URLS, SITE_HEAD, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority, shouldPreloadLink } from './seo.js'
+import { SITE, SITE_URL, EXTRA_URLS, SITE_HEAD, canonicalFor, jsonLdFor, jsonLdScript, sitemapPriority, shouldPreloadLink } from './seo.js'
+import { excludedFor, redirectsFor } from './sites.js'
 import { nbspBeforeDash, applyNbspToInlineTokens } from './typography.js'
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const EXCLUDED_PAGES = excludedFor(ROOT, SITE.id)
 
 function redirectHtml(target: string): string {
   return `<!DOCTYPE html>
@@ -21,10 +26,10 @@ function redirectHtml(target: string): string {
 }
 
 export default defineConfig({
-  title: 'Alterfo',
+  title: SITE.name,
   //   — неразрывный пробел перед длинным тире (правило типографики сайта)
-  titleTemplate: ':title — Alterfo',
-  description: 'Олег Сидоркин — инженер и музыкант: проекты, локальные инструменты без облака и заметки об аудио, AI и архитектуре.',
+  titleTemplate: SITE.titleTemplate,
+  description: SITE.description,
   lang: 'ru-RU',
   // Сайт снова тёмный по дизайн-системе «Spiral» (2026-11-04, owner request) —
   // тёмная тема возвращена на главную и все восемь приложений. 'force-dark'
@@ -88,7 +93,9 @@ export default defineConfig({
   srcExclude: [
     'node_modules/**',
     'KODA.md',
+    'AGENTS.md',
     'README.md',
+    ...EXCLUDED_PAGES,
     'CLAUDE.md',
     'docs/**',
     'ar-engine/**',
@@ -98,39 +105,9 @@ export default defineConfig({
   // игнорирует — меню из-за этого вообще не рендерилось). Вместо надписи
   // «Alterfo» — иконка-колесо (статичная копия HomeMark, ссылка на главную).
   themeConfig: {
-    logo: '/home-wheel.svg',
+    logo: SITE.logo,
     siteTitle: false,
-    nav: [
-      {
-        text: 'Проекты',
-        items: [
-          {
-            text: 'Приложения',
-            items: [
-              { text: 'Дневник', link: '/journal' },
-              { text: 'IDEF0-редактор', link: '/idef0' },
-              // target: '_self' — /ar/ живёт вне VitePress-роутера (см. LifeCircle)
-              { text: 'Аудио-реактив', link: '/ar/', target: '_self' },
-              { text: 'Piano Teacher', link: '/piano' },
-              { text: 'OpenPose Editor', link: '/openpose' },
-              { text: 'Планировщик', link: '/planner' },
-              { text: 'Журнал решений', link: '/decision-journal' },
-              { text: 'Финансы', link: '/finance' },
-              { text: 'Пазлы', link: '/casual-games' },
-            ],
-          },
-          {
-            text: 'Разборы',
-            items: [
-              { text: 'Аудио-реактив — архитектура', link: '/projects/ar-engine' },
-              { text: 'IDEF0 Editor — архитектура', link: '/projects/idef0-editor' },
-            ],
-          },
-        ],
-      },
-      { text: 'Музыка', link: '/music' },
-      { text: 'Блог', link: '/blog' },
-    ],
+    nav: SITE.nav,
   },
   transformPageData(pageData) {
     const url = canonicalFor(pageData.relativePath)
@@ -138,9 +115,9 @@ export default defineConfig({
     // pageData.description мутируется, чтобы и базовый <meta name="description">
     // (его VitePress рендерит сам, мимо frontmatter.head) получил nbsp.
     pageData.description = nbspBeforeDash(pageData.description || '')
-    const title = nbspBeforeDash(pageData.title || 'Alterfo')
+    const title = nbspBeforeDash(pageData.title || SITE.name)
     const desc = pageData.description
-      || 'Oleg Sidorkin — инженер и музыкант. Проекты, инструменты и заметки.'
+      || SITE.description
     const isPost = pageData.relativePath.startsWith('posts/')
     ;(pageData.frontmatter.head ??= []).push(
       ['link', { rel: 'canonical', href: url }],
@@ -149,7 +126,7 @@ export default defineConfig({
       ['meta', { property: 'og:description', content: desc }],
       ['meta', { property: 'og:url', content: url }],
       ['meta', { property: 'og:image', content: SITE_URL + '/og.png' }],
-      ['meta', { property: 'og:site_name', content: 'Alterfo' }],
+      ['meta', { property: 'og:site_name', content: SITE.name }],
       ['meta', { property: 'og:locale', content: 'ru_RU' }],
       ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
       ['meta', { name: 'twitter:title', content: title }],
@@ -166,12 +143,9 @@ export default defineConfig({
   // No source rewrites needed (posts stay at /posts/); static HTML redirects
   // are generated below so old inbound links keep working.
   buildEnd: async (siteConfig) => {
-    let files: string[] = []
-    try {
-      files = readdirSync(join(siteConfig.srcDir, 'posts')).filter(f => f.endsWith('.md'))
-    } catch {
-      files = []
-    }
+    const files: string[] = siteConfig.pages
+      .filter((page: string) => page.startsWith('posts/') && page.endsWith('.md'))
+      .map((page: string) => page.slice('posts/'.length))
     for (const file of files) {
       const basename = file.replace(/\.md$/, '')
       const match = basename.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)$/)
@@ -195,6 +169,14 @@ export default defineConfig({
         writeFileSync(join(permalinkDir, 'index.html'), redirectHtml(`/posts/${basename}`))
       }
     }
+
+    for (const entry of redirectsFor(ROOT, SITE.id)) {
+      const dir = join(siteConfig.outDir, entry.from.replace(/^\//, ''))
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'index.html'), redirectHtml(entry.to))
+    }
+
+    writeFileSync(join(siteConfig.outDir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`)
 
     // Hand-rolled sitemap.xml from source pages (md only → redirect stubs auto-excluded).
     // EXTRA_URLS (static sub-apps not in siteConfig.pages) live in seo.js so they're unit-testable.

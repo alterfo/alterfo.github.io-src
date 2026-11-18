@@ -1,4 +1,5 @@
 ---
+site: creative
 title: Архетипы
 date: 2020-09-18
 ---

@@ -1,4 +1,5 @@
 ---
+site: pro
 title: Critical Rendering Path
 date: 2020-09-25
 ---

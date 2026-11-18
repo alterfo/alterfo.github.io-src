@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import matter from 'gray-matter'
 import { nbspBeforeDash } from './.vitepress/typography.js'
+import { activeSite } from './.vitepress/sites.js'
 
 interface Post {
   title: string
@@ -71,8 +72,13 @@ function buildPost(file: string, postsDir: string): Post {
 
 function loadPosts(): Post[] {
   const postsDir = join(__dirname, 'posts')
+  const siteId = activeSite().id
   return readdirSync(postsDir)
     .filter((f: string) => f.endsWith('.md'))
+    .filter((f: string) => {
+      const { data } = matter(readFileSync(join(postsDir, f), 'utf-8'))
+      return data.site === siteId
+    })
     .map((file: string) => buildPost(file, postsDir))
     .sort((a: Post, b: Post) => b.date.time - a.date.time)
 }

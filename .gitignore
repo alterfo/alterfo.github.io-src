@@ -13,3 +13,4 @@ public/mediapipe/*.task
 *.zip
 smoke-shots/
 .revmux/
+.vitepress/dist-pro

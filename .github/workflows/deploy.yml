@@ -79,6 +79,12 @@ jobs:
     - name: Build VitePress
       run: npm run build
 
+    - name: Build professional site
+      run: SITE=pro npx vitepress build --outDir .vitepress/dist-pro
+
+    - name: Prune creative-only assets from the professional build
+      run: node scripts/prune-pro-dist.js .vitepress/dist-pro
+
     - name: Copy AR Engine assets
       run: |
         if [ -d "ar-engine/web" ]; then
@@ -124,6 +130,19 @@ jobs:
         external_repository: alterfo/alterfo.github.io
         publish_branch: master
         publish_dir: ./.vitepress/dist
+        cname: alterfo.ru
         user_name: 'github-actions[bot]'
         user_email: 'github-actions[bot]@users.noreply.github.com'
         commit_message: 'deploy'
+
+    - name: Deploy professional site to Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        personal_token: ${{ secrets.PRO_DEPLOY_TOKEN }}
+        external_repository: alterfo/oleg-sidorkin.ru
+        publish_branch: main
+        publish_dir: ./.vitepress/dist-pro
+        cname: oleg-sidorkin.ru
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'deploy pro'

@@ -1,4 +1,5 @@
 ---
+site: creative
 title: "Новый сингл"
 date: 2021-05-08
 ---

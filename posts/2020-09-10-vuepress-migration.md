@@ -1,4 +1,5 @@
 ---
+site: pro
 title: Блог переехал на Vuepress
 date: 2020-09-11 00:11
 ---

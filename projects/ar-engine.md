@@ -1,4 +1,5 @@
 ---
+site: creative
 title: Аудио-реактив — визуализатор музыки на WebGPU
 description: "Как устроен Аудио-реактив: DSP-ядро на C/WASM, до 500k частиц на WebGPU, режимы Fluid/Cymatics/Nova и автопереключение по битовой сетке. Музыка, которую видно."
 ---
@@ -110,5 +111,5 @@ scatter-dissolve — частицы рассыпаются и собираютс
 ## Из блога
 
 - [Новый сингл](/posts/2021-05-08-paupiauau) — музыка, ради которой всё это и затевалось.
-- [Critical Rendering Path](/posts/2020-09-25-critical-rendering-path) — как браузер
+- [Critical Rendering Path](https://oleg-sidorkin.ru/posts/2020-09-25-critical-rendering-path) — как браузер
   превращает данные в пиксели; фундамент, на котором стоит весь GPU-рендер.

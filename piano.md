@@ -1,4 +1,5 @@
 ---
+site: creative
 title: Piano Teacher
 description: "Интерактивный нотный MIDI-тренажёр фортепиано: живые ноты на экране, Web MIDI, аккорды — трезвучия и двузвучия, метроном, импорт MusicXML/ABC/MIDI. Играть в браузере, прогресс — локально."
 layout: false

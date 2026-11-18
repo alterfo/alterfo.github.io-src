@@ -1,4 +1,5 @@
 ---
+site: pro
 title: GraphQL резолверы
 date: 2020-09-24
 ---

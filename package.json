@@ -14,7 +14,11 @@
     "dev": "vitepress dev",
     "prebuild": "node scripts/copy-mediapipe-wasm.js",
     "build": "vitepress build",
-    "deploy": "sh ./deploy.sh"
+    "deploy": "sh ./deploy.sh",
+    "dev:creative": "SITE=creative vitepress dev",
+    "dev:pro": "SITE=pro vitepress dev",
+    "build:creative": "SITE=creative vitepress build",
+    "build:pro": "SITE=pro vitepress build"
   },
   "license": "UNLICENSED",
   "devDependencies": {
