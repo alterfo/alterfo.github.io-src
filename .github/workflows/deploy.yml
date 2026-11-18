@@ -126,7 +126,7 @@ jobs:
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
       with:
-        deploy_key: ${{ secrets.DEPLOY_KEY }}
+        personal_token: ${{ secrets.PRO_DEPLOY_TOKEN }}
         external_repository: alterfo/alterfo.github.io
         publish_branch: master
         publish_dir: ./.vitepress/dist
