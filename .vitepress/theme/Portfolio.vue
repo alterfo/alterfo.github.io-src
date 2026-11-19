@@ -8,7 +8,7 @@
     <header class="hero">
       <div class="hero-inner">
         <h1 class="hero-name">Oleg Sidorkin</h1>
-        <p class="hero-roles">Engineer&nbsp;·&nbsp;Musician&nbsp;·&nbsp;Builder</p>
+        <p class="hero-roles">Musician&nbsp;·&nbsp;Writer&nbsp;·&nbsp;Maker</p>
       </div>
     </header>
 
@@ -16,11 +16,12 @@
     <section class="life-circle-section">
       <div class="section-inner">
         <h2 class="section-title"><span class="title-mono">// </span>проекты</h2>
-        <LifeCircle />
+        <LifeCircle :only="CREATIVE_SPHERES" />
         <p class="case-study-links">
-          <span class="case-study-label">Разборы:</span>
+          <span class="case-study-label">Ещё:</span>
           <a href="/projects/ar-engine">Аудио-реактив&nbsp;→</a>
-          <a href="/projects/idef0-editor">IDEF0 Editor&nbsp;→</a>
+          <a href="/projects/polymuse">polymuse&nbsp;→</a>
+          <a href="/projects/vacuum-rogues">Вакуумные Пройдохи&nbsp;→</a>
         </p>
       </div>
     </section>
@@ -108,6 +109,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { createField } from './components/ConnectingParticles.js'
 import CountDown from './components/CountDown.vue'
 import LifeCircle from './components/LifeCircle.vue'
+
+const CREATIVE_SPHERES = ['music', 'ar', 'piano', 'openpose', 'games']
 
 // ── Data ────────────────────────────────────────────────────────
 

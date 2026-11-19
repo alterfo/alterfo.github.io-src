@@ -92,7 +92,10 @@ const SEGMENTS = [
   { id: 'games',     title: 'Пазлы',        href: '/casual-games',     color: '#3b7a85', readiness: 2 },
 ]
 
-const segments = computed(() => buildSegments(SEGMENTS, GEOM))
+const props = defineProps({ only: { type: Array, default: null } })
+
+const visible = computed(() => (props.only ? SEGMENTS.filter((seg) => props.only.includes(seg.id)) : SEGMENTS))
+const segments = computed(() => buildSegments(visible.value, GEOM))
 
 // «ship-ranger» mark inscribed in the donut hole (pure geometry, unit-tested).
 const center = computed(() => centerMark(GEOM))
