@@ -105,7 +105,24 @@ async function main() {
       if (r.title && !title.includes(r.title)) throw new Error(`title "${title}" missing "${r.title}"`)
 
       if (r.root) {
-        await page.waitForSelector(r.root, { state: 'attached' })
+        const mounted = await page
+          .waitForSelector(r.root, { state: 'attached', timeout: 15_000 })
+          .then(() => true)
+          .catch(() => false)
+        if (!mounted) {
+          // The game sub-app can refuse to boot by domain and replaces the body with a
+          // visible message. That is a game-side deploy/config issue, not a site
+          // regression: skip with a loud line, but still fail on a blank page.
+          const gated = await page
+            .evaluate(() => (document.body?.innerText || '').includes('домене запрещён'))
+            .catch(() => false)
+          if (r.optional && gated) {
+            console.log(`SKIP  ${r.path.padEnd(18)} domain-locked by the game build`)
+            skipped.push(r.path)
+            continue
+          }
+          throw new Error(`${r.root} did not mount`)
+        }
       } else {
         await page.waitForLoadState('networkidle').catch(() => {}) // animated canvases never idle
       }
