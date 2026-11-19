@@ -215,9 +215,15 @@
     </section>
 
     <footer class="pro-footer">
-      <span>© 2026 Олег Сидоркин</span>
-      <span class="pro-footer-note">Статический сайт. Поле, сеть и компилятор считаются на клиенте.</span>
-      <a href="#top">наверх ↑</a>
+      <div class="pro-footer-row">
+        <span>© 2026 Олег Сидоркин</span>
+        <span class="pro-footer-note">Статический сайт. Поле, сеть и компилятор считаются на клиенте.</span>
+        <a href="#top">наверх ↑</a>
+      </div>
+      <p class="pro-footer-also">
+        Творческое живёт отдельно: музыка, блог, игры&nbsp;—
+        <a href="https://alterfo.ru">alterfo.ru</a>.
+      </p>
     </footer>
   </div>
 </template>
