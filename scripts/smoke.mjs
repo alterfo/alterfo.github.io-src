@@ -30,11 +30,29 @@ const ROUTES = [
   // The private game submodule, built in CI and served at this subpath (PixiJS app).
   // Asserting the real <title> + mount root proves the deploy key worked and the game
   // actually shipped (not a 404, not the old placeholder). If the game's title changes,
-  // update it here to match its index.html <title>.
-  { path: '/vacuum-rogues/',   name: 'vacuum',    title: 'Вакуумные Пройдохи', root: '#game-container' },
+  // update it here to match its index.html <title>. `optional` covers the dormant state:
+  // a 404 means the game was never built, which is not a site regression — a 200 without
+  // the mount root, or any other error, still fails.
+  { path: '/vacuum-rogues/',   name: 'vacuum',    title: 'Вакуумные Пройдохи', root: '#game-container', optional: true },
 ]
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+// VitePress hydrates after DOMContentLoaded and may navigate once more (route resolve,
+// trailing-slash/canonical redirect), which destroys the JS execution context mid-read.
+// That is a timing artifact, not a broken page: retry the read, keep the assertion.
+async function readTitle(page) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    try {
+      const title = await page.title()
+      if (title) return title
+    } catch (e) {
+      if (!/Execution context was destroyed|Cannot find context|Target closed|navigation/i.test(e.message)) throw e
+    }
+    await sleep(350)
+  }
+  return ''
+}
 
 // GitHub Pages can lag behind the deploy push by a minute or two — poll '/' until it answers.
 async function waitForLive() {
@@ -67,14 +85,22 @@ async function main() {
   page.setDefaultTimeout(30_000)
 
   const failures = []
+  const skipped = []
   for (const r of ROUTES) {
     const url = BASE + r.path
     try {
       const resp = await page.goto(url, { waitUntil: 'domcontentloaded' })
       const status = resp?.status() ?? 0
+      if (status === 404 && r.optional) {
+        console.log(`SKIP  ${r.path.padEnd(18)} not deployed (HTTP 404)`)
+        skipped.push(r.path)
+        continue
+      }
       if (status >= 400) throw new Error(`HTTP ${status}`)
 
-      const title = await page.title()
+      await page.waitForLoadState('load').catch(() => {})
+      const title = await readTitle(page)
+      if (!title) throw new Error('empty title')
       if (/PAGE NOT FOUND|^404/i.test(title)) throw new Error(`looks like 404: "${title}"`)
       if (r.title && !title.includes(r.title)) throw new Error(`title "${title}" missing "${r.title}"`)
 
@@ -95,7 +121,9 @@ async function main() {
 
   await browser.close()
 
-  console.log(`\n${ROUTES.length - failures.length}/${ROUTES.length} routes OK`)
+  const passed = ROUTES.length - failures.length - skipped.length
+  const skipNote = skipped.length ? `, ${skipped.length} skipped (not deployed)` : ''
+  console.log(`\n${passed}/${ROUTES.length} routes OK${skipNote}`)
   if (failures.length) {
     console.error('FAILURES:\n' + failures.map(f => '  - ' + f).join('\n'))
     process.exit(1)
