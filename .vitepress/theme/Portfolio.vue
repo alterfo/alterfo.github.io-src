@@ -15,7 +15,7 @@
     <!-- ── PROJECTS — колесо жизни ───────────────────────────── -->
     <section class="life-circle-section">
       <div class="section-inner">
-        <h2 class="section-title"><span class="title-mono">// </span>проекты</h2>
+        <h2 class="section-title">проекты</h2>
         <LifeCircle :only="CREATIVE_SPHERES" />
         <p class="case-study-links">
           <span class="case-study-label">Ещё:</span>
@@ -221,21 +221,22 @@ onBeforeUnmount(() => {
 
 .hero-name {
   font-family: var(--ds-font-display);
-  font-size: clamp(2rem, 5vw, 3.375rem);
+  font-size: clamp(2.6rem, 7vw, 4.75rem);
   font-weight: 700;
+  font-style: italic;
   color: var(--ds-text-strong);
   margin: 0;
-  white-space: nowrap;
+  letter-spacing: -0.02em;
 }
 
 .hero-roles {
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--ds-font-display);
+  font-size: clamp(1rem, 1.6vw, 1.25rem);
+  font-style: italic;
+  letter-spacing: 0.01em;
   color: var(--ds-text-muted);
-  margin: 0;
-  font-weight: 500;
-  white-space: nowrap;
+  margin: 0.6rem 0 0;
+  font-weight: 400;
 }
 
 /* ── Bio ─────────────────────────────────────────────────────── */
@@ -314,10 +315,11 @@ onBeforeUnmount(() => {
 
 .section-title {
   font-family: var(--ds-font-display);
-  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-style: italic;
   font-weight: 700;
   color: var(--ds-text-strong);
-  margin: 0 0 2rem;
+  margin: 0 0 2.5rem;
   letter-spacing: -0.01em;
 }
 
