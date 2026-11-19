@@ -41,10 +41,10 @@ export const ALBUMS = [
     ],
   },
   {
-    id: null,
+    id: 45013572,
     title: 'Deep Field',
     year: 2026,
-    genreLabel: 'эмбиент',
+    genreLabel: 'релакс',
     cover: '/music/deep-field.jpg',
     tracks: [
       { title: 'A good start', seconds: 164 },
