@@ -39,8 +39,8 @@ describe('embedUrl', () => {
 })
 
 describe('ALBUMS', () => {
-  it('has exactly 2 albums', () => {
-    assert.equal(ALBUMS.length, 2)
+  it('has exactly 3 albums', () => {
+    assert.equal(ALBUMS.length, 3)
   })
   it('first album (Impressions) has 7 tracks', () => {
     assert.equal(ALBUMS[0].tracks.length, 7)
@@ -48,13 +48,16 @@ describe('ALBUMS', () => {
   it('second album (Механика близости) has 8 tracks', () => {
     assert.equal(ALBUMS[1].tracks.length, 8)
   })
-  it('every album has cover at /music/<name>.(jpg|png|webp), year, genreLabel, id', () => {
+  it('every album has cover at /music/<name>.(jpg|png|webp), year, genreLabel', () => {
     for (const album of ALBUMS) {
       assert.match(album.cover, /^\/music\/.+\.(jpg|png|webp)$/i, `${album.title}: cover must be a root-relative /music/ path`)
       assert.ok(album.year, `${album.title}: missing year`)
       assert.ok(album.genreLabel, `${album.title}: missing genreLabel`)
-      assert.ok(album.id, `${album.title}: missing id`)
+      assert.ok(album.id === null || Number.isInteger(album.id), `${album.title}: id must be an integer or null`)
     }
+  })
+  it('the third album (Deep Field) has 11 tracks', () => {
+    assert.equal(ALBUMS[2].tracks.length, 11)
   })
   it('every track has a title and positive seconds', () => {
     for (const album of ALBUMS) {

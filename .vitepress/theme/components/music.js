@@ -40,6 +40,26 @@ export const ALBUMS = [
       { title: 'Конец', seconds: 149 },
     ],
   },
+  {
+    id: null,
+    title: 'Deep Field',
+    year: 2026,
+    genreLabel: 'эмбиент',
+    cover: '/music/deep-field.jpg',
+    tracks: [
+      { title: 'A good start', seconds: 164 },
+      { title: 'Alien Signal', seconds: 117 },
+      { title: 'Last Seen', seconds: 306 },
+      { title: 'Docking', seconds: 158 },
+      { title: 'Cantus', seconds: 229 },
+      { title: 'Khton', seconds: 180 },
+      { title: 'IGTSYHID', seconds: 240 },
+      { title: 'First Light', seconds: 135 },
+      { title: 'Void', seconds: 354 },
+      { title: 'Long Way Home', seconds: 207 },
+      { title: 'Lumen Night', seconds: 198 },
+    ],
+  },
 ]
 
 // Formats seconds as 'M:SS'

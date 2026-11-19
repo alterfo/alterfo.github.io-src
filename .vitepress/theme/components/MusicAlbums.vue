@@ -11,7 +11,7 @@ function togglePlayer(id) {
 
 <template>
   <div class="music-albums">
-    <div v-for="album in ALBUMS" :key="album.id" class="album-card">
+    <div v-for="album in ALBUMS" :key="album.title" class="album-card">
       <div class="album-header">
         <img
           class="album-cover"
@@ -31,7 +31,7 @@ function togglePlayer(id) {
               <span class="track-duration">{{ formatDuration(track.seconds) }}</span>
             </li>
           </ol>
-          <div class="album-actions">
+          <div v-if="album.id" class="album-actions">
             <button
               type="button"
               class="btn-listen"
@@ -47,6 +47,7 @@ function togglePlayer(id) {
               rel="noopener noreferrer"
             >Открыть в&nbsp;Яндекс&nbsp;Музыке&nbsp;→</a>
           </div>
+          <p v-else class="album-note">Плеер появится, когда альбом выйдет в Яндекс Музыке.</p>
         </div>
       </div>
       <div v-if="expandedId === album.id" :id="`player-${album.id}`" class="player-wrap">
