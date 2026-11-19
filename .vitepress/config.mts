@@ -109,6 +109,9 @@ export default defineConfig({
     logo: SITE.logo,
     siteTitle: false,
     nav: SITE.nav,
+    outline: { label: 'На этой странице' },
+    returnToTopLabel: 'Наверх',
+    sidebarMenuLabel: 'Меню',
   },
   transformPageData(pageData) {
     if (pageData.relativePath === 'index.md') {
