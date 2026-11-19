@@ -122,10 +122,23 @@ function initWebGPU(): Promise<boolean> {
   return webgpuInit
 }
 
+// A long post title wraps to 2-3 lines; centred in a width/4 band it slides under the
+// fixed nav and gets clipped. Reserve the title's own height plus the nav and breathing
+// room, and only then size the canvas to the result.
+function titleBandHeight(base) {
+  if (isHomePage.value) return base
+  const titleEl = document.querySelector('#large-header .page-title')
+  if (!titleEl) return base
+  const navEl = document.querySelector('.VPNav')
+  const navH = navEl ? navEl.getBoundingClientRect().height : 64
+  const titleH = titleEl.getBoundingClientRect().height
+  return Math.max(base, Math.ceil(titleH + navH + 88))
+}
+
 function initHeader() {
   if (!canvasEl.value) return
   width = window.innerWidth
-  height = window.innerWidth / (isHomePage.value ? 2 : 4)
+  height = titleBandHeight(window.innerWidth / (isHomePage.value ? 2 : 4))
 
   const largeHeader = document.getElementById('large-header')
   if (largeHeader) {
@@ -288,6 +301,12 @@ watch(animateHeader, val => {
   transform: translate3d(-50%, -50%, 0);
   transition: opacity 2s ease-in-out 1s;
   z-index: 2;
+  /* Long post titles used to run under the fixed nav and out of the band. Cap the
+     banner title at four lines; initHeader sizes the band to what is rendered. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 
 .site-header .main-title {
