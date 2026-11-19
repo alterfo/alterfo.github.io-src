@@ -79,6 +79,9 @@ jobs:
     - name: Build VitePress
       run: npm run build
 
+    - name: Prune professional-only assets from the creative build
+      run: node scripts/prune-creative-dist.js .vitepress/dist
+
     - name: Build professional site
       run: SITE=pro npx vitepress build --outDir .vitepress/dist-pro
 

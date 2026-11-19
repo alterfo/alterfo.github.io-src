@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Аудит зрелости платформы — найдите скрытую прибыль в вашей архитектуре</title>
+  <meta name="description" content="Двухнедельный диагностический аудит, который показывает, где именно ваша платформа теряет миллионы — и даёт дорожную карту, как их вернуть. Фреймворк PDMM от архитектора уровня Principal." />
+
+  <!-- ==========================================================
+       Favicon (inline SVG — острая cyan-монограмма «P»)
+       ========================================================== -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0a0c'/%3E%3Cpath d='M11 8h7a5 5 0 0 1 0 10h-3v6h-4V8Zm4 4v2h3a1 1 0 0 0 0-2h-3Z' fill='%2338bdf8'/%3E%3C/svg%3E" />
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+
+  <!-- Стили вынесены в отдельный файл -->
+  <link rel="stylesheet" href="/audit/styles.css" />
+</head>
+
+<body>
+
+  <!-- ==========================================================
+       HEADER / NAV
+       ========================================================== -->
+  <header id="header">
+    <div class="wrap nav">
+      <a href="#top" class="brand">
+        <span class="mark">P</span>
+        <span>Аудит PDMM<small>Performance-Driven Maturity Model</small></span>
+      </a>
+      <nav class="nav-links">
+        <a href="#framework">Фреймворк</a>
+        <a href="#cases">Кейсы</a>
+        <a href="#process">Процесс</a>
+      </nav>
+      <div class="nav-cta">
+        <a href="#apply" class="btn btn-primary">Подать заявку</a>
+      </div>
+    </div>
+  </header>
+
+  <span id="top"></span>
+
+  <!-- ==========================================================
+       HERO
+       ========================================================== -->
+  <section class="hero wrap">
+    <div class="reveal">
+      <span class="eyebrow">Аудит зрелости платформы</span>
+      <h1>Найдите <span class="accent">скрытую прибыль</span> в архитектуре вашей платформы</h1>
+      <p class="lead">Двухнедельный диагностический аудит, который показывает, где именно ваша платформа теряет миллионы — и даёт дорожную карту, как их вернуть.</p>
+      <div class="hero-actions">
+        <a href="#apply" class="btn btn-primary">Подать заявку на диагностику →</a>
+        <a href="#framework" class="btn btn-ghost">Посмотреть фреймворк PDMM</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       FRAMEWORK — диагностика PDMM
+       ========================================================== -->
+  <section id="framework">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Диагностика PDMM</span>
+        <h2>Шесть доменов. Каждый — измеримые метрики, а не экспертное мнение.</h2>
+        <p class="lead">Performance-Driven Maturity Model оценивает платформу по шести независимым доменам. По каждому — конкретные метрики, уровень зрелости 1–5 и сумма денег под риском на вашей выручке.</p>
+      </div>
+
+      <div class="domain-caption reveal">Профиль ниже — иллюстрация типичной платформы. Ваш профиль и цифры формируются по итогам аудита.</div>
+
+      <!-- 6 доменных карточек: иконка + метрики + метр зрелости (Уровень 1–5) -->
+      <div class="domain-grid">
+
+        <!-- Архитектура -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M6 21V9l6-4 6 4v12M9 21v-6h6v6"/></svg>
+          </div>
+          <h3>Архитектура</h3>
+          <ul class="domain-metrics">
+            <li>Связанность модулей и стоимость одного изменения</li>
+            <li>Задержка на критичных путях (P95)</li>
+            <li>Запас по нагрузке до деградации</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><span class="lvl">Ур. 3 / 5</span></div>
+        </div>
+
+        <!-- DevOps -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+          </div>
+          <h3>DevOps и поставка</h3>
+          <ul class="domain-metrics">
+            <li>Lead time от коммита до продакшена</li>
+            <li>Частота деплоев и доля неудачных изменений</li>
+            <li>Время восстановления после инцидента (MTTR)</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div><span class="lvl">Ур. 2 / 5</span></div>
+        </div>
+
+        <!-- Продуктовый процесс -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="19" cy="16" r="3"/></svg>
+          </div>
+          <h3>Продуктовый процесс</h3>
+          <ul class="domain-metrics">
+            <li>Time-to-market новой фичи</li>
+            <li>Точность оценки сроков</li>
+            <li>Доля отменённых или переделанных инициатив</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><span class="lvl">Ур. 3 / 5</span></div>
+        </div>
+
+        <!-- Качество -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z"/></svg>
+          </div>
+          <h3>Качество</h3>
+          <ul class="domain-metrics">
+            <li>Плотность дефектов в проде</li>
+            <li>Доля времени команды на исправления, а не разработку</li>
+            <li>Покрытие критических пользовательских сценариев</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div><span class="lvl">Ур. 2 / 5</span></div>
+        </div>
+
+        <!-- Безопасность / комплаенс -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          </div>
+          <h3>Безопасность и комплаенс</h3>
+          <ul class="domain-metrics">
+            <li>Открытые критические уязвимости</li>
+            <li>Срок закрытия инцидента безопасности</li>
+            <li>Соответствие требованиям юрисдикции</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><span class="lvl">Ур. 4 / 5</span></div>
+        </div>
+
+        <!-- Данные и AI -->
+        <div class="domain reveal">
+          <div class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>
+          </div>
+          <h3>Данные и AI</h3>
+          <ul class="domain-metrics">
+            <li>Доля данных под контролем качества</li>
+            <li>Время от гипотезы до модели в проде</li>
+            <li>Измеримый эффект AI-инициатив на метрики бизнеса</li>
+          </ul>
+          <div class="meter"><div class="bars"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div><span class="lvl">Ур. 2 / 5</span></div>
+        </div>
+      </div>
+
+      <!-- Легенда шкалы зрелости -->
+      <div class="scale-legend reveal">
+        <span><b>У1</b> Хаотично</span>
+        <span><b>У2</b> Повторяемо</span>
+        <span><b>У3</b> Определено</span>
+        <span><b>У4</b> Измеримо</span>
+        <span><b>У5</b> Оптимизируется</span>
+        <span>— каждый уровень оценён относительно вашей выручки.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       CASES — практика: восемь вмешательств (слайдер)
+       ========================================================== -->
+  <section id="cases">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Практика</span>
+        <h2>Восемь вмешательств. Разные компании, разные домены PDMM.</h2>
+        <p class="lead">Инициатива, разбор и техническое направление — мои. Реализация — за командами заказчиков.</p>
+      </div>
+
+      <div class="slider reveal">
+        <div class="slider-track" id="sliderTrack">
+
+          <article class="slide">
+            <span class="slide-tag">Архитектура · Производительность</span>
+            <h3>PWA в онлайн-банке</h3>
+            <p>Технология считалась проблемной, направление было заморожено. По итогам разбора и демонстрации возможностей — внедрена, с поддержкой Face ID.</p>
+            <div class="slide-metric">₽1&nbsp;млрд+/год</div>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Качество</span>
+            <h3>E2E-тестирование на Playwright</h3>
+            <p>Рекомендован как стандарт сквозного тестирования. Внедрён — время прогона тестов сократилось с часа до 15 минут.</p>
+            <div class="slide-metric">×4 быстрее TTD</div>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Данные и AI</span>
+            <h3>MCP для дизайн-системы</h3>
+            <p>Представлен рабочий pull request с программным доступом к контексту дизайн-системы. Лёг в основу принятого решения.</p>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Продуктовый процесс</span>
+            <h3>Модель владения кодом</h3>
+            <p>Предложена модель CODEOWNERS. Принята вместе с переходом Bitbucket на Data Center Edition.</p>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Архитектура</span>
+            <h3>Загрузка и обработка изображений</h3>
+            <p>Спроектирована архитектура, подготовлено техническое задание для бэкенда. Реализована по этому ТЗ.</p>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Продуктовый процесс</span>
+            <h3>RFC вместо буксующего ADR</h3>
+            <p>Внедрён процесс RFC взамен не прижившегося ADR. Технологические решения возобновили движение.</p>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">Продуктовый процесс</span>
+            <h3>База знаний под кризисную нагрузку</h3>
+            <p>Проведён анализ, подготовлена структура знаний. Аврал с прогнозом разбора около месяца снят немедленно.</p>
+          </article>
+
+          <article class="slide">
+            <span class="slide-tag">DevOps · Качество</span>
+            <h3>Стабилизация тестового стенда</h3>
+            <p>Внедрён минимальный набор smoke-тестов. Стабильность стенда выросла.</p>
+          </article>
+
+        </div>
+        <div class="slider-controls">
+          <button type="button" class="slider-btn" id="sliderPrev" aria-label="Предыдущий кейс">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button type="button" class="slider-btn" id="sliderNext" aria-label="Следующий кейс">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cases-note reveal">
+        Позиция по технологической повестке: на масштабе enterprise устойчиво работают <b>архитектура и планирование</b>, а не спецификация как самоцель — независимо от того, что сейчас в тренде (SDD, SPDD и далее по списку). Тот же принцип — в отчётности: статус «сделано» или «будет сделано», без промежуточного «в работе».
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       PROCESS — как это работает (3 шага)
+       ========================================================== -->
+  <section id="process">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Как это работает</span>
+      </div>
+
+      <div class="steps">
+        <div class="step reveal">
+          <h3>Заявка и скоупинг</h3>
+          <p>Плотное интервью о вашей платформе, модели выручки и боли.</p>
+          <span class="tag">День 0</span>
+        </div>
+        <div class="step reveal">
+          <h3>Двухнедельное погружение</h3>
+          <p>Работа по всем шести доменам — код, пайплайны, телеметрия, процессы, интервью.</p>
+          <span class="tag">Недели 1–2</span>
+        </div>
+        <div class="step reveal">
+          <h3>Карта потерь и роадмап</h3>
+          <p>Оценка зрелости по каждому домену и приоритизированный роадмап к следующему уровню — с ожидаемой отдачей на каждый шаг.</p>
+          <span class="tag">Результат</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       CTA + форма заявки
+       ========================================================== -->
+  <section class="cta" id="apply">
+    <div class="wrap">
+      <div class="cta-card reveal">
+        <div>
+          <span class="eyebrow">Подать заявку на диагностику</span>
+          <h2>Найдите прибыль, спрятанную в вашей платформе</h2>
+          <p class="lead">Оставьте имя и рабочий email — ответ по заявке в течение 2 рабочих дней.</p>
+        </div>
+
+        <div class="cta-side">
+          <form id="applyForm" novalidate style="margin-top:18px;">
+            <div class="row2">
+              <div class="field">
+                <label for="name">Имя</label>
+                <input id="name" name="name" type="text" placeholder="Ваше имя" autocomplete="name" />
+              </div>
+              <div class="field">
+                <label for="email">Рабочий email</label>
+                <input id="email" name="email" type="email" placeholder="you@company.com" autocomplete="email" required />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="submitBtn" style="justify-content:center;">Подать заявку на диагностику →</button>
+            <div class="form-msg" id="formMsg"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       FOOTER
+       ========================================================== -->
+  <footer>
+    <div class="wrap foot">
+      <div>© <span id="year"></span> Олег Сидоркин, Platform Maturity Architect</div>
+      <div>Методология: Performance-Driven Maturity Model (PDMM)</div>
+    </div>
+  </footer>
+
+  <!-- Логика вынесена в отдельный файл -->
+  <script src="/audit/app.js"></script>
+</body>
+</html>

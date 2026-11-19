@@ -56,6 +56,7 @@ export default defineConfig({
     },
   },
   vite: {
+    define: { __SITE_ID__: JSON.stringify(SITE.id) },
     // Vite's default dependency-scanner globs every *.html in the project root to seed
     // its esbuild pre-bundle crawl. vacuum-rogues/src/index.html and ar-engine/web/index.html
     // are vendored static sub-apps built entirely separately (own deps, own CI step) — their
@@ -110,6 +111,10 @@ export default defineConfig({
     nav: SITE.nav,
   },
   transformPageData(pageData) {
+    if (pageData.relativePath === 'index.md') {
+      pageData.title = SITE.name
+      pageData.description = SITE.description
+    }
     const url = canonicalFor(pageData.relativePath)
     // nbspBeforeDash: правило типографики сайта действует и в мета-тегах/JSON-LD.
     // pageData.description мутируется, чтобы и базовый <meta name="description">

@@ -37,6 +37,9 @@ const PRO_NAV = [
     ],
   },
   { text: 'Разборы', link: '/projects/idef0-editor' },
+  { text: 'Аудит', link: '/audit/', target: '_self' },
+  { text: 'CV', link: '/cv' },
+  { text: 'Контакты', link: '/contact' },
 ]
 
 export const SITES = {
@@ -62,7 +65,7 @@ export const SITES = {
     ogImage: '/og.png',
     logo: '/home-wheel.svg',
     nav: PRO_NAV,
-    extraUrls: [],
+    extraUrls: ['/audit/'],
   },
 }
 

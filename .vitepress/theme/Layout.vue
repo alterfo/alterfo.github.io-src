@@ -1,5 +1,6 @@
 <template>
-  <ClientOnly v-if="frontmatter.layout === 'portfolio'"><Portfolio /></ClientOnly>
+  <ProHome v-if="isPro && frontmatter.layout === 'portfolio'" />
+  <ClientOnly v-else-if="frontmatter.layout === 'portfolio'"><Portfolio /></ClientOnly>
   <DefaultLayout v-else>
     <template #layout-top>
       <header class="site-header" id="large-header">
@@ -36,6 +37,9 @@ import CountDown from './components/CountDown.vue'
 import { createField, prefersReducedMotion } from './components/ConnectingParticles.js'
 import { shouldStartInit, headerAction, shouldResetForNewCanvas } from './components/headerLifecycle.js'
 import Portfolio from './Portfolio.vue'
+import ProHome from './ProHome.vue'
+
+const isPro = __SITE_ID__ === 'pro'
 
 // Cheap capability check, kept inline so it never pulls in WebGPUParticles.js
 // (shaders + render/compute pipeline code) just to find out WebGPU is unsupported.
