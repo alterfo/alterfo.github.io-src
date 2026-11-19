@@ -7,7 +7,7 @@
     <!-- ── HERO ─────────────────────────────────────────────── -->
     <header class="hero">
       <div class="hero-inner">
-        <h1 class="hero-name">Oleg Sidorkin</h1>
+        <h1 class="hero-name">Alterfo</h1>
         <p class="hero-roles">Musician&nbsp;·&nbsp;Writer&nbsp;·&nbsp;Maker</p>
       </div>
     </header>
