@@ -36,6 +36,18 @@
     </section>
 
     <section class="pro-apps">
+      <h2>Кейсы</h2>
+      <ul class="pro-links">
+        <li><a href="/work/kb">kb — GraphRAG</a></li>
+        <li><a href="/work/approximate">Approximate — трейдинг</a></li>
+        <li><a href="/work/fincontext">FinContext MCP</a></li>
+        <li><a href="/work/shelfprice">Shelfprice — ценники</a></li>
+        <li><a href="/work/watersort">watersort — солвер</a></li>
+        <li><a href="/work/idef0">IDEF0 Editor</a></li>
+      </ul>
+    </section>
+
+    <section class="pro-apps">
       <h2>Инструменты</h2>
       <ul class="pro-links">
         <li><a href="/idef0">IDEF0-редактор</a></li>

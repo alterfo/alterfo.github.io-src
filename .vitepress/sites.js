@@ -37,6 +37,17 @@ const PRO_NAV = [
     ],
   },
   { text: 'Разборы', link: '/projects/idef0-editor' },
+  {
+    text: 'Кейсы',
+    items: [
+      { text: 'kb — GraphRAG', link: '/work/kb' },
+      { text: 'Approximate — трейдинг', link: '/work/approximate' },
+      { text: 'FinContext MCP', link: '/work/fincontext' },
+      { text: 'Shelfprice — ценники', link: '/work/shelfprice' },
+      { text: 'watersort — солвер', link: '/work/watersort' },
+      { text: 'IDEF0 Editor', link: '/work/idef0' },
+    ],
+  },
   { text: 'Аудит', link: '/audit/', target: '_self' },
   { text: 'CV', link: '/cv' },
   { text: 'Контакты', link: '/contact' },
@@ -97,7 +108,7 @@ function pageDirs(root) {
     if (!entry.endsWith('.md') || NON_CONTENT.has(entry)) continue
     out.push(entry)
   }
-  for (const dir of ['posts', 'projects']) {
+  for (const dir of ['posts', 'projects', 'work']) {
     const base = join(root, dir)
     if (existsSync(base)) walkDir(base, dir, out)
   }
