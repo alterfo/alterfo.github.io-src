@@ -22,7 +22,8 @@ struct DrawUniforms {
     timbre_sat   : f32,   // 0..1 saturation suggested by timbre
     timbre_weight: f32,   // 0..1 confidence; scales how strongly timbre tints
     nova_bright  : f32,   // Nova alpha multiplier (live brightness / transparency)
-    _p4 : f32, _p5 : f32,
+    flow_mode    : f32,   // 1.0 = hex-tunnel vortex field (structural lines)
+    _p5 : f32,
 };
 
 @group(0) @binding(0) var<storage, read> particles : array<Particle>;
@@ -91,7 +92,15 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
 
     let spd_env    = clamp(length(p.vel) * 30.0, 0.0, 1.0);
     let age_env    = sin(clamp(p.age, 0.0, 1.0) * 3.14159);
-    let brightness = 0.30 + 0.70 * max(spd_env, age_env * 0.6);
+    var brightness = 0.30 + 0.70 * max(spd_env, age_env * 0.6);
+
+    // Flow mode: particles ARE the geometry (dense edges of a tunnel), not a
+    // trail cloud — steady brightness, slight per-particle texture, no age fade.
+    var flow_fx = 1.0;
+    if u.flow_mode > 0.5 {
+        brightness = 0.62 + 0.38 * uf01_d(uhash_d(p.seed + 31u));
+        flow_fx    = 1.0;
+    }
 
     // Base hue/sat per particle. (The old sclera-orbit override is gone: the Nova
     // sphere model clamps hue to ≤0.70 in the compute pass, so no particle is ever
@@ -145,7 +154,7 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> VSOut {
         nova_fx *= u.nova_bright;                                // live brightness / transparency
     }
 
-    let base_alpha = brightness * 0.0022 * energy_boost * beat_boost * k_scale * zone_scale * nova_fx;
+    let base_alpha = brightness * 0.0022 * energy_boost * beat_boost * k_scale * zone_scale * nova_fx * flow_fx;
 
     var out: VSOut;
     out.pos   = vec4f(ndc, 0.0, 1.0);

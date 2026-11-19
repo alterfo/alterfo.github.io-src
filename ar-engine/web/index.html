@@ -367,6 +367,7 @@
       <button class="mode-btn"        data-mode="fluid">Fluid</button>
       <button class="mode-btn"        data-mode="cymatics">Cymatics</button>
       <button class="mode-btn"        data-mode="nova">Nova</button>
+      <button class="mode-btn"        data-mode="flow">Вихрь</button>
       <button class="mode-btn active" data-mode="auto">Auto</button>
     </div>
 
@@ -474,8 +475,17 @@
         hueScale: 0.02, chladniMode: 0, novaMode: 1,
         paletteIdx: 5, exposure: 4.5, gamma: 0.62,
       },
+      flow: {
+        // Hex-tunnel vortex: nested rotating straight edges streaming toward the
+        // camera. Dense particles trace the edges, so the tunnel reads as line art;
+        // bass widens it, mid twists it, beat tilts the swirl.
+        noiseScale: 2.0, noiseSpeed: 0.20, decay: 0.972, lifetime: 480,
+        hueScale: 0.05, chladniMode: 0, novaMode: 0, flowMode: 1, flowTwist: 1.2,
+        paletteIdx: 2, exposure: 4.2, gamma: 0.70,
+      },
     };
 
+    window.setMode = (n) => setMode(n);   // console hook, mirrors window.nova
     let _pipelinesReady = false;
     let _autoActive     = false;
     let _autoCurMode    = 'fluid';
@@ -510,7 +520,8 @@
           const m = MODES[_autoCurMode];
           if (m) {
             setParticleParams({ noiseScale: m.noiseScale, noiseSpeed: m.noiseSpeed,
-              lifetime: m.lifetime, chladniMode: m.chladniMode, novaMode: m.novaMode });
+              lifetime: m.lifetime, chladniMode: m.chladniMode, novaMode: m.novaMode,
+              flowMode: m.flowMode ?? 0, flowTwist: m.flowTwist ?? 1.2 });
             setFeedbackParams({ decayNormal: m.decay });
             setRenderParams({ palette: PALETTES[m.paletteIdx].flat(),
               hueScale: m.hueScale, exposure: m.exposure, gamma: m.gamma, novaMode: m.novaMode });
@@ -530,6 +541,8 @@
         lifetime:    m.lifetime,
         chladniMode: m.chladniMode,
         novaMode:    m.novaMode,
+        flowMode:    m.flowMode ?? 0,
+        flowTwist:   m.flowTwist ?? 1.2,
       });
       setFeedbackParams({ decayNormal: m.decay });
       setRenderParams({
@@ -560,6 +573,7 @@
       const total = Math.max(_autoSmBass + _autoSmMid + _autoSmHigh, 0.001);
       return {
         nova:     (_autoSmBass / total) * 1.4 + (_autoSmEnergy > 0.06 ? 0.20 : 0.0), // bass/punch → iris
+        flow:     (_autoSmEnergy < 0.09 ? 0.40 : 0.10) + (_autoSmMid / total) * 0.5, // steady/quiet → tunnel
         cymatics: (_autoSmHigh / total) * 1.3 + (_autoSmEnergy < 0.05 ? 0.60 : 0.0), // treble/quiet → chladni
         fluid:    (_autoSmMid  / total) * 1.1 + 0.25,                                // balanced → aurora
       };
@@ -570,7 +584,7 @@
     function _autoNextMode() {
       const s = _autoScoreModes();
       let best = 'fluid', bestScore = -1;
-      for (const name of ['fluid', 'cymatics', 'nova']) {
+      for (const name of ['fluid', 'cymatics', 'nova', 'flow']) {
         if (name === _autoCurMode) continue;
         if (s[name] > bestScore) { bestScore = s[name]; best = name; }
       }
@@ -612,7 +626,8 @@
         if (!_autoActive) return;  // aborted by manual click
         setParticleParams({ noiseScale: _m.noiseScale, noiseSpeed: _m.noiseSpeed,
           lifetime: Math.min(_m.lifetime * 0.2, 60),  // short → fast reborn in new shape
-          chladniMode: _m.chladniMode, novaMode: _m.novaMode });
+          chladniMode: _m.chladniMode, novaMode: _m.novaMode,
+          flowMode: _m.flowMode ?? 0, flowTwist: _m.flowTwist ?? 1.2 });
         setRenderParams({ palette: PALETTES[_m.paletteIdx].flat(),
           hueScale: _m.hueScale, exposure: _m.exposure, gamma: _m.gamma, novaMode: _m.novaMode });
       }, 200);
@@ -702,7 +717,10 @@
         startLoop();
         initRecord(canvas);
         _pipelinesReady = true;
-        setMode('auto');
+        // ?mode=<fluid|cymatics|nova|flow> preselects a look (shareable links);
+        // otherwise hand over to the auto scheduler.
+        const _urlMode = new URLSearchParams(location.search).get('mode');
+        setMode(_urlMode && MODES[_urlMode] ? _urlMode : 'auto');
         console.log('[renderer] render loop started');
       } catch (e) {
         console.error('[renderer] WebGPU init failed:', e.message);

@@ -6,7 +6,7 @@
 
 import { WIDTH, HEIGHT } from './renderer.js';
 
-const _SHADER_VER = '20260608';
+const _SHADER_VER = '20261119';
 
 const RD_ITERATIONS = 3;
 const UBO_BYTES     = 64;   // 16 × f32/u32 — see struct RDUniforms in shader

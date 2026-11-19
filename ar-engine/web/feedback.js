@@ -6,7 +6,7 @@
 
 import { WIDTH, HEIGHT } from './renderer.js';
 
-const _SHADER_VER = '20260608';
+const _SHADER_VER = '20261119';
 
 const DECAY_NORMAL  = 0.96;   // long beam trails (stadium look)
 const DECAY_ON_BEAT = 0.78;   // moderate flush on beat — clears old trails without full reset

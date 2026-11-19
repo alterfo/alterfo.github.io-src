@@ -9,7 +9,7 @@
 import { SIM_WIDTH, SIM_HEIGHT, getRecommendedParticleCount, getGpuTier } from './renderer.js';
 import { createTimbreSmoother } from './timbre_color.js';
 
-const _SHADER_VER = '20260608';
+const _SHADER_VER = '20261119';
 
 // Set at initParticlePipeline() time based on detected GPU tier.
 // Exported as let so callers (record.js etc.) can read the live value.
@@ -66,8 +66,10 @@ let _lifetime     = 240.0;   // frames per particle (4 s at 60 fps)
 let _speed        = 0.7;
 let _chladniMode  = 0;       // 0 = vortex, 1 = Chladni standing-wave
 let _novaMode     = 0;       // 1 = radial spiral bloom
+let _flowMode     = 0;       // 1 = hex-tunnel vortex field
+let _flowTwist    = 1.2;     // tunnel twist per unit depth (0 = straight tube)
 
-export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode, novaMode } = {}) {
+export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, speed, chladniMode, novaMode, flowMode, flowTwist } = {}) {
     if (noiseScale   !== undefined) _noiseScale   = noiseScale;
     if (noiseSpeed   !== undefined) _noiseSpeed   = noiseSpeed;
     if (noiseStr     !== undefined) _noiseStr     = noiseStr;
@@ -75,6 +77,8 @@ export function setParticleParams({ noiseScale, noiseSpeed, noiseStr, lifetime, 
     if (speed        !== undefined) _speed        = speed;
     if (chladniMode  !== undefined) _chladniMode  = chladniMode;
     if (novaMode     !== undefined) _novaMode     = novaMode;
+    if (flowMode     !== undefined) _flowMode     = flowMode;
+    if (flowTwist    !== undefined) _flowTwist    = flowTwist;
 }
 
 export async function initParticlePipeline(device, texMgr, passMgr) {
@@ -267,6 +271,8 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _updArr[23] = _nova.sclera;
         _updArr[24] = _nova.flow;
         _updArr[25] = _nova.anim;
+        _updArr[26] = _flowMode;               // flow_mode
+        _updArr[27] = _flowTwist;              // flow_twist
         device.queue.writeBuffer(updateUbo, 0, _updArr);
 
         // Cymatics: compute only ¼ of particles + quarter×4 draw = 4× speedup each.
@@ -286,7 +292,8 @@ export async function initParticlePipeline(device, texMgr, passMgr) {
         _drawArr[7] = timbre.sat;     // timbre_sat
         _drawArr[8] = timbre.weight;  // timbre_weight
         _drawArr[9] = _nova.bright;   // nova_bright (alpha multiplier)
-        // [10..11] padding zeros
+        _drawArr[10] = _flowMode;     // flow_mode (structural line rendering)
+        // [11] padding zero
         device.queue.writeBuffer(drawUbo, 0, _drawArr);
 
         _prevBeat = beat;

@@ -7,7 +7,7 @@
 
 import { WIDTH, HEIGHT, PREVIEW_WIDTH, PREVIEW_HEIGHT } from './renderer.js';
 
-const _SHADER_VER = '20260608';
+const _SHADER_VER = '20261119';
 
 // UBO layout (96 bytes = 24 × f32/u32):
 //   [0] beat_pulse  [1] hue_shift  [2] blend_mode  [3] width

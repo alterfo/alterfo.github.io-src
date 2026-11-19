@@ -44,7 +44,8 @@ struct Uniforms {
     nova_sclera  : f32,  // sclera-explorer fraction 0..1
     nova_flow    : f32,  // radial streaming speed multiplier
     nova_anim    : f32,  // fiber bend-morph speed
-    _np0 : f32, _np1 : f32,
+    flow_mode    : f32,  // 1 = hex-tunnel vortex field
+    flow_twist   : f32,  // tunnel twist per unit depth
 };
 
 @group(0) @binding(0) var<uniform>             u         : Uniforms;
@@ -106,6 +107,53 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     if i >= arrayLength(&particles) { return; }
 
     var p = particles[i];
+
+    // =========================================================================
+    // FLOW / HEX-TUNNEL MODE — nested rotating hexagons in perspective. Each
+    // particle owns one point on one hexagon edge; travel along the tunnel axis
+    // and a per-ring twist carry the motion, so the straight edges read as a
+    // Navier-Stokes-like swirl. Deterministic from p.seed (no physics).
+    // =========================================================================
+    if u.flow_mode > 0.5 {
+        let s1 = uhash(p.seed ^ 0x9e3779b9u);
+        let s2 = uhash(s1);
+        let s3 = uhash(s2);
+
+        // 96 discrete rings; the whole stack slides along the tunnel axis so the
+        // camera flies through a standing hex lattice.
+        let ring   = floor(uf01(s1) * 96.0);
+        let rate   = 0.018 + u.energy * 0.11 + u.bass * 0.05;
+        let travel = fract(ring / 96.0 + u.time * rate);
+
+        let z     = (travel - 0.5) * 3.0;
+        let rad   = 1.10 * (1.0 + u.energy * 0.10 + u.bass * 0.06);
+        let edge  = floor(uf01(s2) * 6.0);
+        let base  = edge * 1.04719755 + u.flow_twist * travel + u.time * 0.12 + u.mid * 0.35;
+        let a1    = base + 1.04719755;
+        let pt    = mix(vec2f(cos(base), sin(base)), vec2f(cos(a1), sin(a1)), uf01(s3));
+
+        var xy = pt * rad;
+
+        // slow oscillating tilt — the swirl breathes around its own axis
+        let tilt = 0.34 * sin(u.time * 0.11 + u.beat_pulse * 0.5);
+        let ct = cos(tilt);
+        let st = sin(tilt);
+        xy = vec2f(xy.x * ct - xy.y * st, xy.x * st + xy.y * ct);
+
+        // perspective: k=1.6 half-heights; x is divided by the canvas aspect so
+        // the hexagons stay regular on a 16:9 frame.
+        let zc = z + 3.4;
+        let nx = xy.x / zc * 1.6;
+        let ny = xy.y / zc * 1.6;
+
+        p.pos = vec2f(0.5 + nx * 0.5 / 1.7778, 0.5 - ny * 0.5);
+        p.vel = vec2f(0.0);
+        p.age = 0.5;
+        p.hue = fract(0.56 - travel * 0.16 + u.hue_base * 0.5);
+
+        particles[i] = p;
+        return;
+    }
 
     // =========================================================================
     // CHLADNI / CYMATICS MODE — cosine free-edge plate, live-morphing.

@@ -64,12 +64,16 @@ const PRESETS = [
     // spiral outward along N rotating arms driven by bass (3..6 arms).
     // Beat_pulse fires an outward burst. Electric cyan filaments at the edge.
     { name: 'Nova', noiseScale: 2.0, noiseSpeed: 0.50, decay: 0.965, lifetime: 260, hueScale: 0.15, paletteIdx: 5, novaMode: 1 },
+
+    // Вихрь — hex-tunnel vortex field: nested hexagons in perspective, particles
+    // streaming along the tunnel axis. Deep cyan→violet gradient along depth.
+    { name: 'Вихрь', noiseScale: 2.0, noiseSpeed: 0.20, decay: 0.972, lifetime: 480, hueScale: 0.05, paletteIdx: 2, flowMode: 1 },
 ];
 
 const DEFAULTS = {
     noiseScale: 4.5, noiseSpeed: 0.65, decay: 0.96, lifetime: 300, hueScale: 1.0,
     exposure: 2.8, gamma: 0.8,
-    blendMode: 0, paletteIdx: 0, chladniMode: 0, novaMode: 0,
+    blendMode: 0, paletteIdx: 0, chladniMode: 0, novaMode: 0, flowMode: 0,
     resolution: '1080p', bitrate: 8, codec: 'vp9',
     bindings: { noiseScale: 'off', noiseSpeed: 'off', decay: 'off', lifetime: 'off', hueScale: 'off', exposure: 'off', gamma: 'off' },
 };
@@ -405,6 +409,7 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             hueScale:    p.hueScale,
             chladniMode: p.chladniMode ?? 0,
             novaMode:    p.novaMode    ?? 0,
+            flowMode:    p.flowMode    ?? 0,
         });
         // Switch palette if preset specifies one
         if (p.paletteIdx !== undefined && p.paletteIdx !== state.paletteIdx) {
@@ -540,6 +545,7 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
             lifetime:    state.lifetime,
             chladniMode: state.chladniMode ?? 0,
             novaMode:    state.novaMode    ?? 0,
+            flowMode:    state.flowMode    ?? 0,
         });
         setFeedbackParams({ decayNormal: state.decay });
         setRenderParams({
@@ -575,7 +581,7 @@ export function initAdvanced({ canvasWrap, onClose } = {}) {
         const exposure   = effective(SLIDERS[5]);
         const gamma      = effective(SLIDERS[6]);
 
-        setParticleParams({ noiseScale, noiseSpeed, lifetime, chladniMode: state.chladniMode ?? 0, novaMode: state.novaMode ?? 0 });
+        setParticleParams({ noiseScale, noiseSpeed, lifetime, chladniMode: state.chladniMode ?? 0, novaMode: state.novaMode ?? 0, flowMode: state.flowMode ?? 0 });
         setFeedbackParams({ decayNormal: decay });
         setRenderParams({
             palette:   currentPalette(),
