@@ -16,7 +16,7 @@
     <section class="life-circle-section">
       <div class="section-inner">
         <h2 class="section-title">проекты</h2>
-        <LifeCircle :only="CREATIVE_SPHERES" />
+        <LifeCircle :only="CREATIVE_SPHERES" :show-readiness="false" />
         <p class="case-study-links">
           <span class="case-study-label">Ещё:</span>
           <a href="/projects/ar-engine">Аудио-реактив&nbsp;→</a>
@@ -32,59 +32,22 @@
       </svg>
     </div>
 
-    <!-- ── 1000 дней роста — счётчик над music/code ──────────── -->
-    <section class="growth" aria-label="Счётчик 1000 дней роста">
-      <div class="section-inner growth-inner">
-        <CountDown :countdownDays="1000" />
-      </div>
-    </section>
-
-    <!-- ── EXPERTISE ─────────────────────────────────────────── -->
-    <section class="expertise">
-      <div class="section-inner expertise-inner">
-
-        <div class="exp-col">
-          <h3 class="exp-heading">
-            <span class="exp-icon" aria-hidden="true">𝄞</span> Music
-          </h3>
-          <ul class="exp-list">
-            <li v-for="s in musicSkills" :key="s">{{ s }}</li>
-          </ul>
-        </div>
-
-        <div class="exp-divider" aria-hidden="true"></div>
-
-        <div class="exp-col">
-          <h3 class="exp-heading">
-            <span class="exp-icon exp-icon--code" aria-hidden="true">{/}</span> Code
-          </h3>
-          <ul class="exp-list">
-            <li v-for="s in codeSkills" :key="s">{{ s }}</li>
-          </ul>
-        </div>
-
-      </div>
-    </section>
-
     <!-- ── BIO ──────────────────────────────────────────────── -->
     <section class="bio">
       <div class="section-inner bio-inner">
         <div class="bio-text">
           <p>
-            Самоучка в музыке — гитара, барабаны, эрху, кларнет, голос, DAW.
-            Изучал теорию музыки: гармония, лады, контрапункт. Пишу и выпускаю
-            треки, делаю клипы нейросетями.
-            Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
+            Alterfo — это музыка, тексты и игры. Всё, что делается не по работе:
+            эмбиент, даунтемпо, инструменты для собственных треков.
           </p>
           <p>
-            В IT 20 лет: 10 лет системный инженер, 13 лет в разработке —
-            последние 8 как руководитель. Сейчас специализируюсь на разработке 
-            больших проектов ИИ-агентами и менеджменте знаний. Связаться со мной можно по почте 
-            <a href="mailto:alterfo@ya.ru">alterfo@ya.ru</a>.
+            Самоучка: гитара, барабаны, эрху, кларнет, голос. Изучал гармонию,
+            лады, контрапункт — и всё равно сначала играю, потом объясняю.
+            Сейчас осваиваю классический репертуар на MIDI-клавиатуре.
           </p>
           <p class="bio-accent">
-            Оба мира устроены одинаково: сложные системы требуют правильной
-            структуры — и там, и там.
+            Написать можно на <a href="mailto:alterfo@ya.ru">alterfo@ya.ru</a>
+            или в телеграм.
           </p>
         </div>
       </div>
@@ -95,8 +58,7 @@
       <span>alterfo</span>
       <span class="footer-sep">·</span>
       <a href="/blog/">блог</a>
-      <span class="footer-sep">·</span>
-      <a href="https://github.com/alterfo" target="_blank" rel="noopener noreferrer">github</a>
+
       <span class="footer-sep">·</span>
       <a href="https://t.me/alterforia" target="_blank" rel="noopener noreferrer" title="Telegram: My pieces of art"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:middle;margin-right:4px"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>telegram</a>
     </footer>
@@ -107,28 +69,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { createField } from './components/ConnectingParticles.js'
-import CountDown from './components/CountDown.vue'
 import LifeCircle from './components/LifeCircle.vue'
 
 const CREATIVE_SPHERES = ['music', 'ar', 'piano', 'openpose', 'games']
 
 // ── Data ────────────────────────────────────────────────────────
-
-const musicSkills = [
-  'Гитара · Барабаны · Эрху · Кларнет · Голос',
-  'DAW — продакшн, сведение, мастеринг',
-  'Теория музыки, гармония, лады',
-  'Собственные релизы и композиции',
-  'Классический репертуар на MIDI (в процессе)',
-]
-
-const codeSkills = [
-  'Fullstack TypeScript/Go/Python · 10+ лет',
-  'Vue · React · Angular · Node.js · Nest.js',
-  'AI-агенты · RAG · LLM-инференс · агентные флоу',
-  'Kubernetes · Docker · Kafka · Монорепо',
-  'Архитектура систем и управление разработкой: тимлид, найм, рост сеньоров, техдолг → 0',
-]
 
 // ── Particles ───────────────────────────────────────────────────
 

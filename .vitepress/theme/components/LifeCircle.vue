@@ -31,7 +31,7 @@
         dominant-baseline="middle"
       >
         <tspan :x="seg.label.x" dy="-0.1em">{{ seg.title }}</tspan>
-        <tspan :x="seg.label.x" dy="1.25em" class="seg-readiness">
+        <tspan v-if="showReadiness" :x="seg.label.x" dy="1.25em" class="seg-readiness">
           {{ seg.soon ? '⟳ скоро' : seg.readiness + '/10' }}
         </tspan>
       </text>
@@ -92,7 +92,10 @@ const SEGMENTS = [
   { id: 'games',     title: 'Пазлы',        href: '/casual-games',     color: '#3b7a85', readiness: 2 },
 ]
 
-const props = defineProps({ only: { type: Array, default: null } })
+const props = defineProps({
+  only: { type: Array, default: null },
+  showReadiness: { type: Boolean, default: true },
+})
 
 const visible = computed(() => (props.only ? SEGMENTS.filter((seg) => props.only.includes(seg.id)) : SEGMENTS))
 const segments = computed(() => buildSegments(visible.value, GEOM))
