@@ -7,22 +7,34 @@ const CREATIVE_NAV = [
     text: 'Проекты',
     items: [
       {
-        text: 'Приложения',
+        text: 'Музыка',
+        items: [
+          { text: 'polymuse — композитор', link: '/projects/polymuse' },
+          { text: 'hypnofactory — аудио', link: '/projects/hypnofactory' },
+          { text: 'Аудио-реактив — разбор', link: '/projects/ar-engine' },
+          { text: 'Аудио-реактив — демо', link: '/ar/', target: '_self' },
+        ],
+      },
+      {
+        text: 'Игры',
+        items: [
+          { text: 'Вакуумные Пройдохи', link: '/projects/vacuum-rogues' },
+          { text: 'slither-bot', link: '/projects/slither-bot' },
+        ],
+      },
+      {
+        text: 'Инструменты',
         items: [
           { text: 'Piano Teacher', link: '/piano' },
           { text: 'OpenPose Editor', link: '/openpose' },
           { text: 'Пазлы', link: '/casual-games' },
-          { text: 'Аудио-реактив', link: '/ar/', target: '_self' },
         ],
-      },
-      {
-        text: 'Разборы',
-        items: [{ text: 'Аудио-реактив — архитектура', link: '/projects/ar-engine' }],
       },
     ],
   },
   { text: 'Музыка', link: '/music' },
   { text: 'Блог', link: '/blog' },
+  { text: 'Обо мне', link: '/about' },
 ]
 
 const PRO_NAV = [
