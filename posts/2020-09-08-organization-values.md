@@ -1,5 +1,5 @@
 ---
-site: creative
+site: pro
 title: Исследование ценностей компании
 date: 2020-09-08
 ---

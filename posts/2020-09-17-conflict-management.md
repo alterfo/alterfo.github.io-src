@@ -1,5 +1,5 @@
 ---
-site: creative
+site: pro
 title: Немного конфликтологии
 date: 2020-09-17
 ---

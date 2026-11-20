@@ -49,6 +49,7 @@ const PRO_NAV = [
     ],
   },
   { text: 'Разборы', link: '/projects/idef0-editor' },
+  { text: 'Заметки', link: '/notes' },
   {
     text: 'Кейсы',
     items: [

@@ -8,7 +8,7 @@ interface Post {
   excerpt: string
 }
 
-const props = defineProps<{ posts: Post[] }>()
+const props = defineProps<{ posts: Post[]; heading?: string }>()
 
 const groupedPosts = computed(() => {
   const map = new Map<number, Post[]>()
@@ -23,7 +23,7 @@ const groupedPosts = computed(() => {
 
 <template>
   <div class="blog-list">
-    <h1 class="blog-heading">Блог</h1>
+    <h1 class="blog-heading">{{ props.heading || 'Блог' }}</h1>
     <section v-for="[year, yearPosts] in groupedPosts" :key="year" class="year-section">
       <h2 class="year-header">{{ year }}</h2>
       <article v-for="post in yearPosts" :key="post.url" class="post-article">
